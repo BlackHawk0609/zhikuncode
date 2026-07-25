@@ -423,13 +423,7 @@ public class ToolExecutionPipeline {
         };
     }
 
-    /**
-     * 从 ToolResult 中提取退出码。
-     * <p>
-     * 优先从 metadata 中获取（成功路径下 BashTool 会设置）；
-     * 降级从错误内容中解析（"Exit code: N" 格式）；
-     * 超时场景返回 137。
-     */
+    /** 从结构化 ToolResult 中提取退出码；未知时返回 -1。 */
     private int extractExitCode(ToolResult result) {
         return result.exitCode() == null ? -1 : result.exitCode();
     }

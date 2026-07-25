@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bindSessionAndWait, dispatch, resetBoundSession } from '@/api/dispatch';
 import { useCostStore } from '@/store/costStore';
 import { useMessageStore } from '@/store/messageStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { useRunStore } from '@/store/runStore';
+import { useSessionStore } from '@/store/sessionStore';
 
 describe('transport-scoped bind recovery', () => {
     beforeEach(() => {
         resetBoundSession();
+        window.sessionStorage.clear();
+        useSessionStore.setState({ sessionId: null });
         useMessageStore.getState().clearMessages();
+        useNotificationStore.getState().clearAll();
         useCostStore.setState({
             sessionCost: 0,
             totalCost: 0,
@@ -47,5 +52,46 @@ describe('transport-scoped bind recovery', () => {
         expect(useMessageStore.getState().activeToolCalls.has('tool-b')).toBe(true);
         expect(useCostStore.getState().sessionCost).toBe(9);
         expect(useCostStore.getState().totalCost).toBe(12);
+    });
+
+    it('clears a persisted session only when its bind returns SESSION_NOT_FOUND', async () => {
+        await useSessionStore.getState().resumeSession('session-deleted');
+        let payload: { sessionId: string; protocolVersion: number; bindRequestId: string; bindingEpoch: number } | undefined;
+        const bound = bindSessionAndWait('session-deleted', value => { payload = value; });
+
+        dispatch({
+            type: 'protocol_error',
+            code: 'SESSION_NOT_FOUND',
+            supportedVersion: 3,
+            bindRequestId: payload!.bindRequestId,
+            bindingEpoch: payload!.bindingEpoch,
+        });
+
+        await expect(bound).resolves.toBe(false);
+        expect(useSessionStore.getState().sessionId).toBe('');
+        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBeNull();
+        expect(useNotificationStore.getState().notifications.at(-1)?.message)
+            .toBe('原会话已不存在，已清除本地恢复状态');
+    });
+
+    it('does not clear a newer session when an older bind fails', async () => {
+        await useSessionStore.getState().resumeSession('session-old');
+        let payload: { sessionId: string; protocolVersion: number; bindRequestId: string; bindingEpoch: number } | undefined;
+        const oldBind = bindSessionAndWait('session-old', value => { payload = value; });
+        await useSessionStore.getState().resumeSession('session-new');
+
+        dispatch({
+            type: 'protocol_error',
+            code: 'SESSION_NOT_FOUND',
+            supportedVersion: 3,
+            bindRequestId: payload!.bindRequestId,
+            bindingEpoch: payload!.bindingEpoch,
+        });
+
+        await expect(oldBind).resolves.toBe(false);
+        expect(useSessionStore.getState().sessionId).toBe('session-new');
+        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBe('session-new');
+        expect(useNotificationStore.getState().notifications.at(-1)?.message)
+            .toBe('请求恢复的会话已不存在，当前会话未受影响');
     });
 });

@@ -1,12 +1,36 @@
 /**
  * SessionStore — 会话状态管理
  * SPEC: §8.3 Store #1
- * 持久化: 否 (sessionId 由后端 session_restored 推送)
+ * 持久化: 当前标签页的 sessionId 使用 sessionStorage，其他状态不持久化
  */
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { subscribeWithSelector } from 'zustand/middleware';
+
+const ACTIVE_SESSION_KEY = 'zhikuncode.activeSessionId';
+
+function readActiveSessionId(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        return window.sessionStorage.getItem(ACTIVE_SESSION_KEY);
+    } catch {
+        return null;
+    }
+}
+
+function saveActiveSessionId(sessionId: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+        if (sessionId) {
+            window.sessionStorage.setItem(ACTIVE_SESSION_KEY, sessionId);
+        } else {
+            window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+        }
+    } catch {
+        // Storage may be unavailable (for example, browser privacy settings).
+    }
+}
 
 export interface SessionStoreState {
     // 状态
@@ -30,7 +54,7 @@ export interface SessionStoreState {
 export const useSessionStore = create<SessionStoreState>()(
     subscribeWithSelector(immer((set) => ({
         // 初始值
-        sessionId: null,
+        sessionId: readActiveSessionId(),
         model: null,
         status: 'idle' as const,
         turnCount: 0,
@@ -47,9 +71,11 @@ export const useSessionStore = create<SessionStoreState>()(
             });
             const { sessionId } = await resp.json();
             set(d => { d.sessionId = sessionId; });
+            saveActiveSessionId(sessionId);
         },
         resumeSession: async (sessionId) => {
             set(d => { d.sessionId = sessionId; d.status = 'idle'; });
+            saveActiveSessionId(sessionId);
         },
         setModel: (model) => set(d => { d.model = model; }),
         setEffort: (value) => set(d => { d.effortValue = value; }),

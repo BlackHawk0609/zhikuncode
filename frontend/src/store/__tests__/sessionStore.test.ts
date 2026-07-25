@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '../sessionStore';
 
 describe('SessionStore', () => {
     beforeEach(() => {
+        window.sessionStorage.clear();
         useSessionStore.setState({
             sessionId: null,
             model: null,
@@ -11,6 +12,10 @@ describe('SessionStore', () => {
             effortValue: 3,
             isAborted: false,
         });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     it('should start with idle status', () => {
@@ -49,5 +54,35 @@ describe('SessionStore', () => {
         const state = useSessionStore.getState();
         expect(state.sessionId).toBe('session-123');
         expect(state.status).toBe('idle');
+        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBe('session-123');
+    });
+
+    it('createSession persists the created sessionId', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            json: async () => ({ sessionId: 'session-created' }),
+        }));
+
+        await useSessionStore.getState().createSession('/workspace', 'gpt-4o');
+
+        expect(useSessionStore.getState().sessionId).toBe('session-created');
+        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBe('session-created');
+    });
+
+    it('resumeSession with an empty id clears the persisted session', async () => {
+        window.sessionStorage.setItem('zhikuncode.activeSessionId', 'session-old');
+
+        await useSessionStore.getState().resumeSession('');
+
+        expect(useSessionStore.getState().sessionId).toBe('');
+        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBeNull();
+    });
+
+    it('restores the active session when the store module is reloaded', async () => {
+        window.sessionStorage.setItem('zhikuncode.activeSessionId', 'session-restored');
+        vi.resetModules();
+
+        const { useSessionStore: restoredStore } = await import('../sessionStore');
+
+        expect(restoredStore.getState().sessionId).toBe('session-restored');
     });
 });

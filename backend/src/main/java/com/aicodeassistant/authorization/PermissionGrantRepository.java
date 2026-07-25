@@ -26,12 +26,15 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /** V019 授权记录的唯一权威；读取不改变状态，所有写入均有等待上限。 */
 @Repository
 public class PermissionGrantRepository {
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantRepository.class);
+    private static final Set<String> REMOTE_CAPABILITY_ANALYZERS =
+            Set.of("network-v1", "mcp-v1");
 
     public record Match(String grantId, GrantKind kind, PermissionScope scope) { }
     public record GrantView(String grantId, String kind, String scope, String toolName, String action,
@@ -196,6 +199,9 @@ public class PermissionGrantRepository {
         if ("bash-v2".equals(operation.analyzerId())) {
             return List.of(PermissionScope.RUN, PermissionScope.SESSION);
         }
+        if (REMOTE_CAPABILITY_ANALYZERS.contains(operation.analyzerId())) {
+            return List.of(PermissionScope.RUN, PermissionScope.SESSION);
+        }
         if (!"file-v1".equals(operation.analyzerId())) return List.of();
         return capabilityConstraint(operation) == null
                 ? List.of(PermissionScope.RUN, PermissionScope.SESSION)
@@ -216,6 +222,14 @@ public class PermissionGrantRepository {
             if (operation.risk() != RiskClass.GUARDED && operation.risk() != RiskClass.SAFE) return null;
             return new GrantPlan(GrantKind.TOOL_GUARDED, requested,
                     requested == PermissionScope.RUN ? DelegationPolicy.DIRECT_ONLY : DelegationPolicy.ROOT_AND_DESCENDANTS,
+                    new GrantConstraint.ToolWide());
+        }
+        if (REMOTE_CAPABILITY_ANALYZERS.contains(operation.analyzerId())) {
+            if (requested == PermissionScope.WORKSPACE) return null;
+            if (operation.risk() != RiskClass.GUARDED && operation.risk() != RiskClass.SAFE) return null;
+            return new GrantPlan(GrantKind.TOOL_GUARDED, requested,
+                    requested == PermissionScope.RUN ? DelegationPolicy.DIRECT_ONLY
+                            : DelegationPolicy.ROOT_AND_DESCENDANTS,
                     new GrantConstraint.ToolWide());
         }
         if ("file-v1".equals(operation.analyzerId())) {

@@ -405,6 +405,7 @@ export interface PermissionRequest {
     actorType?: 'direct' | 'descendant' | string;
     decisionDeadlineAt?: number;
     scopeOptions?: PermissionRememberScope[];
+    rememberScopeDescription?: string;
     operationHash?: string;
     options?: Array<{
         optionId: string;

@@ -25,6 +25,83 @@ class PermissionGrantRepositoryTest {
     @AfterEach void close() { if (sqlite != null) sqlite.destroy(); }
 
     @Test
+    void networkAndMcpSessionGrantsIgnoreInputsButRemainToolSpecific() {
+        Fixture f = fixture();
+        AuthorizationSubject child = new AuthorizationSubject(
+                "s-root", "r-root", "r-child", "workspace", temp);
+        AuthorizationSubject sibling = new AuthorizationSubject(
+                "s-root", "r-root", "r-sibling", "workspace", temp);
+
+        OperationDescriptor webFetch = operation("WebFetch", "network", "network-v1",
+                RiskClass.GUARDED, List.of(EffectClass.NETWORK), List.of(), "fetch-url-a");
+        assertThat(f.repository.supportedScopes(webFetch))
+                .containsExactly(PermissionScope.RUN, PermissionScope.SESSION);
+        String networkGrant = f.repository.create(child, webFetch, PermissionScope.SESSION, null);
+
+        OperationDescriptor otherWebFetchInput = operation("WebFetch", "network", "network-v1",
+                RiskClass.GUARDED, List.of(EffectClass.NETWORK), List.of(), "fetch-url-b");
+        assertThat(f.repository.findMatch(sibling, otherWebFetchInput).grantId()).isEqualTo(networkGrant);
+        OperationDescriptor webBrowser = operation("WebBrowser", "network", "network-v1",
+                RiskClass.GUARDED, List.of(EffectClass.NETWORK), List.of(), "browser-url-a");
+        assertThat(f.repository.findMatch(sibling, webBrowser)).isNull();
+
+        OperationDescriptor firstMcp = operation("mcp__search__query", "invoke", "mcp-v1",
+                RiskClass.GUARDED, List.of(EffectClass.UNKNOWN), List.of(), "mcp-query-a");
+        assertThat(f.repository.findMatch(child, firstMcp)).isNull();
+        assertThat(f.repository.supportedScopes(firstMcp))
+                .containsExactly(PermissionScope.RUN, PermissionScope.SESSION);
+        String mcpGrant = f.repository.create(child, firstMcp, PermissionScope.SESSION, null);
+
+        OperationDescriptor otherMcpInput = operation("mcp__search__query", "invoke", "mcp-v1",
+                RiskClass.GUARDED, List.of(EffectClass.UNKNOWN), List.of(), "mcp-query-b");
+        assertThat(f.repository.findMatch(sibling, otherMcpInput).grantId()).isEqualTo(mcpGrant);
+        OperationDescriptor otherMcpTool = operation("mcp__browser__open", "invoke", "mcp-v1",
+                RiskClass.GUARDED, List.of(EffectClass.UNKNOWN), List.of(), "different-mcp-tool");
+        assertThat(f.repository.findMatch(sibling, otherMcpTool)).isNull();
+
+        OperationDescriptor control = operation("Agent", "invoke", "static-or-remote-v1",
+                RiskClass.GUARDED, List.of(EffectClass.CONTROL_PLANE), List.of(), "control");
+        assertThat(f.repository.findMatch(sibling, control)).isNull();
+    }
+
+    @Test
+    void remoteHighRiskOperationsDoNotOfferOrPersistRememberedGrants() {
+        Fixture f = fixture();
+        AuthorizationSubject subject = new AuthorizationSubject(
+                "s-root", "r-root", "r-root", "workspace", temp);
+
+        for (OperationDescriptor operation : List.of(
+                operation("WebFetch", "network", "network-v1", RiskClass.HIGH,
+                        List.of(EffectClass.NETWORK), List.of(), "high-network"),
+                operation("mcp__admin__delete", "invoke", "mcp-v1", RiskClass.HIGH,
+                        List.of(EffectClass.UNKNOWN), List.of(), "high-mcp"))) {
+            assertThat(f.repository.supportedScopes(operation)).isEmpty();
+            assertThat(f.repository.create(subject, operation, PermissionScope.SESSION, null)).isNull();
+        }
+
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM permission_grants", Integer.class)).isZero();
+    }
+
+    @Test
+    void remoteWorkspaceGrantsAreNotSupportedOrPersisted() {
+        Fixture f = fixture();
+        AuthorizationSubject subject = new AuthorizationSubject(
+                "s-root", "r-root", "r-root", "workspace", temp);
+
+        for (OperationDescriptor operation : List.of(
+                operation("WebFetch", "network", "network-v1", RiskClass.GUARDED,
+                        List.of(EffectClass.NETWORK), List.of(), "network-workspace"),
+                operation("mcp__search__query", "invoke", "mcp-v1", RiskClass.GUARDED,
+                        List.of(EffectClass.UNKNOWN), List.of(), "mcp-workspace"))) {
+            assertThat(f.repository.supportedScopes(operation))
+                    .doesNotContain(PermissionScope.WORKSPACE);
+            assertThat(f.repository.create(subject, operation, PermissionScope.WORKSPACE, null)).isNull();
+        }
+
+        assertThat(f.jdbc.queryForObject("SELECT COUNT(*) FROM permission_grants", Integer.class)).isZero();
+    }
+
+    @Test
     void sessionGrantIsInheritedByDescendantsButDirectRunGrantIsNot() {
         Fixture f = fixture();
         OperationDescriptor bash = operation("Bash", "execute", "bash-v2", RiskClass.GUARDED,

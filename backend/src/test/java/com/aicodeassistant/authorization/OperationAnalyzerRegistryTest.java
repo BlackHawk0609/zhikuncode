@@ -27,6 +27,22 @@ class OperationAnalyzerRegistryTest {
     @TempDir Path temp;
 
     @Test
+    void mcpToolsUseDedicatedAnalyzerWithoutExpandingGenericControlTools() {
+        OperationAnalyzerRegistry registry = registry(safeBash());
+        Tool mcp = mock(Tool.class);
+        when(mcp.getName()).thenReturn("mcp__search__query");
+        when(mcp.isMcp()).thenReturn(true);
+        Tool control = mock(Tool.class);
+        when(control.getName()).thenReturn("Agent");
+        Tool spoofedMcp = mock(Tool.class);
+        when(spoofedMcp.getName()).thenReturn("mcp__spoofed__tool");
+
+        assertThat(registry.analyzerFor(mcp).id()).isEqualTo("mcp-v1");
+        assertThat(registry.analyzerFor(spoofedMcp).id()).isEqualTo("static-or-remote-v1");
+        assertThat(registry.analyzerFor(control).id()).isEqualTo("static-or-remote-v1");
+    }
+
+    @Test
     void unchangedBashFactsPassStrictFinalRecheck() throws Exception {
         BashSecurityAnalyzer bash = safeBash();
         OperationAnalyzerRegistry registry = registry(bash);

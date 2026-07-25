@@ -8,7 +8,7 @@
  * - High:   红色警告图标，默认"拒绝"
  *
  * 键盘快捷键: Y=Allow, N=Deny, Escape=Deny
- * "Remember" 选项只展示服务端允许的 session/workspace 范围。
+ * "Remember" 选项只展示服务端允许的范围。
  */
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
@@ -261,29 +261,38 @@ const PermissionDialog: React.FC<PermissionDialogProps> = ({ request, onDecision
                         </div>
                     )}
                     {/* Remember option */}
-                    {canRemember && <label className="flex items-center gap-2 text-xs text-gray-400">
-                        <input
-                            type="checkbox"
-                            disabled={!deadlineConfirmed || expired || decided}
-                            checked={remember}
-                            onChange={e => setRemember(e.target.checked)}
-                            className="rounded border-gray-600"
-                        />
-                        Remember this decision
-                        {remember && (
-                            <select
-                                value={scope}
-                                disabled={!deadlineConfirmed || expired || decided}
-                                onChange={e => setScope(e.target.value as typeof scope)}
-                                className="ml-2 text-xs rounded border border-gray-600 bg-gray-800
-                                           text-gray-300 px-1.5 py-0.5"
-                            >
-                                {scopeOptions.includes('run') && <option value="run">Only this agent/run</option>}
-                                {scopeOptions.includes('session') && <option value="session">This session and child agents</option>}
-                                {scopeOptions.includes('workspace') && <option value="workspace">This workspace</option>}
-                            </select>
-                        )}
-                    </label>}
+                    {canRemember && (
+                        <div className="space-y-1.5">
+                            <label className="flex items-center gap-2 text-xs text-gray-400">
+                                <input
+                                    type="checkbox"
+                                    disabled={!deadlineConfirmed || expired || decided}
+                                    checked={remember}
+                                    onChange={e => setRemember(e.target.checked)}
+                                    className="rounded border-gray-600"
+                                />
+                                Remember this decision
+                                {remember && (
+                                    <select
+                                        value={scope}
+                                        disabled={!deadlineConfirmed || expired || decided}
+                                        onChange={e => setScope(e.target.value as typeof scope)}
+                                        className="ml-2 text-xs rounded border border-gray-600 bg-gray-800
+                                                   text-gray-300 px-1.5 py-0.5"
+                                    >
+                                        {scopeOptions.includes('run') && <option value="run">Only this agent/run</option>}
+                                        {scopeOptions.includes('session') && <option value="session">This session and child agents</option>}
+                                        {scopeOptions.includes('workspace') && <option value="workspace">This workspace</option>}
+                                    </select>
+                                )}
+                            </label>
+                            {request.rememberScopeDescription && (
+                                <p className="pl-6 text-[11px] leading-4 text-gray-500">
+                                    {request.rememberScopeDescription}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Buttons */}
                     <div className="flex justify-end gap-2">

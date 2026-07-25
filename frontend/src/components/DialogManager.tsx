@@ -101,7 +101,7 @@ export const DialogManager: React.FC = () => {
             console.error('[Interaction] Elicitation decision failed:', error);
             return;
         }
-        dismissElicitationDialog();
+        dismissElicitationDialog(current.interactionId);
         useSessionStore.getState().setStatus('streaming');
     }, [dismissElicitationDialog, submitDecision]);
 
@@ -113,7 +113,7 @@ export const DialogManager: React.FC = () => {
             console.error('[Interaction] Elicitation cancel failed:', error);
             return;
         }
-        dismissElicitationDialog();
+        dismissElicitationDialog(elicitationDialog.interactionId);
         useSessionStore.getState().setStatus('idle');
     }, [elicitationDialog, dismissElicitationDialog, submitDecision]);
 
@@ -131,6 +131,7 @@ export const DialogManager: React.FC = () => {
             {/* Elicitation Dialog */}
             {elicitationDialog && (
                 <ElicitationDialog
+                    key={elicitationDialog.interactionId}
                     requestId={elicitationDialog.requestId}
                     question={elicitationDialog.question}
                     options={elicitationDialog.options as { value: string; label: string; description?: string }[] | undefined}

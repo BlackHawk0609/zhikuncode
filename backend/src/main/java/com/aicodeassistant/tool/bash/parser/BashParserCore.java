@@ -411,7 +411,9 @@ public class BashParserCore {
                 return parseTooComplex("arithmetic_expansion", startB, startI);
             }
             if (current.type() == BashTokenType.LT_PAREN
-                    || current.type() == BashTokenType.GT_PAREN) {
+                    || current.type() == BashTokenType.GT_PAREN
+                    || current.type() == BashTokenType.PROCESS_SUBSTITUTION_IN
+                    || current.type() == BashTokenType.PROCESS_SUBSTITUTION_OUT) {
                 return parseTooComplex("process_substitution", startB, startI);
             }
 

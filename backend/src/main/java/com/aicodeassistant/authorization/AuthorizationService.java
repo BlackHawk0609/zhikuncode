@@ -170,6 +170,10 @@ public final class AuthorizationService {
             prompt.put("operationHash", operation.operationHash());
             List<Map<String, String>> decisionOptions = options(scopes);
             prompt.put("options", decisionOptions);
+            String rememberScopeDescription = rememberScopeDescription(operation);
+            if (!scopes.isEmpty() && rememberScopeDescription != null) {
+                prompt.put("rememberScopeDescription", rememberScopeDescription);
+            }
             AuthorizationInteractionContext authorizationContext = new AuthorizationInteractionContext(3,
                     toolUseId, executionAttemptId, frozen.inputHash(), operation.operationHash(),
                     AuthorizationInteractionContext.AuthorizationSubjectData.from(subject), operation,
@@ -226,6 +230,17 @@ public final class AuthorizationService {
 
     private List<PermissionScope> scopes(OperationDescriptor op) {
         return grants.supportedScopes(op);
+    }
+    private String rememberScopeDescription(OperationDescriptor operation) {
+        return switch (operation.analyzerId()) {
+            case "network-v1" -> "Saved permission applies to " + operation.toolName()
+                    + " only; URL and input values may change. Other network tools remain separate. "
+                    + "Run/session limits follow the selected option, and saved grants expire within 12 hours.";
+            case "mcp-v1" -> "Saved permission applies to MCP tool " + operation.toolName()
+                    + " only; input values may change. Other MCP tools remain separate. "
+                    + "Run/session limits follow the selected option, and saved grants expire within 12 hours.";
+            default -> null;
+        };
     }
     private List<Map<String, String>> options(List<PermissionScope> scopes) {
         List<Map<String, String>> options = new ArrayList<>();

@@ -116,6 +116,8 @@ function handleInteractionCreated(interaction: InteractionView): void {
             actorRunId: interaction.actorRunId,
             actorType: interaction.actorType,
             scopeOptions: interaction.scopeOptions,
+            rememberScopeDescription: typeof prompt.rememberScopeDescription === 'string'
+                ? prompt.rememberScopeDescription : undefined,
             operationHash: interaction.operationHash,
             options: interaction.options,
             decisionDeadlineAt: deadline,
@@ -235,11 +237,24 @@ export function resetSequence(): void {
 
 const handlers: Record<string, (data: any) => void> = {
     'protocol_error': (d: { code: string; supportedVersion: number; bindRequestId?: string; bindingEpoch?: number }) => {
+        const failedSessionId = d.bindRequestId
+            ? pendingBinds.get(d.bindRequestId)?.sessionId
+            : undefined;
         if (d.bindRequestId) finishBind(d.bindRequestId, false, false);
+        const didClearSession = d.code === 'SESSION_NOT_FOUND'
+                && failedSessionId
+                && useSessionStore.getState().sessionId === failedSessionId;
+        if (didClearSession) {
+            void useSessionStore.getState().resumeSession('');
+        }
         useNotificationStore.getState().addNotification({
             key: 'protocol-error', level: 'error',
             message: d.code === 'UPGRADE_REQUIRED'
                 ? `客户端协议版本不兼容（服务端需要 v${d.supportedVersion}），请刷新页面`
+                : d.code === 'SESSION_NOT_FOUND'
+                    ? didClearSession
+                        ? '原会话已不存在，已清除本地恢复状态'
+                        : '请求恢复的会话已不存在，当前会话未受影响'
                 : '实时连接协议错误',
             timeout: 0,
         });
@@ -307,7 +322,7 @@ const handlers: Record<string, (data: any) => void> = {
         usePermissionStore.getState().removeInteraction(d.interactionId);
         if (d.interactionType === 'elicitation'
             && useAppUiStore.getState().elicitationDialog?.interactionId === d.interactionId) {
-            useAppUiStore.getState().dismissElicitationDialog();
+            useAppUiStore.getState().dismissElicitationDialog(d.interactionId);
         }
     },
     'prompt_suggestion':  (d) => useAppUiStore.getState().setPromptSuggestion(d),

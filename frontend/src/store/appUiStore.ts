@@ -23,7 +23,7 @@ export interface AppUiStoreState {
     pendingVisualizationTab: string | null;
 
     showElicitationDialog: (data: ElicitationRequest) => void;
-    dismissElicitationDialog: () => void;
+    dismissElicitationDialog: (interactionId: string) => void;
     updateElicitationDeadline: (interactionId: string, decisionDeadlineAt: number, version?: number) => void;
     setPromptSuggestion: (data: PromptSuggestion | null) => void;
     updateSpeculation: (data: { id: string; accepted: boolean }) => void;
@@ -38,7 +38,11 @@ export const useAppUiStore = create<AppUiStoreState>()(
         pendingVisualizationTab: null,
 
         showElicitationDialog: (data) => set(d => { d.elicitationDialog = data; }),
-        dismissElicitationDialog: () => set(d => { d.elicitationDialog = null; }),
+        dismissElicitationDialog: (interactionId) => set(d => {
+            if (d.elicitationDialog?.interactionId === interactionId) {
+                d.elicitationDialog = null;
+            }
+        }),
         updateElicitationDeadline: (interactionId, decisionDeadlineAt, version) => set(d => {
             if (d.elicitationDialog?.interactionId === interactionId) {
                 d.elicitationDialog.decisionDeadlineAt = decisionDeadlineAt;

@@ -7,6 +7,7 @@ import com.aicodeassistant.engine.correction.CompileErrorParser;
 import com.aicodeassistant.engine.correction.SelfCorrectionLoop;
 import com.aicodeassistant.engine.correction.TestFailureParser;
 import com.aicodeassistant.engine.tokenizer.TokenizerService;
+import com.aicodeassistant.tool.ToolResult;
 import com.aicodeassistant.tool.bash.BashErrorClassifier;
 import com.aicodeassistant.tool.recovery.BashRecoveryPolicy;
 import com.aicodeassistant.tool.recovery.ToolRecoveryFramework.RecoveryAction;
@@ -20,7 +21,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -34,8 +34,7 @@ import static org.mockito.Mockito.*;
  * <p>
  * 覆盖 aicoding测试用例.md 中定义但现有测试未覆盖的 Phase 1 TC：
  * - TC-SCL-07: SelfCorrectionLoop 空/null 输入边界
- * - TC-BTO-09: ToolExecutionPipeline exitCode 解析增强
- * - TC-BTO-10: ToolExecutionPipeline 重试指数退避
+ * - TC-BTO-09: ToolResult 结构化 exitCode 传递
  * - TC-BTO-14: BashRecoveryPolicy 超限上报用户
  * - TC-TOK-02: TokenCounter 精确模式降级
  * - TC-TOK-03: TokenCounter Feature Flag 关闭时保持原逻辑
@@ -100,100 +99,28 @@ class AiCodingTestSuite {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TC-BTO-09: ToolExecutionPipeline exitCode 解析增强
+    // TC-BTO-09: ToolResult 结构化 exitCode 传递
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
-    @DisplayName("TC-BTO-09: exitCode 解析增强")
-    class ExitCodeParsing {
+    @DisplayName("TC-BTO-09: 结构化 exitCode 传递")
+    class StructuredExitCode {
 
-        /**
-         * 通过反射测试 ToolExecutionPipeline.extractExitCodeFromContent 私有方法。
-         */
-        private int invokeExtractExitCodeFromContent(String content) throws Exception {
-            Class<?> pipelineClass = Class.forName(
-                    "com.aicodeassistant.tool.ToolExecutionPipeline");
-            Method method = pipelineClass.getDeclaredMethod(
-                    "extractExitCodeFromContent", String.class);
-            method.setAccessible(true);
-            // 需要实例 — 但该方法不依赖字段，可以用 null 构造实例
-            // 更安全地用 Unsafe 或直接创建实例
-            // 由于构造函数有依赖，直接用第一个非空实例
-            Object instance = pipelineClass.getDeclaredConstructors()[0]
-                    .newInstance(null, null, null, null, null, null, null);
-            return (int) method.invoke(instance, content);
+        @Test
+        @DisplayName("进程失败保留真实退出码")
+        void processFailure_preservesExitCode() {
+            ToolResult result = ToolResult.process("command not found", 127, Map.of());
+
+            assertThat(result.exitCode()).isEqualTo(127);
         }
 
         @Test
-        @DisplayName("超时内容 → 返回 137")
-        void testTimedOutContent_Returns137() throws Exception {
-            int exitCode = invokeExtractExitCodeFromContent(
-                    "Command timed out after 120000ms");
-            assertThat(exitCode).isEqualTo(137);
-        }
+        @DisplayName("超时结果保留进程终止码")
+        void timeout_preservesExitCode() {
+            ToolResult result = ToolResult.timedOut(
+                    "PROCESS_TIMEOUT", "Command timed out", 137, true);
 
-        @Test
-        @DisplayName("Exit code: 127 格式 → 返回 127")
-        void testExitCodeFormat_Returns127() throws Exception {
-            int exitCode = invokeExtractExitCodeFromContent(
-                    "Exit code: 127\ncommand not found");
-            assertThat(exitCode).isEqualTo(127);
-        }
-
-        @Test
-        @DisplayName("空内容 → 返回 -1")
-        void testEmptyContent_ReturnsMinus1() throws Exception {
-            assertThat(invokeExtractExitCodeFromContent(null)).isEqualTo(-1);
-            assertThat(invokeExtractExitCodeFromContent("")).isEqualTo(-1);
-        }
-
-        @Test
-        @DisplayName("无匹配格式 → 返回 -1")
-        void testNoMatchContent_ReturnsMinus1() throws Exception {
-            int exitCode = invokeExtractExitCodeFromContent(
-                    "Some random error output without exit code");
-            assertThat(exitCode).isEqualTo(-1);
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // TC-BTO-10: ToolExecutionPipeline 重试指数退避
-    // ═══════════════════════════════════════════════════════════════
-
-    @Nested
-    @DisplayName("TC-BTO-10: 重试指数退避")
-    class ExponentialBackoff {
-
-        /**
-         * 通过反射测试 calculateRetryDelay 私有方法。
-         */
-        private long invokeCalculateRetryDelay(int attemptCount) throws Exception {
-            Class<?> pipelineClass = Class.forName(
-                    "com.aicodeassistant.tool.ToolExecutionPipeline");
-            Method method = pipelineClass.getDeclaredMethod(
-                    "calculateRetryDelay", int.class);
-            method.setAccessible(true);
-            Object instance = pipelineClass.getDeclaredConstructors()[0]
-                    .newInstance(null, null, null, null, null, null, null);
-            return (long) method.invoke(instance, attemptCount);
-        }
-
-        @Test
-        @DisplayName("attemptCount=1 → delay=1000ms")
-        void testFirstAttempt_1000ms() throws Exception {
-            assertThat(invokeCalculateRetryDelay(1)).isEqualTo(1000L);
-        }
-
-        @Test
-        @DisplayName("attemptCount=2 → delay=2000ms")
-        void testSecondAttempt_2000ms() throws Exception {
-            assertThat(invokeCalculateRetryDelay(2)).isEqualTo(2000L);
-        }
-
-        @Test
-        @DisplayName("attemptCount=3 → delay=4000ms")
-        void testThirdAttempt_4000ms() throws Exception {
-            assertThat(invokeCalculateRetryDelay(3)).isEqualTo(4000L);
+            assertThat(result.exitCode()).isEqualTo(137);
         }
     }
 

@@ -461,6 +461,11 @@ class BashSecurityAnalyzerTest {
             assertTooComplex("diff <(cmd1) <(cmd2)");
         }
 
+        @Test @DisplayName("进程替换 >() → too-complex")
+        void test_output_process_substitution() {
+            assertTooComplex("tee >(sha256sum)");
+        }
+
         @Test @DisplayName("翻译字符串 $\"...\" → too-complex")
         void test_translated_string() {
             assertTooComplex("echo $\"hello\"");

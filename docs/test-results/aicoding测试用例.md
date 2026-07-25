@@ -573,32 +573,24 @@
 
 ---
 
-#### TC-BTO-09: ToolExecutionPipeline exitCode 解析增强
+#### TC-BTO-09: ToolResult 结构化 exitCode 传递
 
 - **用例ID**: TC-BTO-09
-- **测试场景**: 验证从错误内容中解析退出码
+- **测试场景**: 验证进程失败和超时结果保留结构化退出码
 - **前置条件**: 无
 - **执行步骤**:
-  1. metadata 含 exitCode → 优先使用
-  2. 内容 "Command timed out after 120000ms" → 返回 137
-  3. 内容 "Exit code: 127\ncommand not found" → 返回 127
-  4. 内容为空 → 返回 -1
-- **预期结果**: 每种格式正确解析
+  1. 创建退出码为 127 的进程失败结果
+  2. 创建退出码为 137 的超时结果
+  3. 验证结果的 `exitCode` 字段保持原值
+- **预期结果**: 退出码由结构化 `ToolResult.exitCode` 传递，不依赖错误文本解析
 - **验证方式**: 自动（单元测试）
 
 ---
 
-#### TC-BTO-10: ToolExecutionPipeline 重试指数退避
+#### TC-BTO-10: 自动指数退避（已废弃）
 
 - **用例ID**: TC-BTO-10
-- **测试场景**: 验证重试延迟遵循指数退避（1s, 2s, 4s）
-- **前置条件**: 无
-- **执行步骤**:
-  1. attemptCount=1 → delay = 1000ms
-  2. attemptCount=2 → delay = 2000ms
-  3. attemptCount=3 → delay = 4000ms
-- **预期结果**: 延迟值为 `1000 * 2^(attempt-1)`
-- **验证方式**: 自动（单元测试）
+- **状态**: 已废弃。当前管线不自动重试；可恢复错误会返回提示，由新的工具调用重新完成验证与授权。
 
 ---
 

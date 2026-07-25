@@ -29,6 +29,7 @@ const permission = (deadline?: number) => ({
         { optionId: 'deny', decision: 'deny' as const, scope: 'once' as const },
     ],
     scopeOptions: ['session'] as Array<'run' | 'session' | 'workspace'>,
+    rememberScopeDescription: 'Saved permission applies to WebFetch only; other network tools remain separate.',
 });
 
 describe('durable interaction deadlines', () => {
@@ -62,6 +63,17 @@ describe('durable interaction deadlines', () => {
         expect(screen.getByRole('button', { name: /Allow/ })).toBeDisabled();
         fireEvent.keyDown(window, { key: 'y' });
         expect(onDecision).not.toHaveBeenCalled();
+    });
+
+    it('shows the server-provided saved authorization boundary', () => {
+        render(<PermissionDialog
+            request={permission(Date.now() + 30_000)}
+            onDecision={vi.fn()}
+        />);
+
+        expect(screen.getByText(
+            'Saved permission applies to WebFetch only; other network tools remain separate.',
+        )).toBeInTheDocument();
     });
 
     it('does not invent a remember scope when the server offers ONCE only', async () => {

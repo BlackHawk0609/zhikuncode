@@ -201,9 +201,13 @@ export function createStompClient(_sessionId: string, authToken: string): StompC
                 void bindSessionAndWait(activeSessionId, payload => client.publish({
                     destination: '/app/bind-session', body: JSON.stringify(payload),
                 }))
-                .then(() => {
+                .then(restored => {
                     startHeartbeat();
-                    console.info('[WS] Reconnect: re-bound session', activeSessionId);
+                    if (restored) {
+                        console.info('[WS] Reconnect: re-bound session', activeSessionId);
+                    } else {
+                        console.warn('[WS] Reconnect: bind-session was not restored');
+                    }
                 })
                 .catch(() => {
                     // bind失败也启动心跳（支持容错，后端会返回bindRequired）

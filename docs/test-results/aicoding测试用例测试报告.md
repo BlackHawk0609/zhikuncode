@@ -212,7 +212,9 @@
 | **验证证据** | 39/39 分类全覆盖：编译命令(`mvn compile`→COMPILATION)、测试命令(`npm test`→TEST_EXECUTION)、安装命令(`pip install`→PACKAGE_INSTALL)、Git操作(`git push`→GIT_OPERATION)、服务启动(`docker-compose up`→SERVICE_MANAGEMENT)等 |
 | **通过判定** | 所有命令模式正确映射到对应分类，每个分类的 `recommendedTimeoutMs` 合理（编译 120s、测试 180s、安装 300s、Git 60s、服务 30s） |
 
-#### TC-BTO-09: exitCode 解析增强（4种格式）
+> 当前实现说明：以下为历史测试记录。当前版本使用结构化 `ToolResult.exitCode`，不再从错误文本解析退出码；自动指数退避亦已废弃，由新工具调用重新验证与授权。
+
+#### TC-BTO-09: exitCode 解析增强（4种格式，历史）
 
 | 属性 | 值 |
 |------|------|
@@ -222,7 +224,7 @@
 | **验证证据** | (1) `"Command timed out after 120000ms"` → 137 ✅；(2) `"Exit code: 127"` → 127 ✅；(3) null/空字符串 → -1 ✅；(4) 无匹配格式 → -1 ✅ |
 | **通过判定** | 超时→137（SIGKILL信号码）、标准格式→精确提取、边界→安全降级 |
 
-#### TC-BTO-10: 重试指数退避 1s→2s→4s
+#### TC-BTO-10: 重试指数退避 1s→2s→4s（历史，已废弃）
 
 | 属性 | 值 |
 |------|------|

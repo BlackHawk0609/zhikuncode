@@ -49,7 +49,7 @@
 |---|---|---|
 | 🌐 | **浏览器全流程操控** | 部署一次，任何设备的浏览器即可完成全流程操作 —— 权限审批、方案协商、任务管控，手机上也能用，无需安装客户端 |
 | 🤖 | **多 Agent 协作** | Team（固定分工）/ Swarm（动态协商）/ SubAgent（主从委派）三种协作模式，复杂任务自动分工 |
-| 🔒 | **统一授权安全架构** | 所有核心工具统一经过 Tool Gateway：规范化输入冻结 → Operation Analyzer 风险与资源分析 → 系统不变量检查 → RUN/SESSION/WORKSPACE Grant 匹配或持久权限交互 → 执行前动态复检 → 结构化结果审计。高风险操作只允许单次授权，未知 MCP/动态工具默认只能单次审批 |
+| 🔒 | **统一授权安全架构** | 所有核心工具统一经过 Tool Gateway：规范化输入冻结 → Operation Analyzer 风险与资源分析 → 系统不变量检查 → RUN/SESSION/WORKSPACE Grant 匹配或持久权限交互 → 执行前动态复检 → 结构化结果审计。高风险操作只允许单次授权；专用 Network/MCP Analyzer 对 SAFE/GUARDED 操作支持按工具记住 RUN/SESSION 授权，未知 MCP/动态工具默认只能单次审批 |
 | 🇨🇳 | **国产大模型直连** | 千问 / DeepSeek / Moonshot / 智谱GLM / MiniMax 开箱即用，国内网络直连，无需科学上网 |
 | 🐳 | **Docker 一键部署** | `docker compose up -d` 一条命令启动，数据存本地，完全私有 |
 | ⚡ | **智能上下文管理** | 六层压缩级联（Snip / MicroCompact / ContextCollapse / AutoCompact / CollapseDrain / ReactiveCompact）+ 增量折叠（每10轮自动压缩）+ 413 两阶段恢复（CollapseDrain 激进压缩 → ReactiveCompact 反应式压缩）+ 精确 Token 计数（tiktoken 多模型支持）+ 自纠错循环（SelfCorrectionLoop，编译/测试失败自动诊断修复，最多3次）+ Token三级告警 + 图片上下文治理（大图外置化 → 按需注入 → 预算守卫三层防护），无缝应对超长对话。核心引擎为 ContextCascade 与 QueryEngine |
@@ -489,6 +489,7 @@ Schema/Tool 校验
 - 可证明安全的 Bash 命令只支持 RUN/SESSION 精确授权，不支持 WORKSPACE 宽授权。
 - 受约束的文件读取和编辑可以选择 SESSION/WORKSPACE。
 - 未知 MCP 和动态工具默认只能 ONCE；只有专用 Analyzer 才能产生可复用授权。
+- `network-v1` 和 `mcp-v1` 的 SAFE/GUARDED 操作可选择 RUN/SESSION：保存的 Grant 仅匹配同一工具，输入值可变化；不支持 WORKSPACE，HIGH 风险仍只能 ONCE。
 - Grant 不能覆盖保护路径、符号链接逃逸、敏感环境变量和执行前动态变化。
 - 用户决策以 SQLite 中的 Interaction CAS 终态为唯一权威。
 
@@ -1134,7 +1135,7 @@ ZhikunCode 提供覆盖开发全流程的内置工具，并支持 MCP 动态扩�
 |------|------|------|
 | **文件操作** | FileRead、FileWrite、FileEdit、NotebookEdit | 读取、写入、编辑文件（原子写入+SHA-256冲突检测），支持 Jupyter Notebook；FileRead 支持大图片自动外置化（>50KB 转 JSON 引用，由 ImageRefInjector 按需注入） |
 | **代码搜索** | GrepTool、GlobTool、ToolSearch、LspTool、SnipTool | 正则搜索、文件匹配、工具搜索、LSP 语言服务（含调用层级分析）、代码片段、智能分层搜索（作用域感知 4 层优先级路由） |
-| **命令执行** | BashTool、PowerShellTool、REPLTool | Shell 沙箱执行（动态超时分类 + 指数退避恢复）、Windows PowerShell、交互式 REPL 会话 |
+| **命令执行** | BashTool、PowerShellTool、REPLTool | Shell 沙箱执行（动态超时分类 + 受控恢复提示，不自动重试）、Windows PowerShell、交互式 REPL 会话 |
 | **Git 操作** | GitTool、Worktree | Git 命令执行、Worktree 管理 |
 | **Web 工具** | WebSearch、WebFetch、WebBrowser | 网络搜索、网页抓取、浏览器自动化 |
 | **Agent 协作** | AgentTool | 创建和管理子 Agent |

@@ -350,17 +350,13 @@ public class SubAgentExecutor {
                 answer = answer.substring(0, MAX_RESULT_SIZE_CHARS) + "\n...[truncated]";
             }
 
-            // Coordinator 模式下格式化为 task-notification
-            if (taskNotificationFormatter != null
-                    && coordinatorService.isCoordinatorMode()) {
-                long durationMs = Duration.between(startTime, Instant.now()).toMillis();
-                answer = taskNotificationFormatter.formatNotification(
-                        request.agentId(),
-                        new AgentResult(AgentResult.STATUS_COMPLETED, answer, request.prompt(), null),
-                        durationMs);
-            }
-
-            return new AgentResult(classifyAgentStatus(result, null), answer, request.prompt(), null);
+            return buildFinalResult(
+                    result,
+                    answer,
+                    request,
+                    taskNotificationFormatter,
+                    coordinatorService.isCoordinatorMode(),
+                    Duration.between(startTime, Instant.now()).toMillis());
         } catch (AgentLimitExceededException e) {
             throw e;  // 让调用方处理
         } catch (Exception e) {
@@ -369,6 +365,27 @@ public class SubAgentExecutor {
                     "Agent execution failed: " + e.getMessage(),
                     request.prompt(), null);
         }
+    }
+
+    /**
+     * 构建同步 Agent 的最终结果，确保返回状态与 Coordinator 通知状态一致。
+     * 包可见以便对状态传播进行无副作用的回归测试。
+     */
+    static AgentResult buildFinalResult(QueryEngine.QueryResult result,
+                                        String answer,
+                                        AgentRequest request,
+                                        TaskNotificationFormatter formatter,
+                                        boolean coordinatorMode,
+                                        long durationMs) {
+        String status = classifyAgentStatus(result, null);
+        String finalAnswer = answer;
+        if (formatter != null && coordinatorMode) {
+            finalAnswer = formatter.formatNotification(
+                    request.agentId(),
+                    new AgentResult(status, answer, request.prompt(), null),
+                    durationMs);
+        }
+        return new AgentResult(status, finalAnswer, request.prompt(), null);
     }
 
     /**

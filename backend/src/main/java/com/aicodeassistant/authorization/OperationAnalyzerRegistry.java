@@ -50,7 +50,8 @@ public final class OperationAnalyzerRegistry {
     private final OperationAnalyzer bash = new BashAnalyzer();
     private final OperationAnalyzer file = new FileAnalyzer();
     private final OperationAnalyzer network = new NetworkAnalyzer();
-    private final OperationAnalyzer generic = new GenericAnalyzer();
+    private final OperationAnalyzer mcp = new GenericAnalyzer("mcp-v1");
+    private final OperationAnalyzer generic = new GenericAnalyzer("static-or-remote-v1");
 
     @Autowired
     public OperationAnalyzerRegistry(ObjectMapper mapper, BashSecurityAnalyzer bashSecurity,
@@ -70,7 +71,9 @@ public final class OperationAnalyzerRegistry {
     }
 
     public OperationAnalyzer analyzerFor(Tool tool) {
-        if (tool.isMcp() || tool.getName().startsWith("mcp__")) return generic;
+        if (tool.isMcp()) return mcp;
+        // 名称看似 MCP 但没有适配器身份的动态工具仍按未知工具处理，不能继承 MCP 持久授权。
+        if (tool.getName().startsWith("mcp__")) return generic;
         if ("Bash".equals(tool.getName())) return bash;
         // Bash 语法无法证明 PowerShell 的语义，因此 PowerShell 保持精确 ONCE 授权。
         if ("PowerShell".equals(tool.getName())) return generic;
@@ -293,7 +296,13 @@ public final class OperationAnalyzerRegistry {
     }
 
     private final class GenericAnalyzer implements OperationAnalyzer {
-        @Override public String id() { return "static-or-remote-v1"; }
+        private final String analyzerId;
+
+        private GenericAnalyzer(String analyzerId) {
+            this.analyzerId = analyzerId;
+        }
+
+        @Override public String id() { return analyzerId; }
         @Override public OperationDescriptor analyze(Tool tool, FrozenToolInput frozen, ToolInput input,
                 ToolUseContext context, AuthorizationSubject subject) {
             boolean safe = SAFE_INTERNAL.contains(tool.getName()) && !tool.isMcp();

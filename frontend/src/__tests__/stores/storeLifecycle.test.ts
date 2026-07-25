@@ -7,6 +7,7 @@ import { useTaskStore } from '../../store/taskStore';
 import { useConfigStore } from '../../store/configStore';
 import { useBridgeStore } from '../../store/bridgeStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { useAppUiStore } from '../../store/appUiStore';
 import type { Message, PermissionRequest, PermissionDecision, TaskState } from '@/types';
 
 /**
@@ -161,6 +162,30 @@ describe('TC-STORE-003: permissionStore 权限审批流程', () => {
             toolName: 'Bash', input: {}, riskLevel: 'low', reason: 'second durable request' });
         expect(usePermissionStore.getState().pendingPermissions.map(p => p.interactionId))
             .toEqual(['i-1', 'i-2']);
+    });
+});
+
+describe('elicitationStore 交互身份隔离', () => {
+    beforeEach(() => {
+        useAppUiStore.setState({ elicitationDialog: null });
+    });
+
+    it('旧问题的提交回调不能关闭随后到达的新问题', () => {
+        useAppUiStore.getState().showElicitationDialog({
+            interactionId: 'i-1', requestId: 'i-1', version: 0,
+            question: 'first', options: [],
+        });
+        useAppUiStore.getState().showElicitationDialog({
+            interactionId: 'i-2', requestId: 'i-2', version: 0,
+            question: 'second', options: [],
+        });
+
+        useAppUiStore.getState().dismissElicitationDialog('i-1');
+
+        expect(useAppUiStore.getState().elicitationDialog?.interactionId).toBe('i-2');
+
+        useAppUiStore.getState().dismissElicitationDialog('i-2');
+        expect(useAppUiStore.getState().elicitationDialog).toBeNull();
     });
 });
 

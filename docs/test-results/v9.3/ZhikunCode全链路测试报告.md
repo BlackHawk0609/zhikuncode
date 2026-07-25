@@ -2775,6 +2775,8 @@ if (json.success === false || json.error) {
 
 **被测源码**：BashCommandClassifier.java (1235行) / BashRecoveryPolicy.java (75行) / ToolRecoveryFramework.java (137行)
 
+> 当前实现说明：本节为 v9.3 历史测试记录。当前版本使用结构化 `ToolResult.exitCode`，不再从错误文本解析退出码；自动指数退避已废弃，由新的工具调用重新验证与授权。
+
 | 用例 ID | 测试目标 | 阶段 | 结果 | 关键验证证据 |
 |---------|----------|------|------|---------------|
 | TC-BTO-01 | 动态超时分类 (39项子测试) | Phase 1 | ✅ PASS | 39/39 分类全覆盖，编译/测试/安装/Git/服务等模式正确映射 |
