@@ -1,0 +1,6386 @@
+{
+  "reportVersion": "1.5.2",
+  "auditDate": "2026-07-26",
+  "caseDate": "2026-07-23",
+  "timezone": "Asia/Shanghai",
+  "title": "同一黄金监控任务的双工具执行审计",
+  "corrections": [
+    {
+      "version": "1.2.0",
+      "scope": "ZhikunCode 失败降级表述",
+      "note": "将“异常返回错误对象”修正为“单函数失败返回空值/空结果”，与冻结比较页的代码审计结论保持一致。"
+    },
+    {
+      "version": "1.3.0",
+      "scope": "ZhikunCode 冻结运行日志证据链",
+      "note": "取得本案例原始运行日志后，复核其行数、字节数与 SHA-256 均与冻结证据登记值完全一致；新增按原始行号生成的脱敏关键事件摘录，不公开完整日志。"
+    },
+    {
+      "version": "1.4.0",
+      "scope": "澄清记录、执行主链与公开证据粒度",
+      "note": "根据哈希匹配的冻结日志与源报告交叉复核，恢复第一批四个真实问题，明确第二批选项只部分留存；将研究 Agent 描述修正为不同方向在时间窗内重叠执行，并补充工具指纹、五阶段、资产血缘、模块所有权与数据来源矩阵。"
+    },
+    {
+      "version": "1.5.1",
+      "scope": "公开标识脱敏、源 SVG 事实边界与证据来源一致性",
+      "note": "移除截图、本地日志和源 SVG 中的运行标识与本机路径；统一五阶段、澄清批次、MCP 命中和模型角色口径；按来源拆分截图与公开日志行段。"
+    }
+  ],
+  "sourceCommits": {
+    "zhikuncodeAuditReference": "aa1b3173d97f8017507983374764258b157cf552",
+    "zhikuncodeAuditReferenceNote": "该提交用于解释控制面源码机制，不声称与冻结运行二进制逐字节一致。",
+    "runBuildCommit": null,
+    "runBuildNote": "冻结运行日志没有记录构建 Git SHA，因此运行构建提交保持未知。"
+  },
+  "artifacts": [
+    {
+      "type": "source-report",
+      "label": "ZhikunCode 单系统报告",
+      "publicPath": null,
+      "sha256": "927b2c5945ae4b2e2c0b62c6961d7d56cd45c40d3241e8a4b131a49dfe914bf0",
+      "note": "原始本地报告，不公开绝对路径。"
+    },
+    {
+      "type": "source-report",
+      "label": "双系统冻结比较报告",
+      "publicPath": null,
+      "sha256": "4d9d6e00755312baa67716a73e5c74b0aa9d976b91be4f192bcc575467e89eaf",
+      "note": "本公开页的数据与图像来源基线。"
+    },
+    {
+      "type": "private-log",
+      "label": "ZhikunCode 黄金监控任务原始运行日志",
+      "publicPath": null,
+      "sha256": "dc055d95826f91c6ff9624172274d0a2846a4aca0665be871f26aba73e5a9067",
+      "bytes": 2730008,
+      "lines": 17254,
+      "note": "原件已在本地复核：17,254 行、2,730,008 字节及 SHA-256 均与冻结证据登记值一致。原件包含完整会话标识、本机路径和工具输入，不公开完整文件。"
+    },
+    {
+      "type": "public-log-excerpt",
+      "label": "ZhikunCode 黄金监控任务脱敏关键日志摘录",
+      "publicPath": "zhikuncode-gold-monitor-log-excerpts.txt",
+      "sha256": "c8730e25a4e618d1847c6c4b5224b759dcbe95ec3eb5c3213366eec09cfc6fc9",
+      "bytes": 25758,
+      "lines": 164,
+      "sourceSha256": "dc055d95826f91c6ff9624172274d0a2846a4aca0665be871f26aba73e5a9067",
+      "note": "由哈希匹配的原始日志按固定行号生成；保留时间、组件、事件和原始行号，替换 UUID、本机绝对路径、临时目录及运行标识。只覆盖支撑本报告关键结论的事件，不等同于完整日志。",
+      "lineSegments": [
+        {
+          "start": 26,
+          "end": 34
+        },
+        {
+          "start": 43,
+          "end": 43
+        },
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 1248,
+          "end": 1252
+        },
+        {
+          "start": 2159,
+          "end": 2159
+        },
+        {
+          "start": 2162,
+          "end": 2162
+        },
+        {
+          "start": 2299,
+          "end": 2299
+        },
+        {
+          "start": 2302,
+          "end": 2302
+        },
+        {
+          "start": 6576,
+          "end": 6576
+        },
+        {
+          "start": 6703,
+          "end": 6703
+        },
+        {
+          "start": 6740,
+          "end": 6740
+        },
+        {
+          "start": 6812,
+          "end": 6812
+        },
+        {
+          "start": 6855,
+          "end": 6855
+        },
+        {
+          "start": 6888,
+          "end": 6888
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 7349,
+          "end": 7349
+        },
+        {
+          "start": 7356,
+          "end": 7356
+        },
+        {
+          "start": 7513,
+          "end": 7515
+        },
+        {
+          "start": 7774,
+          "end": 7774
+        },
+        {
+          "start": 7791,
+          "end": 7791
+        },
+        {
+          "start": 7860,
+          "end": 7860
+        },
+        {
+          "start": 7903,
+          "end": 7903
+        },
+        {
+          "start": 7947,
+          "end": 7947
+        },
+        {
+          "start": 8034,
+          "end": 8034
+        },
+        {
+          "start": 10801,
+          "end": 10802
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "sectionCount": 14
+    },
+    {
+      "type": "frozen-code",
+      "label": "Codex 冻结产物 ZIP",
+      "publicPath": null,
+      "sha256": "e66a9fff25f5871846ac9f1a03b45869b48307cdef3efe8e87814c3bba5a0769",
+      "bytes": 18972,
+      "note": "原归档未纳入当前公开仓库。"
+    },
+    {
+      "type": "frozen-code",
+      "label": "ZhikunCode 冻结产物 ZIP",
+      "publicPath": null,
+      "sha256": "ee79c90a3ee2c14b55e8c127fcbddf26ee53b78711167935d020c41d329b5b3f",
+      "bytes": 12732333,
+      "note": "原归档未纳入当前公开仓库；条目包含 venv。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "Codex 开发过程截图",
+      "publicPath": "assets/gold-audit/codex-process.jpg",
+      "sha256": "83c8eaf7a2297b30220c998bd584329b6dac8f7748049ec33c5b99f4f95d50ce",
+      "bytes": 292716,
+      "note": "从冻结比较报告内嵌图像解码得到；哈希对应公开 JPEG，不等同于原始 PNG 哈希。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "Codex 最终产物截图",
+      "publicPath": "assets/gold-audit/codex-product.jpg",
+      "sha256": "d706b86f667494018aaa361833593a5000881546ee8d1fc38b184416d469db9b",
+      "bytes": 284705,
+      "note": "从冻结比较报告内嵌图像解码得到；哈希对应公开 JPEG，不等同于原始 PNG 哈希。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "ZhikunCode 开发过程截图",
+      "publicPath": "assets/gold-audit/zhikuncode-process.jpg",
+      "sha256": "cce862d9df54eb70ab747cd7a8ca239dba9c49828db3d312bc0ef0d0ee738e23",
+      "bytes": 270561,
+      "note": "从冻结比较报告内嵌图像解码后，对一处本机绝对路径做确定性遮蔽；哈希对应公开派生 JPEG，不等同于源图哈希。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "ZhikunCode 最终产物截图",
+      "publicPath": "assets/gold-audit/zhikuncode-product.jpg",
+      "sha256": "a154c35118b39b05838740b4515b4beada86946c5836773ad3ef8281926d1a05",
+      "bytes": 143984,
+      "note": "从冻结比较报告内嵌图像解码得到；哈希对应公开 JPEG，不等同于原始 PNG 哈希。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "ZhikunCode 结构化澄清截图",
+      "publicPath": "assets/gold-audit/zhikuncode-clarification.jpg",
+      "sha256": "b963d936178f6afc40108be51ce96cffab8ce93e754c522ebc73b1f62d5c32ad",
+      "bytes": 64337,
+      "note": "从冻结比较报告内嵌图像解码得到；哈希对应公开 JPEG，不等同于原始 PNG 哈希。"
+    },
+    {
+      "type": "derived-screenshot",
+      "label": "Codex 文本澄清截图",
+      "publicPath": "assets/gold-audit/codex-clarification.jpg",
+      "sha256": "a4e266139f65d0b72781a269e95b85e8bc21b1f3158f4d7b69eeeb91c25b516e",
+      "bytes": 184879,
+      "note": "从冻结比较报告内嵌图像解码得到；哈希对应公开 JPEG，不等同于原始 PNG 哈希。"
+    }
+  ],
+  "events": [
+    {
+      "order": 1,
+      "time": "17:10:49.811",
+      "lane": "用户",
+      "title": "提交黄金监控需求",
+      "result": "要求不确定处先确认",
+      "evidence": [
+        "E001"
+      ]
+    },
+    {
+      "order": 2,
+      "time": "17:10:49–17:12:21",
+      "lane": "协调器",
+      "title": "Kimi K3 主 Run",
+      "result": "2 turns；完成首批四题澄清后遭遇 HTTP 429",
+      "evidence": [
+        "E023",
+        "E025",
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 3,
+      "time": "17:12:53–17:12:57",
+      "lane": "用户/模型",
+      "title": "人工切换模型并继续",
+      "result": "切换 GLM-5.2；不是自动故障转移",
+      "evidence": [
+        "E023",
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 4,
+      "time": "17:12:57–17:34:18",
+      "lane": "协调器/子 Agent",
+      "title": "研究与计划 Run",
+      "result": "7 turns；3 个研究 Agent 重叠执行并成功，追加 2 个澄清问题",
+      "evidence": [
+        "E025",
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 5,
+      "time": "17:34:27–18:30:38",
+      "lane": "文件系统/子 Agent",
+      "title": "实现与首次验证",
+      "result": "2 个实现/修复 Agent 达到 SUBAGENT_MAX_TURNS；主链继续接管",
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 6,
+      "time": "18:30:38",
+      "lane": "验证器",
+      "title": "VerifyJourney",
+      "result": "中间检查点；之后仍有 Read/Edit/Bash 返工",
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 7,
+      "time": "18:30:38–18:42:53.633",
+      "lane": "协调器/文件系统",
+      "title": "返工、终止与交付",
+      "result": "Brief → TERMINATE_SUCCESS → message_complete",
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "order": 8,
+      "time": "18:58:20",
+      "lane": "浏览器",
+      "title": "独立运行观察",
+      "result": "localhost:5050 加载成功，无控制台 warning/error",
+      "evidence": [
+        "E006"
+      ]
+    }
+  ],
+  "clarificationQuestions": [
+    {
+      "question": "你说的“监控国家对黄金回购的频率及整体金额趋势”，具体是指哪一个？（这决定了数据来源和更新频率）",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "央行购金（推荐）",
+          "description": "中国人民银行每月公布的黄金储备增持数据，这是最常被关注的“国家买金”指标。"
+        },
+        {
+          "label": "全球央行购金",
+          "description": "世界黄金协会发布的全球央行购金趋势报告（季度/年度）。"
+        },
+        {
+          "label": "两者都要",
+          "description": "中国央行月度数据 + 全球央行趋势都监控。"
+        },
+        {
+          "label": "其他含义",
+          "description": "我指的不是央行，是别的（比如银行金条回购政策/价格）。"
+        }
+      ]
+    },
+    {
+      "question": "金价方面你想看哪些品种？",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "国际 + 国内 + 积存金（推荐）",
+          "description": "包含伦敦金（美元/盎司）和上海黄金交易所 Au99.99（人民币/克）+ 银行积存金。"
+        },
+        {
+          "label": "只要国内金价 + 积存金",
+          "description": "只看人民币计价的上海金和银行积存金，更贴近国内投资实际。"
+        },
+        {
+          "label": "只要国际金价 + 积存金",
+          "description": "只看美元计价的国际金价和银行积存金。"
+        }
+      ]
+    },
+    {
+      "question": "银行积存金价格，你主要关心哪些银行？（各家银行的积存金报价和手续费不同）",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "主流大行都要（推荐）",
+          "description": "工行、建行、中行、招行、交行等主流银行都跟踪，方便比价。"
+        },
+        {
+          "label": "只关注某一家",
+          "description": "我已经在或打算在某一家银行买积存金，只盯它就行。"
+        },
+        {
+          "label": "你帮我决定",
+          "description": "我不懂各行差异，你帮我选有代表性的。"
+        }
+      ]
+    },
+    {
+      "question": "你希望这个监控工具以什么形式呈现？（我需要知道你电脑的使用习惯）",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "本地脚本，随时手动运行（推荐）",
+          "description": "我在你电脑上写一个程序，你双击/运行一下就显示最新金价，随时可查。"
+        },
+        {
+          "label": "定时自动记录 + 趋势图",
+          "description": "程序每天自动运行，把价格存下来，积累历史数据方便看趋势图。"
+        },
+        {
+          "label": "网页仪表盘",
+          "description": "做一个本地网页，打开就能看到价格仪表盘和图表。"
+        },
+        {
+          "label": "每天问你查一次",
+          "description": "不想要工具，希望 AI 每天告诉我价格（注意：AI 无法主动定时联系，需要用户每天来询问）。"
+        }
+      ]
+    }
+  ],
+  "executionDetails": {
+    "zhikunDuration": "1小时32分03.822秒",
+    "codexDuration": "27分49秒",
+    "toolDistribution": [
+      {
+        "tool": "Bash",
+        "count": 26
+      },
+      {
+        "tool": "Read",
+        "count": 13
+      },
+      {
+        "tool": "Edit",
+        "count": 6
+      },
+      {
+        "tool": "Agent",
+        "count": 5
+      },
+      {
+        "tool": "其他控制与验证工具",
+        "count": 10
+      }
+    ],
+    "toolResults": {
+      "completed": 54,
+      "errors": 6,
+      "errorBreakdown": "2 次 Agent max_turns、1 次 SendMessage agent-not-found、3 次 Bash exit 1"
+    },
+    "agents": [
+      {
+        "role": "国际金价研究",
+        "type": "explore",
+        "time": "17:14:20–17:25:43",
+        "turns": 15,
+        "usage": 709617,
+        "status": "SUCCESS",
+        "output": "gold_price_sources.md",
+        "outputSha": "9700f9d196ac3548",
+        "handoff": "成功完成研究并被主协调器回收。"
+      },
+      {
+        "role": "银行积存金研究",
+        "type": "explore",
+        "time": "17:14:29–17:24:14",
+        "turns": 22,
+        "usage": 2283499,
+        "status": "SUCCESS",
+        "output": "bank_gold_sources.md",
+        "outputSha": "5c05d12bb15cee82",
+        "handoff": "成功完成研究并被主协调器回收。"
+      },
+      {
+        "role": "央行购金研究",
+        "type": "explore",
+        "time": "17:14:31–17:27:15",
+        "turns": 19,
+        "usage": 1426175,
+        "status": "SUCCESS",
+        "output": "central_bank_gold_sources.md",
+        "outputSha": "87f05fa76eeeb12d",
+        "handoff": "成功完成研究并被主协调器回收。"
+      },
+      {
+        "role": "实现",
+        "type": "general-purpose",
+        "time": "17:36:57–17:56:21",
+        "turns": 30,
+        "usage": 2313886,
+        "status": "SUBAGENT_MAX_TURNS",
+        "output": "生成依赖、配置、抓取、服务、启动和页面 6 个主文件",
+        "outputSha": null,
+        "handoff": "有有效产出但终态失败；主协调器后续接管。"
+      },
+      {
+        "role": "修复与验证",
+        "type": "general-purpose",
+        "time": "18:05:13–18:25:49",
+        "turns": 30,
+        "usage": 2393198,
+        "status": "SUBAGENT_MAX_TURNS",
+        "output": "执行修复与验证，结果返回主链",
+        "outputSha": null,
+        "handoff": "未在 30 轮内自行完成；主协调器继续收敛。"
+      }
+    ]
+  },
+  "dimensions": [
+    {
+      "id": "understanding",
+      "label": "需求理解准确性",
+      "short": "理解",
+      "weight": 6
+    },
+    {
+      "id": "interaction",
+      "label": "开发过程交互体验",
+      "short": "交互",
+      "weight": 5
+    },
+    {
+      "id": "efficiency",
+      "label": "完整生成过程效率",
+      "short": "效率",
+      "weight": 4
+    },
+    {
+      "id": "output",
+      "label": "最终产出质量",
+      "short": "产物",
+      "weight": 6
+    },
+    {
+      "id": "complexity",
+      "label": "产物复杂度",
+      "short": "复杂",
+      "weight": 7
+    },
+    {
+      "id": "coverage",
+      "label": "需求实现度",
+      "short": "实现",
+      "weight": 11
+    },
+    {
+      "id": "accuracy",
+      "label": "数据准确性",
+      "short": "数据",
+      "weight": 17
+    },
+    {
+      "id": "architecture",
+      "label": "架构先进性",
+      "short": "架构",
+      "weight": 9
+    },
+    {
+      "id": "code",
+      "label": "代码质量",
+      "short": "代码",
+      "weight": 7
+    },
+    {
+      "id": "ux",
+      "label": "用户界面体验",
+      "short": "界面",
+      "weight": 8
+    },
+    {
+      "id": "extensibility",
+      "label": "可扩展性",
+      "short": "扩展",
+      "weight": 8
+    },
+    {
+      "id": "performance",
+      "label": "性能表现",
+      "short": "性能",
+      "weight": 4
+    },
+    {
+      "id": "maintainability",
+      "label": "可维护性",
+      "short": "维护",
+      "weight": 5
+    },
+    {
+      "id": "reproducibility",
+      "label": "可复现与运行可靠性",
+      "short": "复现",
+      "weight": 3
+    }
+  ],
+  "scores": [
+    {
+      "systemId": "zhikun",
+      "name": "ZhikunCode",
+      "declaredScore": 68.3,
+      "declaredMin": 62.6,
+      "declaredMax": 73.7,
+      "confidence": "高",
+      "modelConfig": {
+        "mode": "sequential-switch",
+        "models": [
+          "Kimi K3",
+          "GLM5.2"
+        ],
+        "reason": "Kimi K3 HTTP 429 后由用户手动切换至 GLM5.2 并发送“继续”；同一逻辑 Session 中的后续新 Run 续接任务",
+        "relativeTier": "本次两组使用不同模型配置；报告未独立验证底层模型能力排序，也不从单任务结果推断模型强弱"
+      },
+      "dimensions": [
+        {
+          "id": "understanding",
+          "label": "需求理解准确性",
+          "short": "理解",
+          "weight": 6,
+          "value": 8.5,
+          "min": 8,
+          "max": 9,
+          "evidence": [
+            "E001",
+            "E004",
+            "E007",
+            "E025",
+            "E026",
+            "E027",
+            "E028"
+          ],
+          "reason": "两批浏览器交互共 6 个问题，覆盖央行口径、金价、银行、交付形式、银行估值降级和代码位置；理解充分，但最终仍把全球央行收窄为中国央行并遗漏平安银行。"
+        },
+        {
+          "id": "interaction",
+          "label": "开发过程交互体验",
+          "short": "交互",
+          "weight": 5,
+          "value": 8,
+          "min": 7.5,
+          "max": 8.5,
+          "evidence": [
+            "E004",
+            "E023",
+            "E025",
+            "E026",
+            "E027",
+            "E029"
+          ],
+          "reason": "第一批四题提供可点击选项、推荐标识和逐项影响说明；后续仍能继续收集决策，但操作者记录首次确认后需刷新页面才继续弹出，连续承接并不顺畅。冻结运行摘要另记录 83 次 PERMISSION 决策，权限交互密度和人工介入成本明显。"
+        },
+        {
+          "id": "efficiency",
+          "label": "完整生成过程效率",
+          "short": "效率",
+          "weight": 4,
+          "value": 5,
+          "min": 4.5,
+          "max": 5.5,
+          "evidence": [
+            "E004",
+            "E023",
+            "E027"
+          ],
+          "reason": "1小时32分03.822秒完成交付；5 个子 Agent 中 3 个成功、2 个达到 SUBAGENT_MAX_TURNS；主协调器 60 次工具调用收到 54 次正常结果和 6 次错误返回。"
+        },
+        {
+          "id": "output",
+          "label": "最终产出质量",
+          "short": "产物",
+          "weight": 6,
+          "value": 7.5,
+          "min": 7,
+          "max": 8,
+          "evidence": [
+            "E005",
+            "E006"
+          ],
+          "reason": "仪表盘完整、信息密度合理、运行无明显错误。"
+        },
+        {
+          "id": "complexity",
+          "label": "产物复杂度",
+          "short": "复杂",
+          "weight": 7,
+          "value": 8,
+          "min": 7.5,
+          "max": 8.5,
+          "evidence": [
+            "E006",
+            "E007",
+            "E019",
+            "E032",
+            "E033"
+          ],
+          "reason": "动态 Flask 服务实际承担 6 个路由、多行情源、国际价换算、银行估价、SAFE XLS/XLSX 解析、月度缓存、后台预热和两类刷新节奏；复杂度来自有效能力面，归档内 venv 体积不计分。"
+        },
+        {
+          "id": "coverage",
+          "label": "需求实现度",
+          "short": "实现",
+          "weight": 11,
+          "value": 6.5,
+          "min": 6,
+          "max": 7,
+          "evidence": [
+            "E006",
+            "E007",
+            "E019"
+          ],
+          "reason": "覆盖国际/国内、5/6 指定银行和网页刷新；银行为估算，央行仅中国。"
+        },
+        {
+          "id": "accuracy",
+          "label": "数据准确性",
+          "short": "数据",
+          "weight": 17,
+          "value": 6.5,
+          "min": 6,
+          "max": 7,
+          "evidence": [
+            "E006",
+            "E007",
+            "E009",
+            "E010",
+            "E019"
+          ],
+          "reason": "行情与中国央行换算可靠，估算价明确披露；国内采用沪金期货而非 SGE 现货。"
+        },
+        {
+          "id": "architecture",
+          "label": "架构先进性",
+          "short": "架构",
+          "weight": 9,
+          "value": 7,
+          "min": 6.5,
+          "max": 7.5,
+          "evidence": [
+            "E007",
+            "E017",
+            "E019",
+            "E022",
+            "E032",
+            "E034"
+          ],
+          "reason": "Flask API、抓取器、银行配置和央行缓存构成适配本地持续监控的动态架构；缓存、预热与单函数失败隔离有效，但主行情顺序请求、隐式 dict 契约、大抓取器和安全例外限制先进性。"
+        },
+        {
+          "id": "code",
+          "label": "代码质量",
+          "short": "代码",
+          "weight": 7,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E007",
+            "E016",
+            "E017"
+          ],
+          "reason": "模块边界清晰且语法通过；无测试、宽泛异常和关闭 TLS 验证。"
+        },
+        {
+          "id": "ux",
+          "label": "用户界面体验",
+          "short": "界面",
+          "weight": 8,
+          "value": 7,
+          "min": 6.5,
+          "max": 7.5,
+          "evidence": [
+            "E005",
+            "E006",
+            "E021",
+            "E035"
+          ],
+          "reason": "暗色主题清晰，表格、图表、30 秒自动刷新与失败提示完整；但只发现 1 组媒体查询，未发现 ARIA 属性，统一设备与键盘测试未执行。"
+        },
+        {
+          "id": "extensibility",
+          "label": "可扩展性",
+          "short": "扩展",
+          "weight": 8,
+          "value": 6.5,
+          "min": 6,
+          "max": 7,
+          "evidence": [
+            "E007",
+            "E017",
+            "E019",
+            "E032",
+            "E034"
+          ],
+          "reason": "银行配置数据驱动使新增估算银行相对集中，独立 API 也提供一定扩展边界；但新增真实银行源、全球央行域或新视图仍会跨越抓取器、路由和 902 行页面。"
+        },
+        {
+          "id": "performance",
+          "label": "性能表现",
+          "short": "性能",
+          "weight": 4,
+          "value": 7,
+          "min": 5,
+          "max": 8,
+          "evidence": [
+            "E006",
+            "E007",
+            "E017"
+          ],
+          "reason": "页面运行无 console 异常，图表数量适中；上游请求顺序执行，未获得同口径载入数据。"
+        },
+        {
+          "id": "maintainability",
+          "label": "可维护性",
+          "short": "维护",
+          "weight": 5,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E007",
+            "E017",
+            "E022"
+          ],
+          "reason": "有缓存、配置和数据层，但 935 行抓取器、902 行页面和零测试扩大维护风险。"
+        },
+        {
+          "id": "reproducibility",
+          "label": "可复现与运行可靠性",
+          "short": "复现",
+          "weight": 3,
+          "value": 6,
+          "min": 5,
+          "max": 7,
+          "evidence": [
+            "E006",
+            "E007",
+            "E022"
+          ],
+          "reason": "双击脚本和 venv 方便本地使用；依赖未锁定、CDN/上游依赖以及端口强制终止降低确定性。"
+        }
+      ]
+    },
+    {
+      "systemId": "codex",
+      "name": "Codex",
+      "declaredScore": 68.4,
+      "declaredMin": 63.2,
+      "declaredMax": 73.6,
+      "confidence": "中高",
+      "modelConfig": {
+        "mode": "fixed",
+        "model": "gpt-5.6-sol",
+        "reasoningEffort": "high"
+      },
+      "dimensions": [
+        {
+          "id": "understanding",
+          "label": "需求理解准确性",
+          "short": "理解",
+          "weight": 6,
+          "value": 8,
+          "min": 7.5,
+          "max": 8.5,
+          "evidence": [
+            "E001",
+            "E002",
+            "E008",
+            "E028"
+          ],
+          "reason": "实现前锁定全球央行、六家银行和网页三项高影响范围；但最终四家银行仅提供核验入口、全球央行未形成动态数据链，因此不把范围复述等同于完整理解落地。"
+        },
+        {
+          "id": "interaction",
+          "label": "开发过程交互体验",
+          "short": "交互",
+          "weight": 5,
+          "value": 6.5,
+          "min": 6,
+          "max": 7,
+          "evidence": [
+            "E002",
+            "E024",
+            "E025",
+            "E026",
+            "E029"
+          ],
+          "reason": "能识别并一次性提出三个关键澄清问题，后续限制说明清楚；但交互只是普通文本列表，用户需手动整理复制答案，没有可点击选项、推荐标识或逐项说明，明显弱于 ZhikunCode 的结构化选择弹窗。"
+        },
+        {
+          "id": "efficiency",
+          "label": "完整生成过程效率",
+          "short": "效率",
+          "weight": 4,
+          "value": 7.5,
+          "min": 7,
+          "max": 8,
+          "evidence": [
+            "E002",
+            "E024"
+          ],
+          "reason": "27分49秒完成数据源、界面、API、构建和线上发布，墙钟明确；但缺少与另外两套统一口径的 Token、主动执行时间和同环境测量，不把不可比项作为高分依据。"
+        },
+        {
+          "id": "output",
+          "label": "最终产出质量",
+          "short": "产物",
+          "weight": 6,
+          "value": 7.5,
+          "min": 7,
+          "max": 8,
+          "evidence": [
+            "E003",
+            "E008",
+            "E013",
+            "E014",
+            "E015",
+            "E018"
+          ],
+          "reason": "视觉与信息组织完成度高、口径说明充分；但四家银行无实价、央行数据静态、线上受认证限制，且自动化质量门禁未全部通过。"
+        },
+        {
+          "id": "complexity",
+          "label": "产物复杂度",
+          "short": "复杂",
+          "weight": 7,
+          "value": 8,
+          "min": 7.5,
+          "max": 8.5,
+          "evidence": [
+            "E003",
+            "E008",
+            "E018",
+            "E020",
+            "E031",
+            "E033"
+          ],
+          "reason": "产物包含响应式 React 仪表盘、服务端聚合 API、5 个并发上游任务、缓存、错误汇总和客户端轮询；六家银行状态与全球央行视图增加能力面，但四家银行为入口壳、央行数组为静态数据，因此不按展示模块数量授予更高分。"
+        },
+        {
+          "id": "coverage",
+          "label": "需求实现度",
+          "short": "实现",
+          "weight": 11,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E003",
+            "E008",
+            "E011",
+            "E020",
+            "E030"
+          ],
+          "reason": "覆盖国际/国内、六家银行名称与全球央行视图；但只有 2/6 家银行有公开报价，其余四家仅引导 App 核验。全球央行模块是固定客户端快照，页面刷新和 60 秒轮询均不会更新，未实现原需求要求的持续监控，因此按严重需求缺口计分。"
+        },
+        {
+          "id": "accuracy",
+          "label": "数据准确性",
+          "short": "数据",
+          "weight": 17,
+          "value": 6.5,
+          "min": 6,
+          "max": 7,
+          "evidence": [
+            "E003",
+            "E008",
+            "E009",
+            "E011",
+            "E020",
+            "E030"
+          ],
+          "reason": "SGE 与 WGC 5月净额及国家榜主要值一致，无法验证的银行价没有伪造成交价；但全球央行数据硬编码，4月净额 +17 吨与 WGC 修订后 +19 吨不符，页面刷新不会拉取修订或新月份，数据会持续过期，因此按严重时效性与修订风险计分。"
+        },
+        {
+          "id": "architecture",
+          "label": "架构先进性",
+          "short": "架构",
+          "weight": 9,
+          "value": 7.5,
+          "min": 7,
+          "max": 8,
+          "evidence": [
+            "E008",
+            "E012",
+            "E017",
+            "E018",
+            "E020",
+            "E031",
+            "E034"
+          ],
+          "reason": "客户端与服务端分层、Promise.allSettled 并发隔离、HTTP 缓存、类型化响应和托管交付均可验证；但央行这一核心需求绕过服务端 API，直接硬编码在客户端且无法自动更新，是明显的架构断层；共享运行时 schema 缺失、四家银行只存在客户端壳，认证边界也限制交付适配。该问题已包含在本维度现有扣分中，不再重复追加专项扣分。"
+        },
+        {
+          "id": "code",
+          "label": "代码质量",
+          "short": "代码",
+          "weight": 7,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E008",
+            "E012",
+            "E013",
+            "E014",
+            "E015",
+            "E017"
+          ],
+          "reason": "TypeScript、并发隔离和缓存策略提供良好基础，构建成功；但 2/2 自动化测试失效，lint 有错误，仓库 typecheck 退出码为 2，不能视为绿色质量基线。"
+        },
+        {
+          "id": "ux",
+          "label": "用户界面体验",
+          "short": "界面",
+          "weight": 8,
+          "value": 8,
+          "min": 7.5,
+          "max": 8.5,
+          "evidence": [
+            "E003",
+            "E008",
+            "E021",
+            "E035"
+          ],
+          "reason": "视觉层级、来源披露、刷新反馈、响应式、语义标签、6 处 ARIA 和 reduced-motion 处理均有静态证据；线上认证形成访问门槛，四家银行无实价，且未进行统一设备矩阵、屏幕阅读器或正式可用性测试。"
+        },
+        {
+          "id": "extensibility",
+          "label": "可扩展性",
+          "short": "扩展",
+          "weight": 8,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E008",
+            "E017",
+            "E020",
+            "E031",
+            "E034"
+          ],
+          "reason": "TypeScript 接口、服务端适配器入口和并发任务模式提供扩展基础；但新增真实银行源会跨客户端壳与 API，央行自动更新需迁移硬编码数据，657 行组件和 1078 行 CSS 也扩大视图变更面。"
+        },
+        {
+          "id": "performance",
+          "label": "性能表现",
+          "short": "性能",
+          "weight": 4,
+          "value": 6.5,
+          "min": 5.5,
+          "max": 7.5,
+          "evidence": [
+            "E008",
+            "E012",
+            "E017",
+            "E018"
+          ],
+          "reason": "API 并发与缓存良好；客户端组件、CSS 和字体预加载较大，线上认证阻止同口径实测。"
+        },
+        {
+          "id": "maintainability",
+          "label": "可维护性",
+          "short": "维护",
+          "weight": 5,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E008",
+            "E013",
+            "E014",
+            "E015",
+            "E017"
+          ],
+          "reason": "类型和 lockfile 提供基础；但 657 行组件、1078 行 CSS、客户端硬编码央行数据以及失效测试和静态检查问题增加长期维护成本。"
+        },
+        {
+          "id": "reproducibility",
+          "label": "可复现与运行可靠性",
+          "short": "复现",
+          "weight": 3,
+          "value": 6,
+          "min": 5.5,
+          "max": 6.5,
+          "evidence": [
+            "E012",
+            "E013",
+            "E015",
+            "E018",
+            "E022"
+          ],
+          "reason": "构建与托管成功、依赖锁定；但自动化验证不绿、部署需登录、上游解析依赖页面结构，且没有证明从冻结代码到同等线上状态的独立复现流程。"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F04",
+      "system": "zhikun",
+      "severity": "major",
+      "title": "“各国央行”被实现为中国央行",
+      "body": "系统只抓取 SAFE 中国官方储备历史，没有各国买卖频率与规模。",
+      "evidence": [
+        "E001",
+        "E006",
+        "E007",
+        "E028"
+      ]
+    },
+    {
+      "id": "F05",
+      "system": "zhikun",
+      "severity": "major",
+      "title": "指定平安银行缺失，额外银行不能替代",
+      "body": "提供交通、邮储等七家估算，但原需求指定的平安银行没有出现。",
+      "evidence": [
+        "E001",
+        "E006",
+        "E007",
+        "E028"
+      ]
+    },
+    {
+      "id": "F06",
+      "system": "zhikun",
+      "severity": "major",
+      "title": "所有银行价格均为固定点差估算",
+      "body": "代码以沪金主力价叠加静态点差和费率，虽明确披露，但不能满足真实银行积存金价格监控。",
+      "evidence": [
+        "E007",
+        "E019"
+      ]
+    },
+    {
+      "id": "F07",
+      "system": "zhikun",
+      "severity": "minor",
+      "title": "SAFE 抓取关闭 TLS 验证",
+      "body": "请求使用 verify=False 并全局抑制警告，降低来源链路的传输可信度。",
+      "evidence": [
+        "E007"
+      ]
+    },
+    {
+      "id": "F08",
+      "system": "codex",
+      "severity": "major",
+      "title": "只有 2/6 银行有公开报价",
+      "body": "工行与建行可从公开页面解析，其余四家仅显示 App 核验和官方入口。",
+      "evidence": [
+        "E003",
+        "E008",
+        "E020"
+      ]
+    },
+    {
+      "id": "F09",
+      "system": "codex",
+      "severity": "major",
+      "title": "自动化测试与成品脱节",
+      "body": "npm test 的两个测试仍验证已删除的 starter skeleton，2/2 失败，不能保护当前黄金看板。",
+      "evidence": [
+        "E012",
+        "E013"
+      ]
+    },
+    {
+      "id": "F10",
+      "system": "codex",
+      "severity": "major",
+      "title": "仓库静态检查未形成绿色基线",
+      "body": "lint 有 React effect 同步 setState 错误；仓库 typecheck 缺 Cloudflare worker 类型。",
+      "evidence": [
+        "E014",
+        "E015"
+      ]
+    },
+    {
+      "id": "F11",
+      "system": "codex",
+      "severity": "major",
+      "title": "全球央行数据硬编码且含已确认错误",
+      "body": "5月净额和国家榜主要值与 WGC 一致，但4月净额在客户端硬编码为 +17 吨，WGC 修订后数据为 +19 吨；数据也没有自动更新或持久化来源。",
+      "evidence": [
+        "E008",
+        "E011",
+        "E030"
+      ]
+    },
+    {
+      "id": "F12",
+      "system": "codex",
+      "severity": "minor",
+      "title": "线上链接需要登录",
+      "body": "未登录访问部署地址得到 Sign in required；这影响“随时打开”的公开可达性，但保护了私有访问。",
+      "evidence": [
+        "E002",
+        "E018"
+      ]
+    },
+    {
+      "id": "F13",
+      "system": "zhikun",
+      "severity": "minor",
+      "title": "长任务权限交互与执行成本较高",
+      "body": "日志记录 83 次 PERMISSION 控制面判定、5 个 Agent 调用和约 1小时32分墙钟；83 次判定不等于 83 次人工点击，2 个子任务达到 SUBAGENT_MAX_TURNS。",
+      "evidence": [
+        "E027"
+      ]
+    },
+    {
+      "id": "F15",
+      "system": "codex",
+      "severity": "minor",
+      "title": "需求澄清缺少结构化可选交互",
+      "body": "Codex 以普通文本列出问题和候选答案，用户需要手动整理并复制粘贴回复；选项没有推荐标识和逐项影响说明。相比之下，ZhikunCode 提供可点击卡片、推荐项及描述。",
+      "evidence": [
+        "E025",
+        "E026",
+        "E029"
+      ]
+    },
+    {
+      "id": "F16",
+      "system": "zhikun",
+      "severity": "minor",
+      "title": "运行日志未记录构建 Git SHA",
+      "body": "审计参考提交 aa1b3173… 的源码能解释日志中的类、方法与结构化事件，但日志没有记录运行构建 Git SHA，不能证明运行二进制与该参考提交逐字节一致。",
+      "evidence": [
+        "E027",
+        "E038"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E001",
+      "legacyId": "E01",
+      "claim": "原始用户 Prompt",
+      "sourceType": "document",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "我想做黄金校资。。［但是不太懂怎么具体操作），也不知道该怎么监控行情，你能帮我 每日可以随时跟踪国际国内市场的金价以及银行的积存金的价格。同时监控国家对黄金 回购的频率及整体金额趋势。你不是很确定的要先跟我沟通确认",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "user-input-transcript",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E002",
+      "legacyId": "E02",
+      "claim": "Codex 开发过程截图",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/codex-process.jpg",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "包含澄清问题、用户确认、27分49秒总耗时、部署与限制说明。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "assets/gold-audit/codex-process.jpg",
+      "sourceTypes": [
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E003",
+      "legacyId": "E03",
+      "claim": "Codex 成品截图",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/codex-product.jpg",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "显示 COMEX、SGE、六家银行、全球央行和数据限制模块。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "assets/gold-audit/codex-product.jpg",
+      "sourceTypes": [
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E004",
+      "legacyId": "E04",
+      "claim": "ZhikunCode 开发过程截图",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/zhikuncode-process.jpg",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "冻结源图为长过程记录；公开派生 JPEG 仅遮蔽一处本机绝对路径，只使用可辨识流程结构，不从截图推断总耗时。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "C",
+      "sourceLocator": "assets/gold-audit/zhikuncode-process.jpg",
+      "sourceTypes": [
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E005",
+      "legacyId": "E05",
+      "claim": "ZhikunCode 成品截图",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/zhikuncode-product.jpg",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "暗色本地仪表盘、银行估算表、中国央行趋势和沪金走势。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "assets/gold-audit/zhikuncode-product.jpg",
+      "sourceTypes": [
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E006",
+      "legacyId": "E08",
+      "claim": "ZhikunCode 实际运行 DOM",
+      "sourceType": "document",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23 18:58:20 +08:00",
+      "excerpt": "localhost:5050 成功加载；4092.04 XAU/USD、901.62 沪金、2346.45吨、20月；无 console warning/error。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "runtime-observation",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E007",
+      "legacyId": "E09",
+      "claim": "ZhikunCode 代码审计",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "Flask API、实时数据抓取、SAFE xls/xlsx 解析、固定银行点差、缓存、刷新和启动脚本。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E008",
+      "legacyId": "E11",
+      "claim": "Codex 代码审计",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "GoldDashboard.tsx、API route、CSS、认证和构建配置。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E009",
+      "legacyId": "E12",
+      "claim": "上海黄金交易所官方延时行情",
+      "sourceType": "document",
+      "publicPath": "https://www.sge.com.cn/sjzx/quotation_daily_new?end_date=2026-07-23&start_date=2026-07-23",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "2026-07-23 Au99.99=896.49，Au(T+D)=895.50 元/克。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://www.sge.com.cn/h5_sjzx/yshq",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "authoritative-source",
+      "publicVerification": "partial",
+      "publicVerificationNote": "链接锁定到 2026-07-23 官方日行情，可复核日期、品种与日度结果；它不能复原运行时刻的延时盘中值 896.49 / 895.50，因此第三方公开复核仅为部分。",
+      "lineSegments": []
+    },
+    {
+      "id": "E010",
+      "legacyId": "E13",
+      "claim": "SAFE 官方储备资产数据",
+      "sourceType": "document",
+      "publicPath": "https://www.safe.gov.cn/safe/2026/0206/27116.html",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "2026年6月黄金 7544 万盎司、黄金价值 3037.24 亿美元；换算约 2346.45 吨。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://www.safe.gov.cn/safe/2026/0206/27116.html",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "authoritative-source",
+      "publicVerification": "public",
+      "publicVerificationNote": "链接直达国家外汇管理局《官方储备资产（2026年）》数据页，可直接复核 2026 年 6 月黄金 7544 万盎司及 3037.24 亿美元。",
+      "lineSegments": []
+    },
+    {
+      "id": "E011",
+      "legacyId": "E14",
+      "claim": "世界黄金协会央行月度报告",
+      "sourceType": "document",
+      "publicPath": "https://www.gold.org/goldhub/gold-focus/2026/07/central-bank-gold-statistics-central-banks-remain-committed-gold",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "2026年5月全球净增41吨；波兰+18、中国+10、乌兹别克斯坦+9、哈萨克斯坦+7。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://www.gold.org/goldhub/gold-focus/2026/07/central-bank-gold-statistics-central-banks-remain-committed-gold",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "authoritative-source",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E012",
+      "legacyId": "E15",
+      "claim": "Codex 构建检查",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "清除无效代理变量后 vinext 五阶段构建成功。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E013",
+      "legacyId": "E16",
+      "claim": "Codex 自动化测试结果",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "2 个测试全部失败：仍断言 starter skeleton，且引用已删除的 app/_sites-preview。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E014",
+      "legacyId": "E17",
+      "claim": "Codex lint 结果",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "1 个 react-hooks/set-state-in-effect 错误，位于 GoldDashboard.tsx:232。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E015",
+      "legacyId": "E18",
+      "claim": "Codex TypeScript 检查结果",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "缺少 cloudflare:workers、Fetcher、D1Database 类型，仓库级检查退出码 2。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E016",
+      "legacyId": "E19",
+      "claim": "Python 语法检查",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "ZhikunCode 核心 Python 文件通过 AST 解析。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E017",
+      "legacyId": "E20",
+      "claim": "代码规模与产物体积",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "两套代码规模与产物体积均按冻结文件统计；行数与依赖数量只用于描述维护面，不直接计为能力或先进性。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E018",
+      "legacyId": "E21",
+      "claim": "Codex 线上访问状态",
+      "sourceType": "document",
+      "publicPath": "https://gold-pulse-dashboard.alizhikun.chatgpt.site/",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "未登录浏览器访问生产 URL 标题为 Sign in required。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://gold-pulse-dashboard.alizhikun.chatgpt.site/",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "runtime-observation",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E019",
+      "legacyId": "E24",
+      "claim": "ZhikunCode 银行估算公式",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 291,
+      "lineEnd": 326,
+      "timestamp": "2026-07-23",
+      "excerpt": "买入=沪金主力+固定点差；赎回=基准-固定点差，页面明确标为估算。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": [
+        {
+          "start": 291,
+          "end": 326
+        }
+      ]
+    },
+    {
+      "id": "E020",
+      "legacyId": "E26",
+      "claim": "Codex 银行覆盖状态",
+      "sourceType": "screenshot",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "工行、建行公开页报价；农行、中行、招行、平安为 App 核验。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code",
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E021",
+      "legacyId": "E27",
+      "claim": "前端语义与响应式检查",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "结合最终截图与前端代码检查语义结构、媒体查询、ARIA、刷新反馈与失败提示；未执行统一设备矩阵和正式可用性测试。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E022",
+      "legacyId": "E28",
+      "claim": "依赖与复现路径",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "检查 ZhikunCode 的 requirements/start.command/ECharts CDN 与 Codex 的 lockfile、托管认证和构建约束。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E023",
+      "legacyId": "E29",
+      "claim": "ZhikunCode 当次模型配置与相对条件",
+      "sourceType": "document",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "初始使用 Kimi K3，HTTP 429 后由用户手动切换至 GLM5.2 并发送“继续”；日志显示同一逻辑 Session 内随后创建新 Run 继续执行。相对模型条件来自任务操作者；报告未独立验证本次两组底层模型能力排序。",
+      "redactions": [
+        "session-id-truncated"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "operator-supplied-run-record",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E024",
+      "legacyId": "E31",
+      "claim": "Codex 当次模型配置",
+      "sourceType": "document",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "使用 gpt-5.6-sol，推理强度设置为高。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "operator-supplied-run-record",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E025",
+      "legacyId": "E32",
+      "claim": "ZhikunCode 第一批四题结构化澄清",
+      "sourceType": "log",
+      "publicPath": "zhikuncode-gold-monitor-log-excerpts.txt",
+      "originalSha256": "dc055d95826f91c6ff9624172274d0a2846a4aca0665be871f26aba73e5a9067",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "第一批 AskUserQuestion 包含央行/回购口径4项、金价品种3项、银行范围3项、交付形式4项，共14个选项。问题文本与回答顺序由冻结日志确认，完整选项来自哈希登记的冻结比较页。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>/zhikuncode-run.log + frozen comparison report",
+      "sourceTypes": [
+        "log",
+        "document"
+      ],
+      "sourceSubtype": "runtime-log-and-frozen-source-report",
+      "publicVerification": "partial",
+      "lineSegments": [
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        }
+      ],
+      "publicExcerptLineSegments": [
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        }
+      ],
+      "publicLogPath": "zhikuncode-gold-monitor-log-excerpts.txt"
+    },
+    {
+      "id": "E026",
+      "legacyId": "E33",
+      "claim": "ZhikunCode 执行中主动交互与承接断点",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/zhikuncode-clarification.jpg",
+      "originalSha256": "8450c30003369c13a5bc421ec1b706e1ba1d667b9f8c626baa04b41eb08e0c06",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "localhost:5173 执行界面出现“AI 需要更多信息”结构化模态窗口。任务操作者同时记录：首次确认后后续问题未自动弹出，刷新页面重新进入对话后才继续弹出；这证明交互可恢复，也暴露连续承接断点。该断点来自操作者记录，单张公开截图不能独立证明刷新前后全过程。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "assets/gold-audit/zhikuncode-clarification.jpg",
+      "sourceTypes": [
+        "screenshot",
+        "document"
+      ],
+      "sourceSubtype": "operator-observation-and-derived-screenshot",
+      "publicVerification": "partial",
+      "lineSegments": [],
+      "publicExcerptLineSegments": []
+    },
+    {
+      "id": "E027",
+      "legacyId": "E34",
+      "claim": "ZhikunCode 完整执行过程日志",
+      "sourceType": "log",
+      "publicPath": "zhikuncode-gold-monitor-log-excerpts.txt",
+      "originalSha256": "dc055d95826f91c6ff9624172274d0a2846a4aca0665be871f26aba73e5a9067",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "目标运行从 17:10:49.811 至 18:42:53.633 完成；同一逻辑 Session 包含 3 个主 Run，最终实现/验证 Run 为 44 turns；5 个子 Agent 中 3 个成功、2 个 SUBAGENT_MAX_TURNS；主协调器 60 次工具调用中 54 次正常、6 次错误；模型切换由用户手动触发。日志 usage 累计约14.00M，非统一计费口径。",
+      "redactions": [
+        "absolute-local-path",
+        "session-id-truncated",
+        "runtime-identifiers",
+        "temporary-path"
+      ],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>/zhikuncode-run.log",
+      "sourceTypes": [
+        "log"
+      ],
+      "sourceSubtype": "runtime-log",
+      "publicVerification": "partial",
+      "lineSegments": [
+        {
+          "start": 26,
+          "end": 34
+        },
+        {
+          "start": 43,
+          "end": 43
+        },
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 1248,
+          "end": 1252
+        },
+        {
+          "start": 2159,
+          "end": 2159
+        },
+        {
+          "start": 2162,
+          "end": 2162
+        },
+        {
+          "start": 2299,
+          "end": 2299
+        },
+        {
+          "start": 2302,
+          "end": 2302
+        },
+        {
+          "start": 6576,
+          "end": 6576
+        },
+        {
+          "start": 6703,
+          "end": 6703
+        },
+        {
+          "start": 6740,
+          "end": 6740
+        },
+        {
+          "start": 6812,
+          "end": 6812
+        },
+        {
+          "start": 6855,
+          "end": 6855
+        },
+        {
+          "start": 6888,
+          "end": 6888
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 7349,
+          "end": 7349
+        },
+        {
+          "start": 7356,
+          "end": 7356
+        },
+        {
+          "start": 7513,
+          "end": 7515
+        },
+        {
+          "start": 7774,
+          "end": 7774
+        },
+        {
+          "start": 7791,
+          "end": 7791
+        },
+        {
+          "start": 7860,
+          "end": 7860
+        },
+        {
+          "start": 7903,
+          "end": 7903
+        },
+        {
+          "start": 7947,
+          "end": 7947
+        },
+        {
+          "start": 8034,
+          "end": 8034
+        },
+        {
+          "start": 10801,
+          "end": 10802
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicExcerptLineSegments": [
+        {
+          "start": 26,
+          "end": 34
+        },
+        {
+          "start": 43,
+          "end": 43
+        },
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 1248,
+          "end": 1252
+        },
+        {
+          "start": 2159,
+          "end": 2159
+        },
+        {
+          "start": 2162,
+          "end": 2162
+        },
+        {
+          "start": 2299,
+          "end": 2299
+        },
+        {
+          "start": 2302,
+          "end": 2302
+        },
+        {
+          "start": 6576,
+          "end": 6576
+        },
+        {
+          "start": 6703,
+          "end": 6703
+        },
+        {
+          "start": 6740,
+          "end": 6740
+        },
+        {
+          "start": 6812,
+          "end": 6812
+        },
+        {
+          "start": 6855,
+          "end": 6855
+        },
+        {
+          "start": 6888,
+          "end": 6888
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 7349,
+          "end": 7349
+        },
+        {
+          "start": 7356,
+          "end": 7356
+        },
+        {
+          "start": 7513,
+          "end": 7515
+        },
+        {
+          "start": 7774,
+          "end": 7774
+        },
+        {
+          "start": 7791,
+          "end": 7791
+        },
+        {
+          "start": 7860,
+          "end": 7860
+        },
+        {
+          "start": 7903,
+          "end": 7903
+        },
+        {
+          "start": 7947,
+          "end": 7947
+        },
+        {
+          "start": 8034,
+          "end": 8034
+        },
+        {
+          "start": 10801,
+          "end": 10802
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicLogPath": "zhikuncode-gold-monitor-log-excerpts.txt"
+    },
+    {
+      "id": "E028",
+      "legacyId": "E35",
+      "claim": "后续明确的验收范围",
+      "sourceType": "document",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "各国央行增持/减持黄金的频率与规模；工商银行、建设银行、农业银行、中国银行、招商银行、平安银行；随时打开的网页仪表盘。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "operator-supplied-run-record",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E029",
+      "legacyId": "E44",
+      "claim": "Codex 与 ZhikunCode 澄清交互对照",
+      "sourceType": "screenshot",
+      "publicPath": "assets/gold-audit/codex-clarification.jpg",
+      "originalSha256": "229f232d7e6d239aaa8d9ce891b22e3836838aa649b07635dd27ea515b980edc",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "Codex 截图显示三个澄清问题以普通文本和项目符号呈现，用户在输入框中手动整理“1、… 2、… 3、…”回复；没有可点击选项、推荐标签或选项说明。E32/E33 则证明 ZhikunCode 使用可点击卡片，并为选项提供推荐标识和影响描述。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "B",
+      "sourceLocator": "assets/gold-audit/codex-clarification.jpg",
+      "sourceTypes": [
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E030",
+      "legacyId": "E45",
+      "claim": "世界黄金协会2026年4月央行净购金修订数据",
+      "sourceType": "document",
+      "publicPath": "https://www.gold.org/goldhub/gold-focus/2026/06/central-bank-gold-statistics-central-banks-resume-net-buying-april",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "WGC 2026年6月3日报告记载：全球央行2026年4月净购金19吨；报告于6月12日更新并说明修正了图3错误。",
+      "redactions": [],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://www.gold.org/goldhub/gold-focus/2026/06/central-bank-gold-statistics-central-banks-resume-net-buying-april",
+      "sourceTypes": [
+        "document"
+      ],
+      "sourceSubtype": "authoritative-source",
+      "publicVerification": "public",
+      "lineSegments": []
+    },
+    {
+      "id": "E031",
+      "legacyId": "E46",
+      "claim": "Codex 冻结代码产物 ZIP",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": "e66a9fff25f5871846ac9f1a03b45869b48307cdef3efe8e87814c3bba5a0769",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "codex产物.zip，18,972 bytes；排除 macOS 元数据后 9 个条目。核心文件包括 page.tsx、GoldDashboard.tsx、api/market/route.ts、globals.css、layout.tsx 与 chatgpt-auth.ts。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E032",
+      "legacyId": "E48",
+      "claim": "ZhikunCode 冻结代码产物 ZIP",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": "ee79c90a3ee2c14b55e8c127fcbddf26ee53b78711167935d020c41d329b5b3f",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-23",
+      "excerpt": "zhikuncode产物.zip，12,732,333 bytes；排除 macOS 元数据后 2,959 个条目，条目数包含归档内 venv，不能当作业务代码规模。start.command 启动 app.py；app.py 提供 templates/index.html 与 API，API 再委托 data_fetcher.py，并使用 bank_config.py 和 data/central_bank.json。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E033",
+      "legacyId": "E49",
+      "claim": "冻结代码有效复杂度静态清单",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-24",
+      "excerpt": "从 E46/E48 解压业务核心文件后复核：ZhikunCode 4 个核心文件共 2,040 行，39 个命名函数、6 个 Flask 路由、6 次 requests.get/post、4 个定时/线程入口、15 个 except Exception；Codex 6 个核心文件共 2,161 行，17 个命名函数、1 个 API handler、6 次 fetch、1 个页面定时器、5 个 catch。计数只作为能力面和维护面的原始观察。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E034",
+      "legacyId": "E50",
+      "claim": "架构能力与扩展影响审计",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-24",
+      "excerpt": "逐项复核两套冻结代码的需求适配、职责分离、并发、缓存/状态、故障隔离、契约/类型和部署边界。确认 ZhikunCode 为 Flask 6 路由、顺序行情请求、月度缓存/预热与配置驱动银行估价；Codex 为客户端轮询、服务端 allSettled 并发任务与 HTTP 缓存，同时四家银行壳及央行数组在客户端静态定义。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E035",
+      "legacyId": "E51",
+      "claim": "最终产物用户体验与可访问性静态审计",
+      "sourceType": "screenshot",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-24",
+      "excerpt": "结合最终页面截图与冻结前端代码复核访问、首屏理解、来源披露、刷新反馈、失败降级、响应式与无障碍：ZhikunCode 有 30 秒轮询、全量/央行手动刷新、失败提示、1 组媒体查询，未发现 aria-*；Codex 有 60 秒轮询、手动刷新/加载状态、来源链接、3 组媒体查询、6 处 aria-* 与 prefers-reduced-motion。统一设备矩阵、屏幕阅读器和正式可用性测试均未执行。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code",
+        "screenshot"
+      ],
+      "sourceSubtype": "derived-screenshot",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E036",
+      "legacyId": "E53",
+      "claim": "最终产物执行路径与屏幕映射复核",
+      "sourceType": "code",
+      "publicPath": null,
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-25",
+      "excerpt": "逐文件追踪用户动作、浏览器请求、控制层、上游处理、状态/降级和页面输出。确认 ZhikunCode 首次请求四类数据，30 秒同时刷新行情与银行；两路 Flask API 分别重跑 fetch_realtime_all，且 fetch_au9999 与 fetch_shfe_gold 指向同一 nf_AU0。Codex 的 /api/market 有 5 个 allSettled 任务分支和 6 个 fetch 调用点，响应保留 errors[] 但 GoldDashboard 未读取；央行数组位于客户端并绕过所有刷新。审计同时把每条链映射到可见卡片、表格、图表、失败文案与来源入口。",
+      "redactions": [],
+      "verification": "partial",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>",
+      "sourceTypes": [
+        "code"
+      ],
+      "sourceSubtype": "static-code-audit",
+      "publicVerification": "partial",
+      "lineSegments": []
+    },
+    {
+      "id": "E037",
+      "legacyId": "E54",
+      "claim": "ZhikunCode 长程执行事件审计",
+      "sourceType": "log",
+      "publicPath": "zhikuncode-gold-monitor-log-excerpts.txt",
+      "originalSha256": "dc055d95826f91c6ff9624172274d0a2846a4aca0665be871f26aba73e5a9067",
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-25",
+      "excerpt": "同一逻辑 Session 包含 3 个主 Run：Kimi K3 Run 因 HTTP 429 停止，用户人工切换 GLM‑5.2 并发送“继续”，后续新 Run 继续研究、实现与验证。首批 3 个研究子 Agent 存在重叠执行并成功，后续 2 个实现/修复子 Agent 均以 SUBAGENT_MAX_TURNS 结束；最终主 Run 共 44 轮，协调器发起 60 次工具调用，收到 54 次正常结果与 6 次错误返回。VerifyJourney 后仍继续修复，最终经 Brief、TERMINATE_SUCCESS 与 message_complete 完成。",
+      "redactions": [
+        "absolute-local-path",
+        "session-id-truncated",
+        "runtime-identifiers",
+        "temporary-path"
+      ],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "<PRIVATE_EVIDENCE>/zhikuncode-run.log",
+      "sourceTypes": [
+        "log"
+      ],
+      "sourceSubtype": "runtime-log",
+      "publicVerification": "partial",
+      "lineSegments": [
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 6576,
+          "end": 6576
+        },
+        {
+          "start": 6703,
+          "end": 6703
+        },
+        {
+          "start": 6740,
+          "end": 6740
+        },
+        {
+          "start": 6812,
+          "end": 6812
+        },
+        {
+          "start": 6855,
+          "end": 6855
+        },
+        {
+          "start": 6888,
+          "end": 6888
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 7349,
+          "end": 7349
+        },
+        {
+          "start": 7356,
+          "end": 7356
+        },
+        {
+          "start": 7513,
+          "end": 7515
+        },
+        {
+          "start": 7774,
+          "end": 7774
+        },
+        {
+          "start": 7791,
+          "end": 7791
+        },
+        {
+          "start": 7860,
+          "end": 7860
+        },
+        {
+          "start": 7903,
+          "end": 7903
+        },
+        {
+          "start": 7947,
+          "end": 7947
+        },
+        {
+          "start": 8034,
+          "end": 8034
+        },
+        {
+          "start": 10801,
+          "end": 10802
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicExcerptLineSegments": [
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 6576,
+          "end": 6576
+        },
+        {
+          "start": 6703,
+          "end": 6703
+        },
+        {
+          "start": 6740,
+          "end": 6740
+        },
+        {
+          "start": 6812,
+          "end": 6812
+        },
+        {
+          "start": 6855,
+          "end": 6855
+        },
+        {
+          "start": 6888,
+          "end": 6888
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 7349,
+          "end": 7349
+        },
+        {
+          "start": 7356,
+          "end": 7356
+        },
+        {
+          "start": 7513,
+          "end": 7515
+        },
+        {
+          "start": 7774,
+          "end": 7774
+        },
+        {
+          "start": 7791,
+          "end": 7791
+        },
+        {
+          "start": 7860,
+          "end": 7860
+        },
+        {
+          "start": 7903,
+          "end": 7903
+        },
+        {
+          "start": 7947,
+          "end": 7947
+        },
+        {
+          "start": 8034,
+          "end": 8034
+        },
+        {
+          "start": 10801,
+          "end": 10802
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicLogPath": "zhikuncode-gold-monitor-log-excerpts.txt"
+    },
+    {
+      "id": "E038",
+      "legacyId": "E55",
+      "claim": "ZhikunCode 控制面源码交叉审计",
+      "sourceType": "code",
+      "publicPath": "https://github.com/zhikunqingtao/zhikuncode/tree/aa1b3173d97f8017507983374764258b157cf552",
+      "originalSha256": null,
+      "lineStart": 0,
+      "lineEnd": 0,
+      "timestamp": "2026-07-25",
+      "excerpt": "审计参考提交 aa1b3173d97f8017507983374764258b157cf552 中的 QueryEngine、ContextCascade、SubAgentExecutor、ToolExecutionPipeline、FrozenToolInputFactory、OperationAnalyzerRegistry、AuthorizationService、ToolExecutionGateway、DurableInteractionService、BashErrorClassifier、StreamingToolExecutor 与 FileVersionTracker 能解释冻结运行记录中的轮次循环、上下文诊断、权限判定、失败分类、恢复和文件溯源行为。冻结运行记录未绑定构建 Git SHA，因此不能证明运行二进制与参考提交逐字节一致。",
+      "redactions": [
+        "absolute-local-path"
+      ],
+      "verification": "verified",
+      "evidenceGrade": "A",
+      "sourceLocator": "https://github.com/zhikunqingtao/zhikuncode/tree/aa1b3173d97f8017507983374764258b157cf552",
+      "sourceTypes": [
+        "code",
+        "log"
+      ],
+      "sourceSubtype": "code-log-cross-audit",
+      "publicVerification": "partial",
+      "lineSegments": [
+        {
+          "start": 26,
+          "end": 34
+        },
+        {
+          "start": 43,
+          "end": 43
+        },
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 1248,
+          "end": 1252
+        },
+        {
+          "start": 2159,
+          "end": 2159
+        },
+        {
+          "start": 2162,
+          "end": 2162
+        },
+        {
+          "start": 2299,
+          "end": 2299
+        },
+        {
+          "start": 2302,
+          "end": 2302
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicExcerptLineSegments": [
+        {
+          "start": 26,
+          "end": 34
+        },
+        {
+          "start": 43,
+          "end": 43
+        },
+        {
+          "start": 47,
+          "end": 47
+        },
+        {
+          "start": 54,
+          "end": 55
+        },
+        {
+          "start": 63,
+          "end": 63
+        },
+        {
+          "start": 93,
+          "end": 93
+        },
+        {
+          "start": 101,
+          "end": 101
+        },
+        {
+          "start": 107,
+          "end": 109
+        },
+        {
+          "start": 113,
+          "end": 115
+        },
+        {
+          "start": 119,
+          "end": 120
+        },
+        {
+          "start": 127,
+          "end": 130
+        },
+        {
+          "start": 149,
+          "end": 151
+        },
+        {
+          "start": 163,
+          "end": 163
+        },
+        {
+          "start": 176,
+          "end": 176
+        },
+        {
+          "start": 186,
+          "end": 190
+        },
+        {
+          "start": 195,
+          "end": 195
+        },
+        {
+          "start": 200,
+          "end": 201
+        },
+        {
+          "start": 249,
+          "end": 252
+        },
+        {
+          "start": 310,
+          "end": 313
+        },
+        {
+          "start": 329,
+          "end": 332
+        },
+        {
+          "start": 1248,
+          "end": 1252
+        },
+        {
+          "start": 2159,
+          "end": 2159
+        },
+        {
+          "start": 2162,
+          "end": 2162
+        },
+        {
+          "start": 2299,
+          "end": 2299
+        },
+        {
+          "start": 2302,
+          "end": 2302
+        },
+        {
+          "start": 7037,
+          "end": 7037
+        },
+        {
+          "start": 7049,
+          "end": 7050
+        },
+        {
+          "start": 7076,
+          "end": 7076
+        },
+        {
+          "start": 7083,
+          "end": 7083
+        },
+        {
+          "start": 7086,
+          "end": 7086
+        },
+        {
+          "start": 7211,
+          "end": 7211
+        },
+        {
+          "start": 7261,
+          "end": 7261
+        },
+        {
+          "start": 12546,
+          "end": 12550
+        },
+        {
+          "start": 12926,
+          "end": 12927
+        },
+        {
+          "start": 14252,
+          "end": 14253
+        },
+        {
+          "start": 15025,
+          "end": 15025
+        },
+        {
+          "start": 15031,
+          "end": 15031
+        },
+        {
+          "start": 15035,
+          "end": 15035
+        },
+        {
+          "start": 15057,
+          "end": 15057
+        },
+        {
+          "start": 15061,
+          "end": 15061
+        },
+        {
+          "start": 15166,
+          "end": 15167
+        },
+        {
+          "start": 16794,
+          "end": 16796
+        },
+        {
+          "start": 16988,
+          "end": 16988
+        },
+        {
+          "start": 16995,
+          "end": 16996
+        },
+        {
+          "start": 17020,
+          "end": 17025
+        },
+        {
+          "start": 17084,
+          "end": 17090
+        }
+      ],
+      "publicLogPath": "zhikuncode-gold-monitor-log-excerpts.txt"
+    }
+  ],
+  "limitations": [
+    "单任务、单次运行，不能外推为模型或工具的通用排名。",
+    "两侧运行环境、工具面、部署边界与人工介入并不完全一致，不是严格受控的模型基准测试。",
+    "ZhikunCode 运行中由用户人工切换模型，不能描述为自动故障转移。",
+    "本报告使用的是与冻结证据登记哈希完全一致的黄金监控任务原始日志；仓库当前应用日志属于后续运行，未读取也未引用。",
+    "完整原始日志和冻结代码归档未公开；第三方可复核脱敏关键日志摘录、原始日志哈希、截图和方法，但不能从摘录推断未公开的全部日志内容。",
+    "评分为本案例自定义审计评分，维度、权重和区间含评审判断，不是权威基准。",
+    "运行日志未记录构建 Git SHA，当前源码与运行二进制的一致性不能逐字节证明。",
+    "数据源会变化；报告中的行情和央行数据只对标注日期负责。"
+  ],
+  "disclosure": "报告由 ZhikunCode 开发者主导整理；为降低利益冲突，报告公开负面发现、评分公式、证据等级与不能推出的结论。",
+  "evidenceGradeDefinition": {
+    "A": "直接日志、代码、运行检查或权威来源；仍需结合公开状态判断第三方能否复核。",
+    "B": "操作者补充、截图或结构化记录；可支持事实，但原件公开性或完整性有限。",
+    "C": "辅助性材料；只支持可辨认结构，不单独支持时间、因果或完整性结论。"
+  },
+  "executionPhases": [
+    {
+      "id": "clarify",
+      "order": 1,
+      "label": "澄清",
+      "time": "17:10:49–17:12:21",
+      "summary": "第一批四题完成；随后 Kimi K3 返回 HTTP 429。人工换模是阶段间恢复事件，不是自动故障转移。",
+      "facts": [
+        "AskUserQuestion #1",
+        "4 个 ELICITATION",
+        "HTTP 429"
+      ],
+      "evidence": [
+        "E025",
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "id": "research",
+      "order": 2,
+      "label": "研究",
+      "time": "17:14:20–17:27:15",
+      "summary": "三个不同研究方向在重叠时间窗中执行，均成功形成可回收研究文档。",
+      "facts": [
+        "3 个研究 Agent",
+        "3 个 SUCCESS",
+        "3 份研究文档"
+      ],
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "id": "converge",
+      "order": 3,
+      "label": "约束收敛",
+      "time": "17:29:30–17:34:18",
+      "summary": "第二批两个问题、pending interaction 重放、Plan Mode 与 TodoWrite 将选择转为执行状态。",
+      "facts": [
+        "AskUserQuestion #2",
+        "2 个 ELICITATION",
+        "1 次 pending replay"
+      ],
+      "evidence": [
+        "E026",
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "id": "implement",
+      "order": 4,
+      "label": "实现接管",
+      "time": "17:34:27–18:30:38",
+      "summary": "两个实现/修复 Agent 达到轮次上限，主协调器继续读取、编辑、执行与测试。",
+      "facts": [
+        "2 × SUBAGENT_MAX_TURNS",
+        "主链接管",
+        "Verify 前持续修复"
+      ],
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    },
+    {
+      "id": "verify",
+      "order": 5,
+      "label": "验证终止",
+      "time": "18:30:38–18:42:53",
+      "summary": "VerifyJourney 后仍继续返工，最终经 Brief、Turn 44、成功终止和 message_complete 完成。",
+      "facts": [
+        "VerifyJourney",
+        "Brief",
+        "TERMINATE_SUCCESS"
+      ],
+      "evidence": [
+        "E027",
+        "E037"
+      ]
+    }
+  ],
+  "toolFingerprint": [
+    {
+      "index": 1,
+      "tool": "AskUserQuestion",
+      "status": "success",
+      "phase": "clarify",
+      "detail": null
+    },
+    {
+      "index": 2,
+      "tool": "Agent",
+      "status": "success",
+      "phase": "research",
+      "detail": null
+    },
+    {
+      "index": 3,
+      "tool": "Agent",
+      "status": "success",
+      "phase": "research",
+      "detail": null
+    },
+    {
+      "index": 4,
+      "tool": "Agent",
+      "status": "success",
+      "phase": "research",
+      "detail": null
+    },
+    {
+      "index": 5,
+      "tool": "Read",
+      "status": "success",
+      "phase": "research",
+      "detail": null
+    },
+    {
+      "index": 6,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "research",
+      "detail": null
+    },
+    {
+      "index": 7,
+      "tool": "AskUserQuestion",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 8,
+      "tool": "Read",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 9,
+      "tool": "Read",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 10,
+      "tool": "EnterPlanMode",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 11,
+      "tool": "ExitPlanMode",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 12,
+      "tool": "TodoWrite",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 13,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "converge",
+      "detail": null
+    },
+    {
+      "index": 14,
+      "tool": "Agent",
+      "status": "error",
+      "phase": "implement",
+      "detail": "SUBAGENT_MAX_TURNS"
+    },
+    {
+      "index": 15,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 16,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 17,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 18,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 19,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 20,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 21,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 22,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 23,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 24,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 25,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 26,
+      "tool": "SendMessage",
+      "status": "error",
+      "phase": "implement",
+      "detail": "Agent not found"
+    },
+    {
+      "index": 27,
+      "tool": "Agent",
+      "status": "error",
+      "phase": "implement",
+      "detail": "SUBAGENT_MAX_TURNS"
+    },
+    {
+      "index": 28,
+      "tool": "Bash",
+      "status": "error",
+      "phase": "implement",
+      "detail": "exit 1"
+    },
+    {
+      "index": 29,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 30,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 31,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 32,
+      "tool": "Read",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 33,
+      "tool": "Read",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 34,
+      "tool": "Grep",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 35,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 36,
+      "tool": "Read",
+      "status": "success",
+      "phase": "implement",
+      "detail": null
+    },
+    {
+      "index": 37,
+      "tool": "VerifyJourney",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 38,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 39,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 40,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 41,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 42,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 43,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 44,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 45,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 46,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 47,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 48,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 49,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 50,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 51,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 52,
+      "tool": "Bash",
+      "status": "error",
+      "phase": "verify",
+      "detail": "exit 1"
+    },
+    {
+      "index": 53,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 54,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 55,
+      "tool": "Edit",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 56,
+      "tool": "Bash",
+      "status": "error",
+      "phase": "verify",
+      "detail": "exit 1"
+    },
+    {
+      "index": 57,
+      "tool": "Read",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 58,
+      "tool": "Bash",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 59,
+      "tool": "TodoWrite",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    },
+    {
+      "index": 60,
+      "tool": "Brief",
+      "status": "success",
+      "phase": "verify",
+      "detail": null
+    }
+  ],
+  "researchLineage": {
+    "researchAssets": [
+      {
+        "role": "国际金价研究",
+        "editorLabel": "国际金价研究 Agent",
+        "file": "gold_price_sources.md",
+        "hashPrefix": "9700f9d196ac3548"
+      },
+      {
+        "role": "银行积存金研究",
+        "editorLabel": "银行积存金研究 Agent",
+        "file": "bank_gold_sources.md",
+        "hashPrefix": "5c05d12bb15cee82"
+      },
+      {
+        "role": "央行购金研究",
+        "editorLabel": "央行购金研究 Agent",
+        "file": "central_bank_gold_sources.md",
+        "hashPrefix": "87f05fa76eeeb12d"
+      }
+    ],
+    "synthesis": "主协调器读取并综合研究结论、用户约束和工作区状态；不表示逐字复制。",
+    "applicationFiles": [
+      {
+        "file": "requirements.txt",
+        "hashPrefix": "8ebf8da5b16a0ad9"
+      },
+      {
+        "file": "bank_config.py",
+        "hashPrefix": "d1e4f2b0733774c0"
+      },
+      {
+        "file": "data_fetcher.py",
+        "hashPrefix": "b2788cab92388970"
+      },
+      {
+        "file": "app.py",
+        "hashPrefix": "1f085352caf30607"
+      },
+      {
+        "file": "start.command",
+        "hashPrefix": "2f42544704ba55fc"
+      },
+      {
+        "file": "templates/index.html",
+        "hashPrefix": "de370975402c9d77"
+      }
+    ],
+    "boundary": "该链只证明执行顺序、文件产出、主链回收及日志哈希前缀，不证明研究文本与代码片段存在内容级一对一派生。",
+    "evidence": [
+      "E027",
+      "E032",
+      "E037"
+    ]
+  },
+  "secondBatchClarifications": [
+    {
+      "order": 1,
+      "question": "既然银行积存金实时报价抓不到，仪表盘里这块怎么处理？（核心是看 Au99.99 基准价，因为各行积存金都跟着它走）",
+      "questionLine": 7037,
+      "answerLine": 7049,
+      "completionLine": null,
+      "optionsStatus": "partial",
+      "visibleOptions": [
+        "基准价 + 各行估算区间（推荐）",
+        "只显示基准价 + 说明"
+      ],
+      "boundary": "公开截图只能辨认以上部分选项；滚动区域中的其他选项和最终选择不推断。",
+      "evidence": [
+        "E026",
+        "E027"
+      ]
+    },
+    {
+      "order": 2,
+      "question": "这个监控工具的代码放哪里？",
+      "questionLine": 7050,
+      "answerLine": 7083,
+      "completionLine": 7086,
+      "optionsStatus": "unavailable",
+      "visibleOptions": [],
+      "boundary": "日志证明问题发送、回答和工具完成；完整选项及用户最终选择未留存。",
+      "evidence": [
+        "E027"
+      ]
+    }
+  ],
+  "surfaceOwnership": [
+    {
+      "module": "国际/国内行情卡片",
+      "zhikun": "templates/index.html → app.py 实时路由 → data_fetcher.py",
+      "codex": "GoldDashboard.tsx → /api/market → route.ts",
+      "pressure": "跨层实现",
+      "meaning": "修改来源或字段需同步抓取、响应契约和展示。",
+      "evidence": [
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "module": "银行积存金表",
+      "zhikun": "index.html → 银行路由 → data_fetcher.py + bank_config.py",
+      "codex": "GoldDashboard.tsx 银行状态 + route.ts 两家适配器/四家入口壳",
+      "pressure": "跨层实现",
+      "meaning": "新增估算银行较集中；新增真实报价均需跨数据与展示层。",
+      "evidence": [
+        "E019",
+        "E020",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "module": "中国央行模块",
+      "zhikun": "index.html → 央行路由 → SAFE 抓取、缓存与预热",
+      "codex": "GoldDashboard.tsx 全球央行静态数组中的中国条目",
+      "pressure": "数据生命周期重构",
+      "meaning": "ZhikunCode 扩展全球需新数据域；Codex 自动更新需迁移到 API。",
+      "evidence": [
+        "E009",
+        "E010",
+        "E030",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "module": "趋势图",
+      "zhikun": "index.html 的 ECharts + 历史/央行 API",
+      "codex": "GoldDashboard.tsx 的 Canvas/CSS 渲染",
+      "pressure": "单层实现",
+      "meaning": "两侧视图文件均较大，局部变化需要回归多个可见模块。",
+      "evidence": [
+        "E021",
+        "E035",
+        "E036"
+      ]
+    },
+    {
+      "module": "刷新与状态",
+      "zhikun": "30 秒双请求、央行强刷、部分失败文案",
+      "codex": "60 秒 /api/market、加载状态、总失败保留旧值",
+      "pressure": "跨层实现",
+      "meaning": "Codex errors[] 未进入页面；两侧均缺统一 stale 判定。",
+      "evidence": [
+        "E034",
+        "E035",
+        "E036"
+      ]
+    },
+    {
+      "module": "页面视觉",
+      "zhikun": "902 行单文件 HTML/CSS/JS",
+      "codex": "657 行组件 + 1,078 行 CSS",
+      "pressure": "单层实现",
+      "meaning": "行数只描述静态修改面，不推导工时或难度分。",
+      "evidence": [
+        "E033",
+        "E035"
+      ]
+    }
+  ],
+  "dataSourceMatrix": [
+    {
+      "domain": "国际黄金",
+      "zhikun": {
+        "status": "dynamic-public",
+        "source": "动态 XAU/USD",
+        "method": "公开行情接口",
+        "label": "国际金价",
+        "update": "30 秒行情刷新",
+        "verification": "运行与代码可核验",
+        "limit": "与 COMEX 期货不是同一品种"
+      },
+      "codex": {
+        "status": "dynamic-public",
+        "source": "动态 COMEX 期货",
+        "method": "服务端公开行情路径",
+        "label": "COMEX 期货",
+        "update": "60 秒 /api/market",
+        "verification": "代码与截图可核验",
+        "limit": "与 XAU/USD 现货口径不同"
+      },
+      "evidence": [
+        "E006",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "domain": "国内黄金",
+      "zhikun": {
+        "status": "different-instrument",
+        "source": "沪金主力期货 nf_AU0",
+        "method": "公开行情接口",
+        "label": "沪金主力",
+        "update": "30 秒行情刷新",
+        "verification": "页面已披露替代口径",
+        "limit": "不是 SGE Au99.99"
+      },
+      "codex": {
+        "status": "dynamic-public",
+        "source": "SGE Au99.99 / Au(T+D)",
+        "method": "服务端抓取官方延时行情",
+        "label": "上海金",
+        "update": "60 秒 /api/market",
+        "verification": "与官方延时行情一致",
+        "limit": "延时行情不等于可执行成交价"
+      },
+      "evidence": [
+        "E009",
+        "E036"
+      ]
+    },
+    {
+      "domain": "工商银行、建设银行",
+      "zhikun": {
+        "status": "derived-estimate",
+        "source": "沪金基准 + 固定点差",
+        "method": "bank_config.py 估算",
+        "label": "估算价格",
+        "update": "随基准价刷新",
+        "verification": "公式与披露可核验",
+        "limit": "不是银行真实报价"
+      },
+      "codex": {
+        "status": "dynamic-public",
+        "source": "银行公开页面报价路径",
+        "method": "服务端适配器",
+        "label": "公开页报价",
+        "update": "随 /api/market 刷新",
+        "verification": "公开路径可核查",
+        "limit": "不保证为可执行成交价"
+      },
+      "evidence": [
+        "E019",
+        "E020",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "domain": "农业、中国、招商、平安银行",
+      "zhikun": {
+        "status": "derived-estimate",
+        "source": "前三家固定点差估算；平安缺失",
+        "method": "配置估算或无实现",
+        "label": "估算/缺失",
+        "update": "估算随基准价刷新",
+        "verification": "代码可核验",
+        "limit": "平安未实现，其他不是实价"
+      },
+      "codex": {
+        "status": "verification-only",
+        "source": "App 核验入口",
+        "method": "客户端状态与官方入口",
+        "label": "App 核验",
+        "update": "没有公开报价更新",
+        "verification": "入口和状态可核验",
+        "limit": "不显示未经验证的实时价"
+      },
+      "evidence": [
+        "E020",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "domain": "中国央行储备",
+      "zhikun": {
+        "status": "dynamic-public",
+        "source": "SAFE 月度数据",
+        "method": "抓取、缓存与预热",
+        "label": "中国央行储备",
+        "update": "月度缓存，可强制刷新",
+        "verification": "权威来源与运行值可核验",
+        "limit": "只覆盖中国"
+      },
+      "codex": {
+        "status": "static-snapshot",
+        "source": "客户端全球央行数组中的中国条目",
+        "method": "TSX 常量",
+        "label": "中国央行条目",
+        "update": "页面刷新不更新",
+        "verification": "冻结代码可核验",
+        "limit": "不是动态监控链"
+      },
+      "evidence": [
+        "E010",
+        "E034",
+        "E036"
+      ]
+    },
+    {
+      "domain": "全球央行",
+      "zhikun": {
+        "status": "missing",
+        "source": "无",
+        "method": "未实现",
+        "label": "无",
+        "update": "无",
+        "verification": "冻结产物可确认缺失",
+        "limit": "未满足各国央行需求"
+      },
+      "codex": {
+        "status": "static-snapshot",
+        "source": "客户端静态数组",
+        "method": "TSX 常量",
+        "label": "全球央行月度快照",
+        "update": "页面刷新不更新",
+        "verification": "代码与权威修订值可核验",
+        "limit": "4 月 +17 吨与修订后 +19 吨不一致"
+      },
+      "evidence": [
+        "E010",
+        "E030",
+        "E034",
+        "E036"
+      ]
+    }
+  ],
+  "sourceVisualAudit": [
+    {
+      "key": "zhikun-01",
+      "source": "zhikun",
+      "order": 1,
+      "title": "ZhikunCode 国产模型工程控制面",
+      "description": "用户目标经结构化澄清、QueryEngine、多Agent和工具执行管线，最终形成可运行代码；GLM-5.2是本任务人工换模后的主链执行模型，任务操作者提供的gpt-5.6-sol高推理配置是本次Codex对照。",
+      "status": "merged",
+      "reason": "由控制面剖视图、三端系统和能力覆盖图共同承接。",
+      "originalSvgSha256": "61f52ddbc47dc3cfd6cdb02b2df89c5f0bad007c04fd204bc37d92c58896de75",
+      "materializedSvgSha256": "f2f3e1c3edf4b1977903dcc5952a372ed093dd91b6feb483308d07116e89ec20",
+      "publishedSvgSha256": "a7a095433e2374d516205704b71b0b09433cf55b4d23ae7e87c0b59fcb8dd864",
+      "correctionIds": [
+        "VC005",
+        "VC018"
+      ],
+      "targetFigureId": "control-cutaway",
+      "viewBox": "0 0 760 700",
+      "semanticUnits": {
+        "textNodes": 21,
+        "shapes": 20,
+        "groups": 8,
+        "paths": 7
+      },
+      "baseline": {
+        "viewBox": "0 0 760 700",
+        "textNodes": 21,
+        "orderedTextSha256": "98dbaa994f50b64d64ae469fa5208b78800b29591362c98dd4527b40d52d3c16",
+        "shapes": 20,
+        "geometrySha256": "67c4f56d3d49f416788f5b4cc96431d977784425a1a321aa8ff4aae37cbad2b7",
+        "groups": 8,
+        "paths": 7
+      },
+      "published": {
+        "orderedTextSha256": "653555569953a95aa2974d94096e892b2f58835f1627556d51f3f38a7a8f7d83",
+        "geometrySha256": "67c4f56d3d49f416788f5b4cc96431d977784425a1a321aa8ff4aae37cbad2b7"
+      }
+    },
+    {
+      "key": "zhikun-02",
+      "source": "zhikun",
+      "order": 2,
+      "title": "ZhikunCode 四层证据金字塔",
+      "description": "本图只解释黄金监控案例的公开证据层级；其他任务或基准结果不属于本案例证据链。",
+      "status": "included",
+      "reason": "解释证据等级与公开复核状态的区别。",
+      "originalSvgSha256": "460c9b79a7c20590d9bb05023c03ea9ca871b6eb324290a3152d98b80a2a5141",
+      "materializedSvgSha256": "960ee90d273065f456430e58fb7f757b3903e854c4e13d711a0439a1bf17ddae",
+      "publishedSvgSha256": "958fdc88701f96819a11435cf255a35acc401931113bb9178bfcb3cd122c0f82",
+      "correctionIds": [
+        "VC004",
+        "VC012"
+      ],
+      "targetFigureId": "evidence-pyramid",
+      "viewBox": "0 0 1180 610",
+      "semanticUnits": {
+        "textNodes": 18,
+        "shapes": 8,
+        "groups": 1,
+        "paths": 4
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 610",
+        "textNodes": 18,
+        "orderedTextSha256": "1ac8a738b0d3994222bc721316c47e7ea4e1c9e9ba46ac1b76dc10987fa209a9",
+        "shapes": 8,
+        "geometrySha256": "8a65ce89ccf2814ff8b72a1a7f9e6072467161e405b749ad0066f40904e905cc",
+        "groups": 1,
+        "paths": 4
+      },
+      "published": {
+        "orderedTextSha256": "6e8c4ba4de3735fa29645d7d14a2ffbd85d3548514ec0cfcfcc071d685a2a2b6",
+        "geometrySha256": "8a65ce89ccf2814ff8b72a1a7f9e6072467161e405b749ad0066f40904e905cc"
+      }
+    },
+    {
+      "key": "zhikun-03",
+      "source": "zhikun",
+      "order": 3,
+      "title": "Codex用户能力心智到ZhikunCode控制面的映射",
+      "description": "七条能力映射分别展示需求澄清、子任务、工具授权、上下文、运行验证、模型选择和MCP，并标注日志实测、源码确认和资料说明。",
+      "status": "included",
+      "reason": "保留熟悉能力到实际机制的映射，同时标记未验证能力。",
+      "originalSvgSha256": "a68e6a5db2d4dd21a38ccc1acc0a77320fe5f61b6e9a14ce36509c792bb5b9e2",
+      "materializedSvgSha256": "ccc7142f4fd9b57f21a4f5a0f94e283ca03e0ea57b0adb2f51e0cc4ae34cd8ce",
+      "publishedSvgSha256": "27f747b29483334bb2cc489ddf189761d80301679a12005a4d43f75298860986",
+      "correctionIds": [
+        "VC011"
+      ],
+      "targetFigureId": "capability-mapping",
+      "viewBox": "0 0 1180 650",
+      "semanticUnits": {
+        "textNodes": 40,
+        "shapes": 29,
+        "groups": 8,
+        "paths": 8
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 650",
+        "textNodes": 40,
+        "orderedTextSha256": "95c6ffaf9a97ff0285ae612394717a6f201c0a8b1a28c7c2c959c6385b0a3c00",
+        "shapes": 29,
+        "geometrySha256": "28ba5f0b82741b927b0381a4363586b0fb76e8398cd22bbc99bb35e9450cb0b2",
+        "groups": 8,
+        "paths": 8
+      },
+      "published": {
+        "orderedTextSha256": "e62c76c764e74b13716ae0d90371fc3871ca31d3b8dedec6b02d838e8a6773c5",
+        "geometrySha256": "28ba5f0b82741b927b0381a4363586b0fb76e8398cd22bbc99bb35e9450cb0b2"
+      }
+    },
+    {
+      "key": "zhikun-04",
+      "source": "zhikun",
+      "order": 4,
+      "title": "Codex 与 ZhikunCode 的本次配置、工程路径和任务级结果",
+      "description": "Codex 的模型配置来自任务操作者，工程路径由冻结代码、构建和截图确认，中心分为68.4，区间63.2至73.6。ZhikunCode在Kimi K3返回429后由用户人工切换GLM-5.2，并由后续新Run继续执行，中心分为68.3，区间62.6至73.7。两者中心差0.1且区间大幅重叠。",
+      "status": "included",
+      "reason": "提供同题运行边界总览。",
+      "originalSvgSha256": "3ac403beea44fc01d7a897d560fa92227ceeab03a9d94f735fb248fe03736b9b",
+      "materializedSvgSha256": "911d12bd8deabf09ba45cd094064dbf8a890fa8a53c9cf740bac524b83ad3589",
+      "publishedSvgSha256": "003e1369eda087fc784e81f3ac862a67f2956c2c59dd6d622c99e74b8a65e556",
+      "correctionIds": [
+        "VC005"
+      ],
+      "targetFigureId": "configuration-overview",
+      "viewBox": "0 0 1180 430",
+      "semanticUnits": {
+        "textNodes": 22,
+        "shapes": 11,
+        "groups": 0,
+        "paths": 5
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 430",
+        "textNodes": 22,
+        "orderedTextSha256": "335b10535093d3223a0805555e5a64983381097eedfed59d509b605e3189f26c",
+        "shapes": 11,
+        "geometrySha256": "629b3a0e8b3af1016579cecac29ba552addae3a1e69d8939da2f5a756495ca1f",
+        "groups": 0,
+        "paths": 5
+      },
+      "published": {
+        "orderedTextSha256": "9b9078f2154d96257f8dae93daee249846c5b24590341518090f439322b8cfe6",
+        "geometrySha256": "629b3a0e8b3af1016579cecac29ba552addae3a1e69d8939da2f5a756495ca1f"
+      }
+    },
+    {
+      "key": "zhikun-05",
+      "source": "zhikun",
+      "order": 5,
+      "title": "十四维加权贡献差值图",
+      "description": "差值等于ZhikunCode加权贡献减去Codex加权贡献。向左的金色条表示Codex贡献更高，向右的青色条表示ZhikunCode贡献更高，圆点表示相同。十四项差值合计为负0.05，对应Codex未四舍五入中心分高0.05。",
+      "status": "included",
+      "reason": "解释总分相近背后的结构差异。",
+      "originalSvgSha256": "46f36d3e70d094cb67d3f0d76137591d4e086305c12995eac3bdd26b26368fe2",
+      "materializedSvgSha256": "72c0b69d6b07679b2afa16793c1606b1833f1a766ac7ad20e9ea7cdca4d23189",
+      "publishedSvgSha256": "6e0c3498036f7449e2dbe2d02b24f5ca810755160f40a9718faf1f34a040b066",
+      "correctionIds": [],
+      "targetFigureId": "score-weighted-delta",
+      "viewBox": "0 0 1180 760",
+      "semanticUnits": {
+        "textNodes": 51,
+        "shapes": 18,
+        "groups": 14,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 760",
+        "textNodes": 51,
+        "orderedTextSha256": "f8d5d5accbb2d0768528735642c43bc47e907003f47f94418a3eff03d52a98dd",
+        "shapes": 18,
+        "geometrySha256": "aa9de96360516f05ccfdbd19e77063405584116c043a25ec004e8cb6c299e68e",
+        "groups": 14,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "f8d5d5accbb2d0768528735642c43bc47e907003f47f94418a3eff03d52a98dd",
+        "geometrySha256": "aa9de96360516f05ccfdbd19e77063405584116c043a25ec004e8cb6c299e68e"
+      }
+    },
+    {
+      "key": "zhikun-06",
+      "source": "zhikun",
+      "order": 6,
+      "title": "黄金监控任务五阶段执行脉冲",
+      "description": "从澄清、研究、约束收敛、实现接管到验证终止；阶段口径与证据 JSON 及静态表格一致。",
+      "status": "included",
+      "reason": "提供执行阶段与时间窗。",
+      "originalSvgSha256": "d5ddc723613a27b963240120eeefd4cdf73e5f3578c954bc28de0b7071a1ef94",
+      "materializedSvgSha256": "6b2e4bac06e14c1f8a462400ba5274fb65386820fa04501561ab2fd6924ecd5f",
+      "publishedSvgSha256": "e38ba9cdc7efb1bfc602c13ab0aaadc12f3c59a95ba223195e23dc9aaac007c4",
+      "correctionIds": [
+        "VC014"
+      ],
+      "targetFigureId": "execution-pulse",
+      "viewBox": "0 0 300 430",
+      "semanticUnits": {
+        "textNodes": 17,
+        "shapes": 11,
+        "groups": 5,
+        "paths": 4
+      },
+      "baseline": {
+        "viewBox": "0 0 300 430",
+        "textNodes": 17,
+        "orderedTextSha256": "75c2d2283b6db0a17a743de9daad12cecdec5ed0d8d68af2e8b3d820f747e757",
+        "shapes": 11,
+        "geometrySha256": "0ca2db780e0d5b0d961a0b3dff977d5449db73f2b5420e3eefbf967102ddcdd5",
+        "groups": 5,
+        "paths": 4
+      },
+      "published": {
+        "orderedTextSha256": "109b5bab564f52b25972642994b9534150337ec5973925d608bc6cc67dde1e0a",
+        "geometrySha256": "0ca2db780e0d5b0d961a0b3dff977d5449db73f2b5420e3eefbf967102ddcdd5"
+      }
+    },
+    {
+      "key": "zhikun-07",
+      "source": "zhikun",
+      "order": 7,
+      "title": "ZhikunCode 黄金监控任务多泳道执行 Trace Map",
+      "description": "近似按时间比例展示同一 Session 内三个主运行、五个子 Agent、六次结构化问题、传输重连、文件产出、验证检查点和最终终止持久化。",
+      "status": "included",
+      "reason": "展示多角色事件顺序。",
+      "originalSvgSha256": "c87960992a54f28aade276f629fab7778e25549df49680e070d1fb27b6ded4a8",
+      "materializedSvgSha256": "bd31f39009dd95ad01780a3b3485b9f5bf548558d7bc3c6f5d130cbb800326b4",
+      "publishedSvgSha256": "fb981bef8f703ed41124ed0c0bc7b02bdb80872b660803a9b959407ae28131ae",
+      "correctionIds": [
+        "VC001",
+        "VC003",
+        "VC020"
+      ],
+      "targetFigureId": "trace-map",
+      "viewBox": "0 0 1400 820",
+      "semanticUnits": {
+        "textNodes": 52,
+        "shapes": 42,
+        "groups": 9,
+        "paths": 7
+      },
+      "baseline": {
+        "viewBox": "0 0 1400 820",
+        "textNodes": 52,
+        "orderedTextSha256": "d6dac3e102c198debc50967d8c00a33c2a7729b2da730a5362a8e6682d4ad5f8",
+        "shapes": 42,
+        "geometrySha256": "e3d8f3c584b958564c77e4f9863f2fa1198ea1f460bfa3d8572d304a843ed629",
+        "groups": 9,
+        "paths": 7
+      },
+      "published": {
+        "orderedTextSha256": "9b462ef384a46f09d1306334a9b26a85da638d32360779ccd38f1fef892fc67a",
+        "geometrySha256": "e3d8f3c584b958564c77e4f9863f2fa1198ea1f460bfa3d8572d304a843ed629"
+      }
+    },
+    {
+      "key": "zhikun-08",
+      "source": "zhikun",
+      "order": 8,
+      "title": "从模糊需求到可执行约束集",
+      "description": "用户需求先经过四个初始澄清问题，再由三个不同方向研究 Agent 的运行时间窗重叠，随后追加两个可行性问题，进入Plan Mode并写入任务台账。",
+      "status": "included",
+      "reason": "展示需求编译与证据边界。",
+      "originalSvgSha256": "ccc2a2eef6776fd0cdce650343edf74138967b7bf9b05b2368d7b5a3147ca651",
+      "materializedSvgSha256": "f1b8ac99d2e0298527301001bbcadf4b2a17f3b4f04f32725632db7c9858fb0c",
+      "publishedSvgSha256": "eb05ab3b8a5d4d2e05aeea0c37c98d51ab794bae2746bc9e4a1aea6a2945b996",
+      "correctionIds": [
+        "VC013",
+        "VC017"
+      ],
+      "targetFigureId": "requirement-compiler",
+      "viewBox": "0 0 690 540",
+      "semanticUnits": {
+        "textNodes": 18,
+        "shapes": 14,
+        "groups": 1,
+        "paths": 5
+      },
+      "baseline": {
+        "viewBox": "0 0 690 540",
+        "textNodes": 18,
+        "orderedTextSha256": "45e823500944510ee46749f566c53eac2b9fd58f56fe9f4ec2f1a2bfadcdf655",
+        "shapes": 14,
+        "geometrySha256": "109fb78301f661ff90012ebcd3ee0fffdaa6816b3cad6bbccc3b554fd64960c7",
+        "groups": 1,
+        "paths": 5
+      },
+      "published": {
+        "orderedTextSha256": "d3737599c94176e2d8e61de1d0887fdd00021568529641d52ad9069c9205bdc1",
+        "geometrySha256": "109fb78301f661ff90012ebcd3ee0fffdaa6816b3cad6bbccc3b554fd64960c7"
+      }
+    },
+    {
+      "key": "zhikun-09",
+      "source": "zhikun",
+      "order": 9,
+      "title": "研究证据到交付资产的来源链",
+      "description": "三个研究Agent形成三份带哈希与编辑者身份的文档，主Agent综合后驱动实现Agent生成六个应用文件，并由主Agent继续读取、编辑和验证。",
+      "status": "included",
+      "reason": "展示研究资产与交付文件的控制流血缘。",
+      "originalSvgSha256": "6994fc9df9dca1081cd6a5dc1872fd234ca7f3fe7edb9fe7904de27bd3fe25c8",
+      "materializedSvgSha256": "10cd910b2469cd43d3b1c69d24a375fe270c890d63cc0e9311fd05ee2c8ff50a",
+      "publishedSvgSha256": "61d46b54e35082b1a60a4309c86bb294efebd4abff542827c78ec4e8cca187e6",
+      "correctionIds": [
+        "VC012"
+      ],
+      "targetFigureId": "research-lineage",
+      "viewBox": "0 0 690 540",
+      "semanticUnits": {
+        "textNodes": 27,
+        "shapes": 16,
+        "groups": 1,
+        "paths": 4
+      },
+      "baseline": {
+        "viewBox": "0 0 690 540",
+        "textNodes": 27,
+        "orderedTextSha256": "d21b4afd1c7a6568c90364c3f4314d2a069c6839b3033eb80ea4b5db53897eec",
+        "shapes": 16,
+        "geometrySha256": "3a374744b6dd83e16a209460f23bba9b16e2fe9e2eb6f286295fbc13e2bf9e17",
+        "groups": 1,
+        "paths": 4
+      },
+      "published": {
+        "orderedTextSha256": "2e879a210f090510c0bc5bc1f9c5750b5541f342bda65c1911175eeab58ed0fa",
+        "geometrySha256": "3a374744b6dd83e16a209460f23bba9b16e2fe9e2eb6f286295fbc13e2bf9e17"
+      }
+    },
+    {
+      "key": "zhikun-10",
+      "source": "zhikun",
+      "order": 10,
+      "title": "验证返工、失败隔离与完成门禁闭环",
+      "description": "实现结果经历静态与运行验证、问题修复、子Agent最大轮次失败后的主链接管、VerifyJourney中间检查点、继续修复、Brief和终止持久化。",
+      "status": "included",
+      "reason": "解释 Verify 不是最终终止。",
+      "originalSvgSha256": "98121efe3b444e9be4a84bd6a0d2d4cd1437c53822a5fb670616551d3f413cd8",
+      "materializedSvgSha256": "4695d6e056f0b7b2b47153bf26548c3c0ecca19e98517a4cd09783c17ad2cffb",
+      "publishedSvgSha256": "6bc282ca1b0128b4976bfbca2b9f450cfc519e7e3a6fb51e76e997c072a36cab",
+      "correctionIds": [],
+      "targetFigureId": "completion-gate",
+      "viewBox": "0 0 1180 520",
+      "semanticUnits": {
+        "textNodes": 29,
+        "shapes": 13,
+        "groups": 1,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 520",
+        "textNodes": 29,
+        "orderedTextSha256": "c867721edd68d6e3f394e20070f5cfc458c19918a9eab81b818b3ee87a85ad35",
+        "shapes": 13,
+        "geometrySha256": "21786ee59e31e0e8a47695d24a0a9ccb494ca2a1249e97acceefb69cee628e90",
+        "groups": 1,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "c867721edd68d6e3f394e20070f5cfc458c19918a9eab81b818b3ee87a85ad35",
+        "geometrySha256": "21786ee59e31e0e8a47695d24a0a9ccb494ca2a1249e97acceefb69cee628e90"
+      }
+    },
+    {
+      "key": "zhikun-11",
+      "source": "zhikun",
+      "order": 11,
+      "title": "主协调器六十次工具调用指纹",
+      "description": "按调用顺序列出主协调器的六十次工具调用。五次 Agent 调度已经包含在六十次总数中。五十四次正常完成，六次返回错误；错误返回不等于整个任务失败。",
+      "status": "included",
+      "reason": "保留完整有序工具调用指纹。",
+      "originalSvgSha256": "78e95a878b40fed641c3095fea7dc18b6d2494c4268d6e05d2b2a623d80a7ac5",
+      "materializedSvgSha256": "407eae7a4e05add27f0b1b4913f94fd66c6ab18bf76050ac31484ff089d805b4",
+      "publishedSvgSha256": "5827830da7c220d13db586b93222767a8297007b110a9e6f96adad7f6fad1bf4",
+      "correctionIds": [],
+      "targetFigureId": "tool-fingerprint",
+      "viewBox": "0 0 1400 690",
+      "semanticUnits": {
+        "textNodes": 202,
+        "shapes": 74,
+        "groups": 67,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1400 690",
+        "textNodes": 202,
+        "orderedTextSha256": "bc7b920a49e5844ac08ee997ea67038c47c36b99086425e8ff3c37ecfa8937d6",
+        "shapes": 74,
+        "geometrySha256": "222fa1ee301ee616d4b4be8c5057235da285da27408a457eb808da7b5c79d164",
+        "groups": 67,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "bc7b920a49e5844ac08ee997ea67038c47c36b99086425e8ff3c37ecfa8937d6",
+        "geometrySha256": "222fa1ee301ee616d4b4be8c5057235da285da27408a457eb808da7b5c79d164"
+      }
+    },
+    {
+      "key": "zhikun-12",
+      "source": "zhikun",
+      "order": 12,
+      "title": "ZhikunCode 控制面剖视图与本次日志命中路径",
+      "description": "从用户目标和任务编译进入 QueryEngine 核心，穿过上下文、Agent、工具和权限控制环，连接文件系统、终端、MCP、Git 与产物，最后由验证、摘要和终止策略完成闭环。青绿色为本次日志直接观测，蓝紫色为源码确认，灰色虚线为本次未直接命中的产品外围能力。",
+      "status": "included",
+      "reason": "区分日志命中、源码解释和未触发能力。",
+      "originalSvgSha256": "c6d2cd8243ab12620ca96f6e6a785978225b93465050a3eb9f32c4c67756da4f",
+      "materializedSvgSha256": "6418855e5e25179b82a717193ee1b0bafa06ef9f7abb7e80d493089b5e986f10",
+      "publishedSvgSha256": "ee297d413633f9d967b08d3246d56a26a1b147c72da4951bb8bf9ab738a251f6",
+      "correctionIds": [],
+      "targetFigureId": "control-cutaway",
+      "viewBox": "0 0 1180 690",
+      "semanticUnits": {
+        "textNodes": 30,
+        "shapes": 26,
+        "groups": 8,
+        "paths": 14
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 690",
+        "textNodes": 30,
+        "orderedTextSha256": "4a179dfb32ff742ffb500106b9530592e25950491b7b1cadec82e53c25ab3a92",
+        "shapes": 26,
+        "geometrySha256": "0d5bb06f3ea18ff5c07c37c19257c9f40d14b6f493ea986edd087ff274e2e3ed",
+        "groups": 8,
+        "paths": 14
+      },
+      "published": {
+        "orderedTextSha256": "4a179dfb32ff742ffb500106b9530592e25950491b7b1cadec82e53c25ab3a92",
+        "geometrySha256": "0d5bb06f3ea18ff5c07c37c19257c9f40d14b6f493ea986edd087ff274e2e3ed"
+      }
+    },
+    {
+      "key": "zhikun-13",
+      "source": "zhikun",
+      "order": 13,
+      "title": "ZhikunCode 完整工程控制面与本次命中模块",
+      "description": "从Web交互和结构化问题进入QueryEngine，经ContextCascade、多Agent、工具执行管线和授权网关，连接模型与文件、终端、浏览器等工具；本次任务命中的主链高亮。",
+      "status": "merged",
+      "reason": "并入完整能力覆盖图和控制面剖视图，避免重复总览。",
+      "originalSvgSha256": "ae987aa38d147a167d425ca79b9f5f16d351c2f3f0d14ff86df788020505859d",
+      "materializedSvgSha256": "3000632c462ba60f81a4d811d595058f25d1a8c1fe4975539e1661b84fac8bdf",
+      "publishedSvgSha256": "c2596eefbe4a34f57e84463a4769bb9c1bb6ca9e12f0a2e32fd78e00a5ce4b55",
+      "correctionIds": [],
+      "targetFigureId": "capability-coverage",
+      "viewBox": "0 0 1180 700",
+      "semanticUnits": {
+        "textNodes": 37,
+        "shapes": 24,
+        "groups": 1,
+        "paths": 8
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 700",
+        "textNodes": 37,
+        "orderedTextSha256": "d0d9426c07ab4c43921aac4399074e8c1f583a4b113027e41f1fa70ff8737050",
+        "shapes": 24,
+        "geometrySha256": "0f563803f12afab35d6c9653a74750d5cda0006d1da4d15f6b67cbb021b480cb",
+        "groups": 1,
+        "paths": 8
+      },
+      "published": {
+        "orderedTextSha256": "d0d9426c07ab4c43921aac4399074e8c1f583a4b113027e41f1fa70ff8737050",
+        "geometrySha256": "0f563803f12afab35d6c9653a74750d5cda0006d1da4d15f6b67cbb021b480cb"
+      }
+    },
+    {
+      "key": "zhikun-14",
+      "source": "zhikun",
+      "order": 14,
+      "title": "三端系统与本次日志实际路径",
+      "description": "本次任务从 React 和 WebSocket 进入 Java QueryEngine；日志直接命中 MCP 连接恢复，Python 分析域、Skills、插件和浏览器自动化未在任务主链触发。",
+      "status": "included",
+      "reason": "展示前端、控制面、模型与工具端边界。",
+      "originalSvgSha256": "f222cb004b7b009808a5d00c98eccaec2563c6b7bd2cacd32636d7329abd70c4",
+      "materializedSvgSha256": "97238e597631a251e39b63c3e8fbf76a32493a2032ee5bd8cb13f4faac046bbb",
+      "publishedSvgSha256": "cf29d74d32593d817091f42d78ef0874d76203d8ce2b7cc35159786662067f2b",
+      "correctionIds": [
+        "VC015"
+      ],
+      "targetFigureId": "three-system-path",
+      "viewBox": "0 0 1180 410",
+      "semanticUnits": {
+        "textNodes": 22,
+        "shapes": 10,
+        "groups": 3,
+        "paths": 4
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 410",
+        "textNodes": 22,
+        "orderedTextSha256": "bef10d68b5580fcff8190925d8a431a3be6426464767fca54df6a30b63959c1b",
+        "shapes": 10,
+        "geometrySha256": "d8d4a4c8c7db293a4dc82052ed166e42212dd94d8bce7c916ba10862ddc0a27e",
+        "groups": 3,
+        "paths": 4
+      },
+      "published": {
+        "orderedTextSha256": "fdf25342719a9cf45ee3dc0f17befbd62987e476ef704583f3575ffadc927a44",
+        "geometrySha256": "d8d4a4c8c7db293a4dc82052ed166e42212dd94d8bce7c916ba10862ddc0a27e"
+      }
+    },
+    {
+      "key": "zhikun-15",
+      "source": "zhikun",
+      "order": 15,
+      "title": "黄金监控任务端到端执行时序",
+      "description": "用户请求进入WebSocket和QueryEngine，经过上下文预检、模型流式响应、工具执行、结果回注、终止判定和持久化。日志直接观测到主要阶段，部分内部调用顺序由源码确认。",
+      "status": "included",
+      "reason": "展示请求至消息持久化的时序。",
+      "originalSvgSha256": "5e6126a0c7bfa31023a4b33ae26c5607155db621a84dd31a59fcff0940e09c8f",
+      "materializedSvgSha256": "71a8549ba8c0f9d7753781d604dd214a2c30983a14f6126331e60722cc2e2c1e",
+      "publishedSvgSha256": "3dbdf5ebb369bf2a692a4d5d64b65fc1cfdd0c04f5fb5a3a8a16882f95efeb89",
+      "correctionIds": [
+        "VC012"
+      ],
+      "targetFigureId": "execution-sequence",
+      "viewBox": "0 0 1180 500",
+      "semanticUnits": {
+        "textNodes": 23,
+        "shapes": 16,
+        "groups": 12,
+        "paths": 7
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 500",
+        "textNodes": 23,
+        "orderedTextSha256": "583be064689445f17b8e931d4e7071051da1704c5630f73f21da18fd6ae13372",
+        "shapes": 16,
+        "geometrySha256": "3a8544804fca1fbb906782cc831ed505a1fa8b5b2ca46ca661a900fb1f1684ed",
+        "groups": 12,
+        "paths": 7
+      },
+      "published": {
+        "orderedTextSha256": "3132498b9fc1f88e04e53a9c62ce2403e1963d389743f0269e1c8bc90c49be6d",
+        "geometrySha256": "3a8544804fca1fbb906782cc831ed505a1fa8b5b2ca46ca661a900fb1f1684ed"
+      }
+    },
+    {
+      "key": "zhikun-16",
+      "source": "zhikun",
+      "order": 16,
+      "title": "QueryEngine 八步 Agent Loop",
+      "description": "QueryEngine将每轮任务组织为上下文预检、执行器初始化、模型调用、流式处理、工具执行、终止判定、结果摘要和状态持久化。本次日志直接观测到模型、工具、终止与写回，内部准备步骤由源码确认。",
+      "status": "included",
+      "reason": "解释主循环的控制步骤。",
+      "originalSvgSha256": "7cb9e280fc4acb8417dfb57892ea96a687e39be9b8b5fe4716e19109fd7f64d6",
+      "materializedSvgSha256": "1fe507659f3e51f62aae882ddb761539f11fbfa7cd34e706a820827fc4b024f1",
+      "publishedSvgSha256": "e73d2820d5b0382503a8e2c35ae68b67697d8cbf911a8882afe9d0757bd7f929",
+      "correctionIds": [
+        "VC011"
+      ],
+      "targetFigureId": "query-loop",
+      "viewBox": "0 0 1180 420",
+      "semanticUnits": {
+        "textNodes": 21,
+        "shapes": 11,
+        "groups": 9,
+        "paths": 1
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 420",
+        "textNodes": 21,
+        "orderedTextSha256": "8afe0335a9f298956cd5c9cdde2ecb44b4ac572737a739dfa3ec8529fa28292b",
+        "shapes": 11,
+        "geometrySha256": "242751b39356b58a44e41ba3a01b3671408a6100759ca038c546d8040e904c6f",
+        "groups": 9,
+        "paths": 1
+      },
+      "published": {
+        "orderedTextSha256": "881bc08f221b181970dafc1cfc9e1287fe50f36ce975fb0410751a7b175dd18c",
+        "geometrySha256": "242751b39356b58a44e41ba3a01b3671408a6100759ca038c546d8040e904c6f"
+      }
+    },
+    {
+      "key": "zhikun-17",
+      "source": "zhikun",
+      "order": 17,
+      "title": "ContextCascade 六层上下文治理与本次触发层",
+      "description": "产品架构定义Snip、MicroCompact、ContextCollapse、AutoCompact、CollapseDrain和ReactiveCompact六层。本次日志直接观测ContextCollapse及AutoCompact跳过，其他层只作为源码或文档能力展示。",
+      "status": "included",
+      "reason": "展示上下文诊断与压缩边界。",
+      "originalSvgSha256": "d774739e95899a3f1d57e0396593c85a7b8d29e19d39636e6773f2fd9889fb65",
+      "materializedSvgSha256": "3735e7b1c0b6dc27e080a97ceb4cc1ab32132dd049e14e59be45bff3b54620ce",
+      "publishedSvgSha256": "2f54fd4ee33f333d4fb0e8344394b71ca36a0f8b190030e496c59223f3c4f21e",
+      "correctionIds": [],
+      "targetFigureId": "context-cascade",
+      "viewBox": "0 0 1180 420",
+      "semanticUnits": {
+        "textNodes": 23,
+        "shapes": 11,
+        "groups": 7,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 420",
+        "textNodes": 23,
+        "orderedTextSha256": "68b9e9709bb605d9885efdb47a7da369a05ef060e2c9398077875b168a1e739c",
+        "shapes": 11,
+        "geometrySha256": "291d32fe7fa6d79b8dbcb00e8d5872da89638b0734ee415888d3baec819d4d97",
+        "groups": 7,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "68b9e9709bb605d9885efdb47a7da369a05ef060e2c9398077875b168a1e739c",
+        "geometrySha256": "291d32fe7fa6d79b8dbcb00e8d5872da89638b0734ee415888d3baec819d4d97"
+      }
+    },
+    {
+      "key": "zhikun-18",
+      "source": "zhikun",
+      "order": 18,
+      "title": "主 Agent 与五个子 Agent 的执行 DAG",
+      "description": "主QueryEngine以GLM-5.2派生五个独立子Agent，每个最大30轮、超时1800秒。三个完成，两个达到最大轮次。失败结果返回主协调器，主任务继续收敛。",
+      "status": "included",
+      "reason": "展示五个子 Agent 的终态与主链接管。",
+      "originalSvgSha256": "973f03b51fca8ff3e3a3913f3fa95657cb9eaf9def87b02065f684db77d99273",
+      "materializedSvgSha256": "39aa528f8c36476b31c1dae55e53f5680e03899cf6c022bf7ee8a224aeebff56",
+      "publishedSvgSha256": "f172044fcdbe87b5625ce8e93889e6d2d161a44a198160206e20f383ae3e87ff",
+      "correctionIds": [
+        "VC005"
+      ],
+      "targetFigureId": "agent-dag",
+      "viewBox": "0 0 1180 430",
+      "semanticUnits": {
+        "textNodes": 22,
+        "shapes": 15,
+        "groups": 7,
+        "paths": 8
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 430",
+        "textNodes": 22,
+        "orderedTextSha256": "538dce3805dc739031fb36dcbb9934d9a197599e010366ee57520171a0c5317a",
+        "shapes": 15,
+        "geometrySha256": "8ad83f06374e2c0642cb6acad0659ff7c03b9b1928cb7627e02bcf2d64110ec6",
+        "groups": 7,
+        "paths": 8
+      },
+      "published": {
+        "orderedTextSha256": "7063114c668c8f2bb35418fe0666c691d2c3dad106cf9389b23cf5d8bf4df473",
+        "geometrySha256": "8ad83f06374e2c0642cb6acad0659ff7c03b9b1928cb7627e02bcf2d64110ec6"
+      }
+    },
+    {
+      "key": "zhikun-19",
+      "source": "zhikun",
+      "order": 19,
+      "title": "统一工具授权与唯一执行入口",
+      "description": "模型生成工具请求后，控制面进行Schema校验、PreToolUse钩子、再次校验、输入冻结、操作描述、授权交互、动态复检，并仅由ToolExecutionGateway调用Tool.call。",
+      "status": "included",
+      "reason": "展示工具安全执行门禁。",
+      "originalSvgSha256": "f5d88ed05c06b38483190874cd49c69768cbd284383f4623a89d32dd9056449c",
+      "materializedSvgSha256": "e1ad395b8d0dd52e066d3c731863c68d9c03528e897096c18830a6e6372c9dce",
+      "publishedSvgSha256": "aed4dee8efd10584dd5f0726bde1a547b7c63e4ecca7260a2e8bdc3e3ccdfce5",
+      "correctionIds": [],
+      "targetFigureId": "authorization-gateway",
+      "viewBox": "0 0 1180 430",
+      "semanticUnits": {
+        "textNodes": 24,
+        "shapes": 14,
+        "groups": 11,
+        "paths": 6
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 430",
+        "textNodes": 24,
+        "orderedTextSha256": "f0252a69375ba8a01dea6432cc4e53491c72fe2b26ac9a5b7bdf1c91f881d4fc",
+        "shapes": 14,
+        "geometrySha256": "95a98336bd62b62acb4432740b57d6abf7de19ea71ba5dc593a0d20426d5be92",
+        "groups": 11,
+        "paths": 6
+      },
+      "published": {
+        "orderedTextSha256": "f0252a69375ba8a01dea6432cc4e53491c72fe2b26ac9a5b7bdf1c91f881d4fc",
+        "geometrySha256": "95a98336bd62b62acb4432740b57d6abf7de19ea71ba5dc593a0d20426d5be92"
+      }
+    },
+    {
+      "key": "zhikun-20",
+      "source": "zhikun",
+      "order": 20,
+      "title": "持久交互与会话恢复状态机",
+      "description": "ELICITATION需求澄清与PERMISSION权限决策共用Durable Interaction状态机，interactionId和runId将等待、回答、WebSocket推送及会话恢复关联起来。本次有六次需求问题和八十三次权限决策。",
+      "status": "included",
+      "reason": "展示澄清交互的恢复语义。",
+      "originalSvgSha256": "4c94117fa07140bf47fc9ba7cebb9d7bb7daa3999a089cc5f10630d43b79e1f9",
+      "materializedSvgSha256": "2b6f2114d34633118d7eb8c20a94e75e21d7177cfdd92e2b29f0ea5491234f4e",
+      "publishedSvgSha256": "24305d4e28ef4af40ea4316c821738c592065314bf752ea6fb92698dc74e64cd",
+      "correctionIds": [],
+      "targetFigureId": "durable-interaction",
+      "viewBox": "0 0 1180 410",
+      "semanticUnits": {
+        "textNodes": 19,
+        "shapes": 11,
+        "groups": 3,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 410",
+        "textNodes": 19,
+        "orderedTextSha256": "aed8ac4016e2f07cdde43940692e5325aa851c8e2f659cedd30121b80007c2e8",
+        "shapes": 11,
+        "geometrySha256": "51b4118d5a989f82eed6699b7c59ebd76e8a85ab55c0b8f71450437d66305ae4",
+        "groups": 3,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "aed8ac4016e2f07cdde43940692e5325aa851c8e2f659cedd30121b80007c2e8",
+        "geometrySha256": "51b4118d5a989f82eed6699b7c59ebd76e8a85ab55c0b8f71450437d66305ae4"
+      }
+    },
+    {
+      "key": "zhikun-21",
+      "source": "zhikun",
+      "order": 21,
+      "title": "故障隔离与完成闭环",
+      "description": "Kimi 429由用户手动切换GLM，两个子Agent达到最大轮次，Bash退出1触发工具级联收敛。主协调器随后执行VerifyJourney和Brief，并由终止策略写入成功状态。",
+      "status": "merged",
+      "reason": "并入完成门禁、恢复状态机和失败矩阵。",
+      "originalSvgSha256": "9f7198916878571ed40f11df8f9e030d854df2a93d4e5d952bd1d6fce75d5b86",
+      "materializedSvgSha256": "58d09a410115e436edb49e40b0d31f32386a0ab8bc16b93850666e00632fa4c0",
+      "publishedSvgSha256": "e916f22481efce6bf6420ae9d938f8351a95d599a4de1986548fc584fa0c5828",
+      "correctionIds": [],
+      "targetFigureId": "completion-gate",
+      "viewBox": "0 0 1180 430",
+      "semanticUnits": {
+        "textNodes": 23,
+        "shapes": 16,
+        "groups": 9,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 430",
+        "textNodes": 23,
+        "orderedTextSha256": "4b2f13e52bd4ee9c185ab09068b00248bfdb5a065a65b04ffb2654aebe982aca",
+        "shapes": 16,
+        "geometrySha256": "3c9dda3ac56fac7d25893c8f428129698279a9ae32441be7c6974071c1cf0bdd",
+        "groups": 9,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "4b2f13e52bd4ee9c185ab09068b00248bfdb5a065a65b04ffb2654aebe982aca",
+        "geometrySha256": "3c9dda3ac56fac7d25893c8f428129698279a9ae32441be7c6974071c1cf0bdd"
+      }
+    },
+    {
+      "key": "zhikun-22",
+      "source": "zhikun",
+      "order": 22,
+      "title": "ZhikunCode Capability Overview 完整能力地图与本次运行证据覆盖",
+      "description": "完整展示前端交互、Java Agent 控制面、工具与安全、知识扩展、韧性与验证、Python Capability Service。青绿色节点为本次日志直接观测，蓝灰虚线为源码确认但本次未直接执行，深灰虚线为产品资料存在但本次没有运行证据。",
+      "status": "included",
+      "reason": "完整展示能力层级和本案例覆盖。",
+      "originalSvgSha256": "22d098a1b398f221302dd99971bc3b3dbd42362bcd2b8c7c9c8e34e363fbff71",
+      "materializedSvgSha256": "eeffe0dfae7552f5976609d6f618007b6cb9c7dac7a30b2982c72fee13f8b865",
+      "publishedSvgSha256": "5359c05c039f75cfc95d946feaef4c3d3d1095d230c82b9f29327e6ddfceee1f",
+      "correctionIds": [],
+      "targetFigureId": "capability-coverage",
+      "viewBox": "0 0 1180 1320",
+      "semanticUnits": {
+        "textNodes": 119,
+        "shapes": 51,
+        "groups": 51,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 1320",
+        "textNodes": 119,
+        "orderedTextSha256": "58ec3a5282b6e3eacb403af268be0c22568bd727fcc570b03ef4b936bbd5ef96",
+        "shapes": 51,
+        "geometrySha256": "b3ea6e000f3eaef7842551d51ace8c59976059ca785102397992ae0cdce30d36",
+        "groups": 51,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "58ec3a5282b6e3eacb403af268be0c22568bd727fcc570b03ef4b936bbd5ef96",
+        "geometrySha256": "b3ea6e000f3eaef7842551d51ace8c59976059ca785102397992ae0cdce30d36"
+      }
+    },
+    {
+      "key": "zhikun-23",
+      "source": "zhikun",
+      "order": 23,
+      "title": "API Circuit Breaker 与 MCP 自动恢复状态机",
+      "description": "日志记录 API 熔断恢复；MCP 在任务前完成连接恢复，任务结束后另有独立的重连、初始化与工具重新发现观察。",
+      "status": "included",
+      "reason": "区分协议自动恢复与人工换模。",
+      "originalSvgSha256": "a9ac9fdc99260a7f1fdcaabde9067963f2271da39eca6789db57c003679574f7",
+      "materializedSvgSha256": "3879173a23fbe7745a71a98fe069169b4222a0f31738f8ea5d6f54e42b10c20d",
+      "publishedSvgSha256": "ba626b8ecd60d0f5a1452d3df2e98aa7a8b49b9bd0046dbebb73896a573e4e36",
+      "correctionIds": [
+        "VC019"
+      ],
+      "targetFigureId": "resilience-state",
+      "viewBox": "0 0 580 430",
+      "semanticUnits": {
+        "textNodes": 22,
+        "shapes": 11,
+        "groups": 2,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 580 430",
+        "textNodes": 22,
+        "orderedTextSha256": "0caab0c7a5fc54e51c892d33f0bccca01a309319969b6edabe782dd068fdcb1a",
+        "shapes": 11,
+        "geometrySha256": "bcf279a165c128f03076a1f015955e81260b1bc4d296c6e8acb8d692e31d8e88",
+        "groups": 2,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "e39012f0ad9d3894f4ead155fa90f9cd103817110c26666f9422fa7a1519c3e3",
+        "geometrySha256": "bcf279a165c128f03076a1f015955e81260b1bc4d296c6e8acb8d692e31d8e88"
+      }
+    },
+    {
+      "key": "zhikun-24",
+      "source": "zhikun",
+      "order": 24,
+      "title": "分阶段子 Agent 调度与轮内工具并发模型",
+      "description": "主 Agent 分阶段调度五个独立子 Agent，其中首批三个研究 Agent 存在重叠时间窗，后续实现与修复 Agent 分别启动；单个 Agent 轮次内，StreamingToolExecutor 对多个工具排队、跟踪并用虚拟线程执行，工具错误可触发同批兄弟任务隔离。",
+      "status": "included",
+      "reason": "展示时间重叠、最大轮次与工具队列。",
+      "originalSvgSha256": "a71219b9b375dd18c37da0ae18f4fd40a3cda57b7785d8fd0f4f25236808cc63",
+      "materializedSvgSha256": "757f10bf04568b48ca6e95c7c1bce9258214e221f48ef765d2f83976d9cd062e",
+      "publishedSvgSha256": "386abb0995530e12a72e3113df193bc9bf3ef28f03c2a10e20ab40ac70d71b9b",
+      "correctionIds": [],
+      "targetFigureId": "concurrency-model",
+      "viewBox": "0 0 580 430",
+      "semanticUnits": {
+        "textNodes": 19,
+        "shapes": 14,
+        "groups": 3,
+        "paths": 2
+      },
+      "baseline": {
+        "viewBox": "0 0 580 430",
+        "textNodes": 19,
+        "orderedTextSha256": "ece0baeb25281409c8655dea64a1d8c11c5d9286d9673e0723539537bbced747",
+        "shapes": 14,
+        "geometrySha256": "5fe8d7ffe3a304c647300f536914ab4f61c454073e55ba34535346dabeca8ac6",
+        "groups": 3,
+        "paths": 2
+      },
+      "published": {
+        "orderedTextSha256": "ece0baeb25281409c8655dea64a1d8c11c5d9286d9673e0723539537bbced747",
+        "geometrySha256": "5fe8d7ffe3a304c647300f536914ab4f61c454073e55ba34535346dabeca8ac6"
+      }
+    },
+    {
+      "key": "zhikun-25",
+      "source": "zhikun",
+      "order": 25,
+      "title": "类型化失败、文件溯源和控制状态证据",
+      "description": "展示 Bash 动态超时与类型化错误如何进入 TOOL-CASCADE，文件读写如何记录哈希和编辑者，以及 Plan 信号、Permission Grant、Session 恢复分别有哪些已观测事实与边界。",
+      "status": "merged",
+      "reason": "并入恢复方式与运行版本边界矩阵。",
+      "originalSvgSha256": "105c83a63d8e90d77a05177ec7fa173e3eecd74ce87171d9cb6e3f00611d799b",
+      "materializedSvgSha256": "1e2893bbd827a8b2cc8fa5d3310a10a2ecc4c3d6750a5d534e1543cee8b91eb6",
+      "publishedSvgSha256": "536345cb38b47ccb30f5d2b9de4e9a634190be2b34675b4429340515ba72f947",
+      "correctionIds": [],
+      "targetFigureId": "recovery-matrix",
+      "viewBox": "0 0 1180 440",
+      "semanticUnits": {
+        "textNodes": 31,
+        "shapes": 17,
+        "groups": 10,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 440",
+        "textNodes": 31,
+        "orderedTextSha256": "46115ef6affb202850dbb5ecb0b83c7eca9bf02ee8cfef952a10c30bbd03394e",
+        "shapes": 17,
+        "geometrySha256": "f01a0660904fde3fcfcfb92ba25719129ea0b973ffb70cd87b7309f39210cde0",
+        "groups": 10,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "46115ef6affb202850dbb5ecb0b83c7eca9bf02ee8cfef952a10c30bbd03394e",
+        "geometrySha256": "f01a0660904fde3fcfcfb92ba25719129ea0b973ffb70cd87b7309f39210cde0"
+      }
+    },
+    {
+      "key": "zhikun-26",
+      "source": "zhikun",
+      "order": 26,
+      "title": "黄金行情监控系统的代码架构与数据流",
+      "description": "外部行情和央行数据经data_fetcher及缓存进入Flask API，再由前端ECharts页面展示；银行价格为基于沪金的透明估算。",
+      "status": "merged",
+      "reason": "由 ZhikunCode 分层架构、生命周期和数据血缘分别承接。",
+      "originalSvgSha256": "5b31b486da20004e327cc88d50815bb99d85ae2354abe83d0827c68d789a1013",
+      "materializedSvgSha256": "6d942cf61d52cbb57b8a0ca16e4792ef78615fd36cb7c71a4b3090ad195ddc08",
+      "publishedSvgSha256": "aebc691fe9db3f6900495449a9f7c36fa8c0536123532e689809d8c21d1a45d6",
+      "correctionIds": [],
+      "targetFigureId": "zhikun-architecture",
+      "viewBox": "0 0 1180 570",
+      "semanticUnits": {
+        "textNodes": 27,
+        "shapes": 18,
+        "groups": 0,
+        "paths": 7
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 570",
+        "textNodes": 27,
+        "orderedTextSha256": "34c73ac419e90c80426a040da111ddcdbd8bd5bc9c1a0ae7cde82897013e112f",
+        "shapes": 18,
+        "geometrySha256": "dc6ae264bcd1411a0a6d95d11a2da23b7fa2053d453abce71efb6a97a18f996c",
+        "groups": 0,
+        "paths": 7
+      },
+      "published": {
+        "orderedTextSha256": "34c73ac419e90c80426a040da111ddcdbd8bd5bc9c1a0ae7cde82897013e112f",
+        "geometrySha256": "dc6ae264bcd1411a0a6d95d11a2da23b7fa2053d453abce71efb6a97a18f996c"
+      }
+    },
+    {
+      "key": "zhikun-27",
+      "source": "zhikun",
+      "order": 27,
+      "title": "Codex 与 ZhikunCode 最终产物的页面结构和状态语义",
+      "description": "Codex产物为需要登录访问的托管Next.js页面，具有国际国内行情、银行积存金和全球央行区域；实时行情经服务端聚合与客户端轮询更新，全球央行数据为客户端静态数组。ZhikunCode产物为本地Flask动态服务，具有行情卡片、银行估算、中国央行趋势和价格走势图；实时行情30秒轮询，央行数据使用月度失效缓存。",
+      "status": "merged",
+      "reason": "拆为两侧独立屏幕所有权图，减少拥挤。",
+      "originalSvgSha256": "6397b1a565c50b73eef68f22490a091473fb777c9ad73bf16b0d19d6e58ff60d",
+      "materializedSvgSha256": "a2f3420a0ff902f236bc97b0deb9970f6e842bcf45ba120d7da83bfe3ba989ba",
+      "publishedSvgSha256": "ee0ddfd8c8bc1e6fedaea190a63a03fef4c3d9f8fe2b077d7a76daa0599a2c90",
+      "correctionIds": [
+        "VC008"
+      ],
+      "targetFigureId": "zhikun-screen",
+      "viewBox": "0 0 1180 690",
+      "semanticUnits": {
+        "textNodes": 36,
+        "shapes": 21,
+        "groups": 2,
+        "paths": 6
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 690",
+        "textNodes": 36,
+        "orderedTextSha256": "cdd6683a9cecf9a7410d058af4f60f21fa439ef612411ccc7a8eb6ece516c018",
+        "shapes": 21,
+        "geometrySha256": "06d14a9433b165b1b8250f20174049bdcfb2810a004a21de32f69c5edcc49a73",
+        "groups": 2,
+        "paths": 6
+      },
+      "published": {
+        "orderedTextSha256": "cd6813ecf50b3182b5c87867646d8c7a1101900d0fc8ac6ac3bfc6ca1145abd0",
+        "geometrySha256": "06d14a9433b165b1b8250f20174049bdcfb2810a004a21de32f69c5edcc49a73"
+      }
+    },
+    {
+      "key": "zhikun-28",
+      "source": "zhikun",
+      "order": 28,
+      "title": "模型候选与控制面机制共同形成可观察交付链",
+      "description": "GLM-5.2模型能力经过需求编译、上下文、Agent、工具、安全、恢复和验证机制，形成可运行产物；工程层负责降低不确定性。",
+      "status": "omitted",
+      "reason": "带有难以由单任务隔离验证的模型与控制面因果暗示。",
+      "originalSvgSha256": "93594b2b3ebbc0d88217cbe9cada8ba33710331af1cc886d5902d1f611c16e0f",
+      "materializedSvgSha256": "86289985c0cc74d68ade9be7601dbd567fc1b7bf5e69f730b21014e37d0c0006",
+      "publishedSvgSha256": "553c8fc72a83305190c3f5e067f1a4c223c33ca50e036ce8f164c39ebd176f16",
+      "correctionIds": [
+        "VC005"
+      ],
+      "targetFigureId": null,
+      "viewBox": "0 0 1180 520",
+      "semanticUnits": {
+        "textNodes": 19,
+        "shapes": 12,
+        "groups": 1,
+        "paths": 4
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 520",
+        "textNodes": 19,
+        "orderedTextSha256": "e03bfd0f5549e1f35b6e121189a8bae46a55e3fd0e661e7a83f85e15f63b7fbc",
+        "shapes": 12,
+        "geometrySha256": "7baf1cbfabe96b3d54b99e169acd9c8fcb8f86336883bd853eb28fbc7ec3787a",
+        "groups": 1,
+        "paths": 4
+      },
+      "published": {
+        "orderedTextSha256": "6da2c23c6cb2251f220e49b94e27b803852a0793796e1bebb50f9bfc50f6e5a3",
+        "geometrySha256": "7baf1cbfabe96b3d54b99e169acd9c8fcb8f86336883bd853eb28fbc7ec3787a"
+      }
+    },
+    {
+      "key": "comparison-01",
+      "source": "comparison",
+      "order": 1,
+      "title": "审计决策星图",
+      "description": "把中心分、证据区间、定性证据充分性和每个系统已验证的首要优势与风险放在同一决策图中。区间重叠不代表统计概率，也不能确定绝对排名。",
+      "status": "omitted",
+      "reason": "与十四维共享标尺和加权贡献图重复，且极坐标会放大形状印象。",
+      "originalSvgSha256": "71bef67527971345258c0a9f95d037dd3fa91f4541753fe5f21c9efc0e03c885",
+      "materializedSvgSha256": "71bef67527971345258c0a9f95d037dd3fa91f4541753fe5f21c9efc0e03c885",
+      "publishedSvgSha256": "8a7ea149d34cbae84be9ff6f9f1dca0ce833202bf0d10e728c0cff5677daa1f7",
+      "correctionIds": [
+        "VC002"
+      ],
+      "targetFigureId": null,
+      "viewBox": "0 0 760 680",
+      "semanticUnits": {
+        "textNodes": 15,
+        "shapes": 12,
+        "groups": 2,
+        "paths": 2
+      },
+      "baseline": {
+        "viewBox": "0 0 760 680",
+        "textNodes": 15,
+        "orderedTextSha256": "d75f5e08920bac0d4d25c945baa9509fbf0b9c713d2da4bc29215d2031ca44fe",
+        "shapes": 12,
+        "geometrySha256": "11a65fab4a32c367b45ffc7fb6317d788e420de106b847864a396ddba7587400",
+        "groups": 2,
+        "paths": 2
+      },
+      "published": {
+        "orderedTextSha256": "62a68128c5a29248dbfc31ad72b5d50d00028157a770bb0327634e817be2479b",
+        "geometrySha256": "11a65fab4a32c367b45ffc7fb6317d788e420de106b847864a396ddba7587400"
+      }
+    },
+    {
+      "key": "comparison-02",
+      "source": "comparison",
+      "order": 2,
+      "title": "两套系统综合评分与证据不确定区间",
+      "description": "数值由报告内嵌审计数据动态绘制。区间表示证据缺口造成的保守边界，不是统计置信区间。",
+      "status": "included",
+      "reason": "展示中心分与不确定区间。",
+      "originalSvgSha256": "2646d7f35dad797fd99e811be4b696e5cba8553eea5b9582145b17ea8aac706c",
+      "materializedSvgSha256": "fc14427cb2ee58854b4261e8c3aab8b6aa082c0450fa4db1702e37658a30edd4",
+      "publishedSvgSha256": "1c63524ede8b65344bfa6d2b8ae836d29121ef95cc934059509d78f583b2b100",
+      "correctionIds": [],
+      "targetFigureId": "score-overview",
+      "viewBox": "0 0 1200 310",
+      "semanticUnits": {
+        "textNodes": 18,
+        "shapes": 16,
+        "groups": 2,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 310",
+        "textNodes": 18,
+        "orderedTextSha256": "e78fd29d1d37c3efcbb240221b0b714d8d83f8fb48471098805bc6007a5ada3e",
+        "shapes": 16,
+        "geometrySha256": "e2c60adc0c6e87636acf823b5882d3469cdf25756ca9dfef246001b0e5c0792b",
+        "groups": 2,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "e78fd29d1d37c3efcbb240221b0b714d8d83f8fb48471098805bc6007a5ada3e",
+        "geometrySha256": "e2c60adc0c6e87636acf823b5882d3469cdf25756ca9dfef246001b0e5c0792b"
+      }
+    },
+    {
+      "key": "comparison-03",
+      "source": "comparison",
+      "order": 3,
+      "title": "中心分与证据区间重叠关系",
+      "description": "各系统的保守证据区间均存在重叠，因此本次证据不能证明绝对排序。区间不是统计置信区间。",
+      "status": "merged",
+      "reason": "已并入综合评分与证据区间图。",
+      "originalSvgSha256": "c71149c51f1af80ab4e5fe71289f2d86051c4cfaea6f7ef0495ab39d2c606dc4",
+      "materializedSvgSha256": "c71149c51f1af80ab4e5fe71289f2d86051c4cfaea6f7ef0495ab39d2c606dc4",
+      "publishedSvgSha256": "7352e7a30e07ccd26c90312bd75fef8b6c9a1b2bc7a0799fd9aaa9aa93b8b671",
+      "correctionIds": [],
+      "targetFigureId": "score-overview",
+      "viewBox": "0 0 1180 310",
+      "semanticUnits": {
+        "textNodes": 21,
+        "shapes": 14,
+        "groups": 0,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 310",
+        "textNodes": 21,
+        "orderedTextSha256": "e8b2c1dfe458806e2f48424cc32dfb687d964c2fb7a98ba6753122026961bdb3",
+        "shapes": 14,
+        "geometrySha256": "0e3e12ee9cf2c4223a1b68db7708766211fee21a31f21a399c924ef6d93cb4b8",
+        "groups": 0,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "e8b2c1dfe458806e2f48424cc32dfb687d964c2fb7a98ba6753122026961bdb3",
+        "geometrySha256": "0e3e12ee9cf2c4223a1b68db7708766211fee21a31f21a399c924ef6d93cb4b8"
+      }
+    },
+    {
+      "key": "comparison-04",
+      "source": "comparison",
+      "order": 4,
+      "title": "两套系统十四维评分点图",
+      "description": "每个维度同时显示两套系统的中心分与权重，具体评分依据仍保留在下方卡片中。",
+      "status": "included",
+      "reason": "共享标尺展示结构差异。",
+      "originalSvgSha256": "8780b90c5ae418005223e2bd60e30cb91bfb741d5a35432544efb01685453873",
+      "materializedSvgSha256": "46599a95e996dc3a4bc19a8809d73998ad3cf7991b34e97913144e60bbf08cc9",
+      "publishedSvgSha256": "4c996683fef9ac6ce9a87a2ac97c9d88712b253a88d4155dbdc1e22ba1704b1a",
+      "correctionIds": [],
+      "targetFigureId": "score-dimensions",
+      "viewBox": "0 0 1200 830",
+      "semanticUnits": {
+        "textNodes": 64,
+        "shapes": 48,
+        "groups": 28,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 830",
+        "textNodes": 64,
+        "orderedTextSha256": "36806ff598cf4976dcc29dfde269bc186047e02c67d28e0a2084e74db89ce204",
+        "shapes": 48,
+        "geometrySha256": "d3b6e03b9cefcfd130ab5dbf0433f91042a57838095a0e31770ee1039baab967",
+        "groups": 28,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "36806ff598cf4976dcc29dfde269bc186047e02c67d28e0a2084e74db89ce204",
+        "geometrySha256": "d3b6e03b9cefcfd130ab5dbf0433f91042a57838095a0e31770ee1039baab967"
+      }
+    },
+    {
+      "key": "comparison-05",
+      "source": "comparison",
+      "order": 5,
+      "title": "黄金数据从权威来源到页面标签的血缘链",
+      "description": "沿来源、抓取、语义、状态、页面和已验证边界比较两套冻结产物，显式标出估算、静态快照、错误单位与不能自动更新的环节。",
+      "status": "included",
+      "reason": "解释数据准确性和页面标签的距离。",
+      "originalSvgSha256": "54989ff3798cfb1c89e091ba82af620f9376b861432c18316dfad3742864c90f",
+      "materializedSvgSha256": "54989ff3798cfb1c89e091ba82af620f9376b861432c18316dfad3742864c90f",
+      "publishedSvgSha256": "b8c468c1b601db7cc8c60304cd8821e006d76c5b6d93c79ae71cb60a7947b227",
+      "correctionIds": [
+        "VC002"
+      ],
+      "targetFigureId": "data-lineage",
+      "viewBox": "0 0 1180 411",
+      "semanticUnits": {
+        "textNodes": 49,
+        "shapes": 25,
+        "groups": 0,
+        "paths": 10
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 411",
+        "textNodes": 49,
+        "orderedTextSha256": "413c6d90f3e401ce01d2e7423e98b192f43532b49d8374b995ec6117c3203271",
+        "shapes": 25,
+        "geometrySha256": "b634aebd374c371b8214dd8bd9ecc8fa460754a624b4baf0699b4802682ea3b9",
+        "groups": 0,
+        "paths": 10
+      },
+      "published": {
+        "orderedTextSha256": "7706245c925a22dde29a5957adda9a7d7aa8a3abcc1f894a2318423e3db77599",
+        "geometrySha256": "b634aebd374c371b8214dd8bd9ecc8fa460754a624b4baf0699b4802682ea3b9"
+      }
+    },
+    {
+      "key": "comparison-06",
+      "source": "comparison",
+      "order": 6,
+      "title": "ZhikunCode 冻结代码的 Flask 分层架构",
+      "description": "start.command 启动 Flask app.py；浏览器模板调用四组 API；app.py 委托 data_fetcher.py 处理实时行情、银行估算、中国央行缓存与历史数据；数据层访问新浪、腾讯、SAFE 以及本地配置和缓存。",
+      "status": "included",
+      "reason": "完整呈现 Flask 冻结产物架构。",
+      "originalSvgSha256": "d078b4e3b53cbde26c64084e27bebb0a0a5f0cd6e63da85066b6a0b28d3053b4",
+      "materializedSvgSha256": "d078b4e3b53cbde26c64084e27bebb0a0a5f0cd6e63da85066b6a0b28d3053b4",
+      "publishedSvgSha256": "922b1505c5391a6e3cd0114983f4346dac4899f6147d7909c9b6babb12efdeda",
+      "correctionIds": [
+        "VC002"
+      ],
+      "targetFigureId": "zhikun-architecture",
+      "viewBox": "0 0 1200 520",
+      "semanticUnits": {
+        "textNodes": 39,
+        "shapes": 19,
+        "groups": 0,
+        "paths": 10
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 520",
+        "textNodes": 39,
+        "orderedTextSha256": "acef1216756384aef509a31aa0d64bd35310deb7340a774247633b0aa9067d7e",
+        "shapes": 19,
+        "geometrySha256": "09f3aaaa7def93dfb7b542347653779bd14244036d7f609ad0f3173c2a7fcafd",
+        "groups": 0,
+        "paths": 10
+      },
+      "published": {
+        "orderedTextSha256": "ed53a562083c67836f577e7bc79579da1d8457c1d592a097518328c784019eae",
+        "geometrySha256": "09f3aaaa7def93dfb7b542347653779bd14244036d7f609ad0f3173c2a7fcafd"
+      }
+    },
+    {
+      "key": "comparison-07",
+      "source": "comparison",
+      "order": 7,
+      "title": "Codex 冻结代码的 Next.js 客户端与服务端聚合架构",
+      "description": "page.tsx 渲染 GoldDashboard.tsx，客户端每60秒请求 api/market。route.ts 使用 Promise.allSettled 并行访问东方财富、上海黄金交易所、工商银行和建设银行，失败时保留错误或空报价；四家银行壳与全球央行数据在代码中静态定义。",
+      "status": "included",
+      "reason": "完整呈现 Next.js 冻结产物架构。",
+      "originalSvgSha256": "7e18c5812b2be3c19b459fc4c3a9db8c600f7ae165b103621997fb5241a931fc",
+      "materializedSvgSha256": "7e18c5812b2be3c19b459fc4c3a9db8c600f7ae165b103621997fb5241a931fc",
+      "publishedSvgSha256": "24e338449cf6103db2f978ba59cf19197aec4a4070f109950ba0e508df791189",
+      "correctionIds": [
+        "VC002"
+      ],
+      "targetFigureId": "codex-architecture",
+      "viewBox": "0 0 1200 520",
+      "semanticUnits": {
+        "textNodes": 37,
+        "shapes": 21,
+        "groups": 0,
+        "paths": 10
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 520",
+        "textNodes": 37,
+        "orderedTextSha256": "e222beacbf3424dbd839743cfba509b58bb212e8b9edf7ef325f9b77876666ea",
+        "shapes": 21,
+        "geometrySha256": "e8761e2e1d87fb63d82ee6a61a788b1ecf93b9558d3ec375fdf9561d9f96a5e0",
+        "groups": 0,
+        "paths": 10
+      },
+      "published": {
+        "orderedTextSha256": "1bfe8f4cb415ce066cc6b6219501e1be237065547ca826752cf71678341ee928",
+        "geometrySha256": "e8761e2e1d87fb63d82ee6a61a788b1ecf93b9558d3ec375fdf9561d9f96a5e0"
+      }
+    },
+    {
+      "key": "comparison-08",
+      "source": "comparison",
+      "order": 8,
+      "title": "ZhikunCode 运行与数据生命周期",
+      "description": "完整保留原产物剖面顶部的交付事实、五段运行链和状态降级信息。证据边界为 E006 / E007 / E019 / E034 / E036。",
+      "status": "included",
+      "reason": "独立展示刷新、缓存和降级生命周期。",
+      "originalSvgSha256": "05343ae6c894138261fe0d471c6462acf3a34019167af5b3e1eda6fc622170b0",
+      "materializedSvgSha256": "05343ae6c894138261fe0d471c6462acf3a34019167af5b3e1eda6fc622170b0",
+      "publishedSvgSha256": "99162592157efe6a368662a1536ed978e57ae8ac47edf88922ccfafc24cd5707",
+      "correctionIds": [
+        "VC002",
+        "VC006",
+        "VC007"
+      ],
+      "targetFigureId": "zhikun-lifecycle",
+      "viewBox": "0 0 1200 485",
+      "semanticUnits": {
+        "textNodes": 83,
+        "shapes": 69,
+        "groups": 0,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 485",
+        "textNodes": 83,
+        "orderedTextSha256": "15601981800fb164414fd9aa952cfd9662f89377f291420b01643cd531d814ca",
+        "shapes": 69,
+        "geometrySha256": "a0a431d7a5508d15560edaffb7412e68a524c4ab63918497ba077856dd75e632",
+        "groups": 0,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "a790517ca7f4b0196ee3aa8097c52f8df9b1c864e03fa5ff7bae30907111ca34",
+        "geometrySha256": "a0a431d7a5508d15560edaffb7412e68a524c4ab63918497ba077856dd75e632"
+      }
+    },
+    {
+      "key": "comparison-09",
+      "source": "comparison",
+      "order": 9,
+      "title": "ZhikunCode 屏幕解剖、代码归属与状态",
+      "description": "完整保留原产物剖面的屏幕模块、优势、风险和用户可见范围，并补充冻结代码的职责边界和扩展影响。证据边界为 E006 / E007 / E019 / E034 / E036。",
+      "status": "included",
+      "reason": "独立展示屏幕模块和代码所有权。",
+      "originalSvgSha256": "ee081dcb0fafa47bc76e0e634b721cea976c8912a77e494be36f9e8d2c1d391a",
+      "materializedSvgSha256": "ee081dcb0fafa47bc76e0e634b721cea976c8912a77e494be36f9e8d2c1d391a",
+      "publishedSvgSha256": "20d6ab297840d54737b85fff007326ce70b63631a722a1ed05d859f0f2e3ee3b",
+      "correctionIds": [
+        "VC002",
+        "VC006",
+        "VC007"
+      ],
+      "targetFigureId": "zhikun-screen",
+      "viewBox": "0 480 1200 700",
+      "semanticUnits": {
+        "textNodes": 109,
+        "shapes": 78,
+        "groups": 0,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 480 1200 700",
+        "textNodes": 109,
+        "orderedTextSha256": "d01e634f426495ebb7bc7c6b8c287cde37d6fe6b3ee6afa0cbb3ab97b2b2b614",
+        "shapes": 78,
+        "geometrySha256": "97a72925260d431bf5c22457eb44037c93df99c0fbbff34e7a554c9269f2825c",
+        "groups": 0,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "b7910fea38bb7abacfa8aeffac6f0617545cf64a69c21ecad454b022bcd90e4b",
+        "geometrySha256": "97a72925260d431bf5c22457eb44037c93df99c0fbbff34e7a554c9269f2825c"
+      }
+    },
+    {
+      "key": "comparison-10",
+      "source": "comparison",
+      "order": 10,
+      "title": "Codex 运行与数据生命周期",
+      "description": "完整保留原产物剖面顶部的交付事实、五段运行链和状态降级信息。证据边界为 E008 / E011 / E020 / E030 / E034 / E036。",
+      "status": "included",
+      "reason": "独立展示轮询、聚合和静态数据边界。",
+      "originalSvgSha256": "440dc13f6a8375ff12c6eddb1a56d938afafebe77d4c0b246f137c8f75496b0a",
+      "materializedSvgSha256": "440dc13f6a8375ff12c6eddb1a56d938afafebe77d4c0b246f137c8f75496b0a",
+      "publishedSvgSha256": "a1e28320bcaf1417b7f0b7ff19cbac5f5f1e5840e3cd693c9edab47aa13f26be",
+      "correctionIds": [
+        "VC002",
+        "VC009"
+      ],
+      "targetFigureId": "codex-lifecycle",
+      "viewBox": "0 0 1200 485",
+      "semanticUnits": {
+        "textNodes": 83,
+        "shapes": 65,
+        "groups": 0,
+        "paths": 1
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 485",
+        "textNodes": 83,
+        "orderedTextSha256": "5de2faa4fb4246899f5e50b270e0317848085b26a41405f1f8af4d75f82d6643",
+        "shapes": 65,
+        "geometrySha256": "682112655d8cae4b0b71e48cf5f89ea438f75aec58e3a8512cddb783c6573dd2",
+        "groups": 0,
+        "paths": 1
+      },
+      "published": {
+        "orderedTextSha256": "cbb3d8656e17c61df05e7e3bd68bfed29c6e1328e5ad766de908955d48ee6e12",
+        "geometrySha256": "682112655d8cae4b0b71e48cf5f89ea438f75aec58e3a8512cddb783c6573dd2"
+      }
+    },
+    {
+      "key": "comparison-11",
+      "source": "comparison",
+      "order": 11,
+      "title": "Codex 屏幕解剖、代码归属与状态",
+      "description": "完整保留原产物剖面的屏幕模块、优势、风险和用户可见范围，并补充冻结代码的职责边界和扩展影响。证据边界为 E008 / E011 / E020 / E030 / E034 / E036。",
+      "status": "included",
+      "reason": "独立展示屏幕模块和代码所有权。",
+      "originalSvgSha256": "c9e6fa6c1f0833bb528029640fade30a997a7805aaea36bbd4a2857ee9cd88cb",
+      "materializedSvgSha256": "c9e6fa6c1f0833bb528029640fade30a997a7805aaea36bbd4a2857ee9cd88cb",
+      "publishedSvgSha256": "617ebdb30dca5cbb7985c108769e4286ab7fd79633fdb36c6862b3e4ddc47a55",
+      "correctionIds": [
+        "VC002",
+        "VC009"
+      ],
+      "targetFigureId": "codex-screen",
+      "viewBox": "0 480 1200 700",
+      "semanticUnits": {
+        "textNodes": 109,
+        "shapes": 74,
+        "groups": 0,
+        "paths": 1
+      },
+      "baseline": {
+        "viewBox": "0 480 1200 700",
+        "textNodes": 109,
+        "orderedTextSha256": "4b206addd8d577af0022241359035d77c2dda804b62c176e5509e89099cb44e3",
+        "shapes": 74,
+        "geometrySha256": "2d23794ca09845258e222f682e8ef637184888ff4270b426db419391d69825b1",
+        "groups": 0,
+        "paths": 1
+      },
+      "published": {
+        "orderedTextSha256": "8791cbc4256589283a2777dbfc9d893df0d5ba0d67ca5e67c8fc85f071d01dd4",
+        "geometrySha256": "2d23794ca09845258e222f682e8ef637184888ff4270b426db419391d69825b1"
+      }
+    },
+    {
+      "key": "comparison-12",
+      "source": "comparison",
+      "order": 12,
+      "title": "ZhikunCode 与 Codex 最终产物运行时执行链",
+      "description": "ZhikunCode 首次触发四类请求，实时和银行接口重复执行顺序行情采集；Codex 请求单一聚合接口并发访问上游，但央行数据固定在客户端且服务端错误未显示给用户。",
+      "status": "included",
+      "reason": "并排比较两侧运行链。",
+      "originalSvgSha256": "ad5b84f889b61993111109cad34caffe5c64ef0dd65dc3ac1dda0934a266dc98",
+      "materializedSvgSha256": "ad5b84f889b61993111109cad34caffe5c64ef0dd65dc3ac1dda0934a266dc98",
+      "publishedSvgSha256": "e1b974866dfb6eb04d71a6713815100d51161241bab29de506a5ffec671f0ce3",
+      "correctionIds": [
+        "VC002",
+        "VC009"
+      ],
+      "targetFigureId": "dual-runtime",
+      "viewBox": "0 0 1200 690",
+      "semanticUnits": {
+        "textNodes": 64,
+        "shapes": 26,
+        "groups": 0,
+        "paths": 12
+      },
+      "baseline": {
+        "viewBox": "0 0 1200 690",
+        "textNodes": 64,
+        "orderedTextSha256": "4e7f589471336a47e15e713734905a3dd436f490873b051973fa64f8354d76b4",
+        "shapes": 26,
+        "geometrySha256": "b8173bc0c7fbb15ba4a2e8533fcd78b4ee5178f807ee5b6c5649e1d4434e0f70",
+        "groups": 0,
+        "paths": 12
+      },
+      "published": {
+        "orderedTextSha256": "02e5329d6a69c3f1bd14742323af7ab029a069c92339c7a6ff862527d88c0551",
+        "geometrySha256": "b8173bc0c7fbb15ba4a2e8533fcd78b4ee5178f807ee5b6c5649e1d4434e0f70"
+      }
+    },
+    {
+      "key": "comparison-13",
+      "source": "comparison",
+      "order": 13,
+      "title": "请求、缓存、刷新、故障和测量边界",
+      "description": "分别展示两套产物的实际交付形态和静态架构观察；没有统一实测的数据明确标记未测量。",
+      "status": "merged",
+      "reason": "并入双运行链和两侧生命周期图。",
+      "originalSvgSha256": "d6cff572e4a0826b9b90d910f47b7a10477175ec6961cddc06a31c53765c6fe2",
+      "materializedSvgSha256": "d6cff572e4a0826b9b90d910f47b7a10477175ec6961cddc06a31c53765c6fe2",
+      "publishedSvgSha256": "334d416722347af040f5c000ff554f6c5981066aa545f1c3bbaa73c6f350b8da",
+      "correctionIds": [
+        "VC002"
+      ],
+      "targetFigureId": "dual-runtime",
+      "viewBox": "0 0 1180 392",
+      "semanticUnits": {
+        "textNodes": 38,
+        "shapes": 19,
+        "groups": 0,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 392",
+        "textNodes": 38,
+        "orderedTextSha256": "ba9dd3ed961dccaf16e667fec281410f5b285579504413d487f7e836d9d7d7b0",
+        "shapes": 19,
+        "geometrySha256": "f2f8a0b8aeaf7b16ebf5603238cd8c1fa5ea5c9ca64662b56edcec63b892a123",
+        "groups": 0,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "720b8ab1d544e16bba98362c13e7a668cd2f8c22ac96ddbeeadf15a70ae9d297",
+        "geometrySha256": "f2f8a0b8aeaf7b16ebf5603238cd8c1fa5ea5c9ca64662b56edcec63b892a123"
+      }
+    },
+    {
+      "key": "comparison-14",
+      "source": "comparison",
+      "order": 14,
+      "title": "ZhikunCode 三个主 Run 多泳道时间线与需求编译链",
+      "description": "Kimi K3 主 Run 进行两轮后因 HTTP 429 结束，用户人工切换 GLM-5.2；随后 GLM 研究计划 Run 和实现验证 Run 在同一逻辑 Session 中继续。下方展示从结构化澄清到研究、实现、验证、返工和完成的需求编译链。",
+      "status": "merged",
+      "reason": "拆入 Trace Map、需求编译图和端到端时序图。",
+      "originalSvgSha256": "a2a9eff9eb9af523bf6f07d2ff8509a742959db68070ab13c61806a157b5251e",
+      "materializedSvgSha256": "a2a9eff9eb9af523bf6f07d2ff8509a742959db68070ab13c61806a157b5251e",
+      "publishedSvgSha256": "b345409c9eeb931b12575b1d1810f5780771b12199b5489457b8b24cddb826aa",
+      "correctionIds": [
+        "VC002",
+        "VC003",
+        "VC012"
+      ],
+      "targetFigureId": "trace-map",
+      "viewBox": "0 0 1180 560",
+      "semanticUnits": {
+        "textNodes": 38,
+        "shapes": 14,
+        "groups": 6,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 560",
+        "textNodes": 38,
+        "orderedTextSha256": "35e179739bab749b08b523d26e4f10e607f7bd8c9376709ab24019a6a129dc2f",
+        "shapes": 14,
+        "geometrySha256": "fafb260f2233bcc13166e1b06a8b3ce7942141200ae6c0e09df0ea7c6fa9a5f9",
+        "groups": 6,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "471e22bd8b52bd238f91279353e4cc2bf863bb0fe2b59c5da35fe62d987e9bd7",
+        "geometrySha256": "fafb260f2233bcc13166e1b06a8b3ce7942141200ae6c0e09df0ea7c6fa9a5f9"
+      }
+    },
+    {
+      "key": "comparison-15",
+      "source": "comparison",
+      "order": 15,
+      "title": "五个子 Agent 的启动、终态与主链接管关系",
+      "description": "三个研究 Agent 在相近时间启动并成功返回研究文件；实现 Agent 和修复 Agent 均达到30轮上限，错误状态返回主协调器，后续由主链继续实现、修复和完成。",
+      "status": "merged",
+      "reason": "由 Agent DAG 和并发模型共同承接。",
+      "originalSvgSha256": "310b1fdac3cab62fa218ac1c347315d4f80cbb75a9e91aa5554c5adb12e12c2f",
+      "materializedSvgSha256": "310b1fdac3cab62fa218ac1c347315d4f80cbb75a9e91aa5554c5adb12e12c2f",
+      "publishedSvgSha256": "64e24d173e32c718a3b00a8f32b8e81c3a6118ad4c9f5a6ecfae300a5a317a3a",
+      "correctionIds": [],
+      "targetFigureId": "agent-dag",
+      "viewBox": "0 0 1180 500",
+      "semanticUnits": {
+        "textNodes": 33,
+        "shapes": 12,
+        "groups": 5,
+        "paths": 3
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 500",
+        "textNodes": 33,
+        "orderedTextSha256": "bd1237c5c19eccf3e029ad0b82618d4338350ecb6060a8408a2d8c0fe711ac35",
+        "shapes": 12,
+        "geometrySha256": "1504ec568e680d50975f2ba0739c17dd4c5329a83fd4ba5ee83dc614eaa0baf6",
+        "groups": 5,
+        "paths": 3
+      },
+      "published": {
+        "orderedTextSha256": "bd1237c5c19eccf3e029ad0b82618d4338350ecb6060a8408a2d8c0fe711ac35",
+        "geometrySha256": "1504ec568e680d50975f2ba0739c17dd4c5329a83fd4ba5ee83dc614eaa0baf6"
+      }
+    },
+    {
+      "key": "comparison-16",
+      "source": "comparison",
+      "order": 16,
+      "title": "工具调用分布、错误返回与最终完成闭环",
+      "description": "主协调器60次工具调用包括26次Bash、13次Read、6次Edit、5次Agent和10次其他控制验证工具；54次正常、6次错误。VerifyJourney成功后仍继续Read、Edit和Bash，最终经Brief、终止决策和消息完成事件形成闭环。",
+      "status": "merged",
+      "reason": "由 60 次工具指纹和完成门禁共同承接。",
+      "originalSvgSha256": "4ede9001ebfc47b0019d2f8b34af897514a2b8e529a552973683598cbeff0368",
+      "materializedSvgSha256": "4ede9001ebfc47b0019d2f8b34af897514a2b8e529a552973683598cbeff0368",
+      "publishedSvgSha256": "59813b0c9f089c863f703b43c9f9d5bb3bd41ef066612d04753b8a43b03fb30c",
+      "correctionIds": [],
+      "targetFigureId": "tool-fingerprint",
+      "viewBox": "0 0 1180 440",
+      "semanticUnits": {
+        "textNodes": 30,
+        "shapes": 15,
+        "groups": 5,
+        "paths": 1
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 440",
+        "textNodes": 30,
+        "orderedTextSha256": "d678ecaf125f20c45f722d3c0db4f80c19aa63d8873de20f18da2d10a008e756",
+        "shapes": 15,
+        "geometrySha256": "2444de3d798f04e9e24bc2dbacaae0be4471fdbaed9f97dec7030ec9704f9c09",
+        "groups": 5,
+        "paths": 1
+      },
+      "published": {
+        "orderedTextSha256": "d678ecaf125f20c45f722d3c0db4f80c19aa63d8873de20f18da2d10a008e756",
+        "geometrySha256": "2444de3d798f04e9e24bc2dbacaae0be4471fdbaed9f97dec7030ec9704f9c09"
+      }
+    },
+    {
+      "key": "comparison-17",
+      "source": "comparison",
+      "order": 17,
+      "title": "ZhikunCode 查询循环、上下文诊断、持久交互和工具安全执行链",
+      "description": "QueryEngine 在每轮调用模型、消费工具结果、判断终止并写回状态；子 Agent 使用独立 QueryEngine、30轮预算和1800秒超时。ContextCascade 在Turn 40记录有限收益，在Turn 44记录零收益。工具从Schema和Hook验证经过冻结输入、操作分析、Grant、动态复检到Gateway执行。",
+      "status": "merged",
+      "reason": "拆为 QueryEngine、ContextCascade、授权和持久交互四张图。",
+      "originalSvgSha256": "46e065581d0f2140907dc76a143df8a8f985de8ea468a666109c648860dfdec4",
+      "materializedSvgSha256": "46e065581d0f2140907dc76a143df8a8f985de8ea468a666109c648860dfdec4",
+      "publishedSvgSha256": "a5dd2a3adfca0acc69aa5450713ca90c0333f430a3ac80a842a3acc9cc9a1b91",
+      "correctionIds": [],
+      "targetFigureId": "query-loop",
+      "viewBox": "0 0 1180 650",
+      "semanticUnits": {
+        "textNodes": 47,
+        "shapes": 20,
+        "groups": 8,
+        "paths": 6
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 650",
+        "textNodes": 47,
+        "orderedTextSha256": "c92b16df58d12d3f842c3a37d75914356dec3b11e10755684d2aa0c74f46ae03",
+        "shapes": 20,
+        "geometrySha256": "35418faec7dfb7a32fdce7d97c4d531679459fb3ec9bab99a344313dcb303292",
+        "groups": 8,
+        "paths": 6
+      },
+      "published": {
+        "orderedTextSha256": "c92b16df58d12d3f842c3a37d75914356dec3b11e10755684d2aa0c74f46ae03",
+        "geometrySha256": "35418faec7dfb7a32fdce7d97c4d531679459fb3ec9bab99a344313dcb303292"
+      }
+    },
+    {
+      "key": "comparison-18",
+      "source": "comparison",
+      "order": 18,
+      "title": "失败隔离、恢复方式、文件溯源和运行版本边界矩阵",
+      "description": "Bash退出137被分类为TIMEOUT，退出1被分类为NON_RETRYABLE，TOOL-CASCADE隔离同批兄弟任务。API Circuit Breaker和MCP Client重连有本次自动恢复日志；Kimi到GLM的模型切换由用户人工完成。日志缺少运行构建Git SHA。",
+      "status": "included",
+      "reason": "保留跨机制边界对照。",
+      "originalSvgSha256": "646a65fc2fb2b8cf9c73d0fb9576db89a20276e96cc8e02310ef031f9fba710f",
+      "materializedSvgSha256": "646a65fc2fb2b8cf9c73d0fb9576db89a20276e96cc8e02310ef031f9fba710f",
+      "publishedSvgSha256": "9df3254341a51fd94226cead0289862c25d14a3115528486fa6aec45e1a203d8",
+      "correctionIds": [
+        "VC004",
+        "VC012"
+      ],
+      "targetFigureId": "recovery-matrix",
+      "viewBox": "0 0 1180 520",
+      "semanticUnits": {
+        "textNodes": 36,
+        "shapes": 9,
+        "groups": 4,
+        "paths": 0
+      },
+      "baseline": {
+        "viewBox": "0 0 1180 520",
+        "textNodes": 36,
+        "orderedTextSha256": "cfd3d1590ae1bb12a33798e194ba96dc3b7f33a27c5e17f08d4c99946b60b800",
+        "shapes": 9,
+        "geometrySha256": "78c281c6a376e660a3640e1e0c91ffd0876b0bf9f8f183fd3e90260f9ab88d34",
+        "groups": 4,
+        "paths": 0
+      },
+      "published": {
+        "orderedTextSha256": "179f58ab75bcaf8272e4e69da30382dfedf4cc97e436bc3f4e9378f479fec657",
+        "geometrySha256": "78c281c6a376e660a3640e1e0c91ffd0876b0bf9f8f183fd3e90260f9ab88d34"
+      }
+    }
+  ],
+  "visualCorrections": [
+    {
+      "id": "VC001",
+      "type": "redaction",
+      "before": "完整 Session UUID",
+      "after": "<SESSION>",
+      "reason": "公开报告不披露完整会话标识；不改变事件顺序或会话连续性。",
+      "evidence": [
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-07"
+      ]
+    },
+    {
+      "id": "VC002",
+      "type": "evidence-map",
+      "before": "冻结源图中的 E01…E55 旧编号",
+      "after": "当前公开账本 E001…E038",
+      "reason": "消除悬空引用；只做已登记的一对一编号映射。",
+      "evidence": [
+        "E001",
+        "E038"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-01",
+        "comparison-05",
+        "comparison-06",
+        "comparison-07",
+        "comparison-08",
+        "comparison-09",
+        "comparison-10",
+        "comparison-11",
+        "comparison-12",
+        "comparison-13",
+        "comparison-14"
+      ]
+    },
+    {
+      "id": "VC003",
+      "type": "source-label",
+      "before": "APP.LOG / app.log",
+      "after": "冻结运行日志",
+      "reason": "避免误指仓库中后续产生的新 app.log。",
+      "evidence": [
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-14",
+        "zhikun-07"
+      ]
+    },
+    {
+      "id": "VC004",
+      "type": "version-boundary",
+      "before": "当前 HEAD / 当前 checkout",
+      "after": "审计参考提交 aa1b3173…",
+      "reason": "源码链接锁定到审计参考提交；运行日志未记录构建 Git SHA。",
+      "evidence": [
+        "E038"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-18",
+        "zhikun-02"
+      ]
+    },
+    {
+      "id": "VC005",
+      "type": "display-name",
+      "before": "GLM5.2",
+      "after": "GLM-5.2",
+      "reason": "统一公开展示名称；不改写冻结日志中的原始模型标识。",
+      "evidence": [
+        "E023",
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-01",
+        "zhikun-04",
+        "zhikun-18",
+        "zhikun-28"
+      ]
+    },
+    {
+      "id": "VC006",
+      "type": "observation-boundary",
+      "before": "24 月记录",
+      "after": "代码目标最多 24 月；独立运行观察为 20 月",
+      "reason": "区分代码目标与完成后独立运行观察，避免把目标写成当次实测。",
+      "evidence": [
+        "E006",
+        "E019",
+        "E028"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-08",
+        "comparison-09"
+      ]
+    },
+    {
+      "id": "VC007",
+      "type": "coverage-boundary",
+      "before": "7 家银行",
+      "after": "页面 7 行估算；指定 6 家覆盖 5 家，缺平安银行",
+      "reason": "区分页面行数、用户指定范围与实际银行覆盖。",
+      "evidence": [
+        "E019",
+        "E028"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-08",
+        "comparison-09"
+      ]
+    },
+    {
+      "id": "VC008",
+      "type": "historical-revision",
+      "before": "4 月净额 +17 吨",
+      "after": "冻结产物 +17 吨；WGC 后续修订值 +19 吨",
+      "reason": "同时保留冻结产物事实与权威后续修订，不静默覆盖历史。",
+      "evidence": [
+        "E011",
+        "E030"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-27"
+      ]
+    },
+    {
+      "id": "VC009",
+      "type": "reproducibility-boundary",
+      "before": "SGE 盘中值",
+      "after": "SGE 盘中值（部分公开复核；日行情不能复现盘中时刻）",
+      "reason": "日行情页面只能支持品种与日级数据，不能冒充盘中时刻复现。",
+      "evidence": [
+        "E009",
+        "E010"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-10",
+        "comparison-11",
+        "comparison-12"
+      ]
+    },
+    {
+      "id": "VC010",
+      "type": "timeline-boundary",
+      "before": "18:58:20",
+      "after": "18:58:20（任务完成后的独立运行观察）",
+      "reason": "不把完成后的浏览器观察接入冻结日志主链。",
+      "evidence": [
+        "E006",
+        "E027"
+      ],
+      "affectedSourceVisuals": []
+    },
+    {
+      "id": "VC011",
+      "type": "recovery-boundary",
+      "before": "Kimi → GLM",
+      "after": "Kimi 429 → 用户人工切换 GLM-5.2",
+      "reason": "本次换模由用户触发，不描述为自动模型 failover。",
+      "evidence": [
+        "E023",
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-03",
+        "zhikun-16"
+      ]
+    },
+    {
+      "id": "VC012",
+      "type": "runtime-id-redaction",
+      "before": "截断 Session 前缀与 agent-xxxxxxxx 运行标识",
+      "after": "<SESSION> 与研究 Agent 脱敏标签",
+      "reason": "公开报告与生成脚本均不保留可关联单次运行的标识；研究方向由相邻资产名称表达。",
+      "evidence": [
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "comparison-14",
+        "comparison-18",
+        "zhikun-02",
+        "zhikun-09",
+        "zhikun-15"
+      ]
+    },
+    {
+      "id": "VC013",
+      "type": "clarification-ownership",
+      "before": "首批四题包含估算口径与不确定项处理",
+      "after": "首批四题为回购口径、金价品种、银行范围与交付形式",
+      "reason": "估算处理属于第二批澄清；按冻结日志恢复两个批次的真实归属。",
+      "evidence": [
+        "E025",
+        "E026",
+        "E027"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-08"
+      ]
+    },
+    {
+      "id": "VC014",
+      "type": "canonical-phase-model",
+      "before": "任务编译、资产探索、工程执行、失败收敛、验证交付",
+      "after": "澄清、研究、约束收敛、实现接管、验证终止",
+      "reason": "统一 SVG 与证据 JSON 的五阶段模型，保留失败事件但不把它另立为阶段。",
+      "evidence": [
+        "E025",
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-06"
+      ]
+    },
+    {
+      "id": "VC015",
+      "type": "observed-capability-boundary",
+      "before": "完整 MCP 服务本次日志没有直接命中",
+      "after": "MCP 连接恢复被日志命中；其他外围能力未在任务主链触发",
+      "reason": "冻结日志记录了 MCP 断线、重连、initialize 与工具重新发现，不能标成未命中。",
+      "evidence": [
+        "E027",
+        "E038"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-14"
+      ]
+    },
+    {
+      "id": "VC017",
+      "type": "concurrency-boundary",
+      "before": "三个研究 Agent 并行探索",
+      "after": "三个不同方向研究 Agent 的运行时间窗重叠",
+      "reason": "日志证明时间窗重叠，不据此推断内部计算始终并行或产生性能收益。",
+      "evidence": [
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-08"
+      ]
+    },
+    {
+      "id": "VC018",
+      "type": "model-scope-boundary",
+      "before": "GLM-5.2 是 ZhikunCode 核心执行模型",
+      "after": "GLM-5.2 是本任务人工换模后的主链执行模型",
+      "reason": "单任务日志不能推出产品级默认模型或通用核心模型定位。",
+      "evidence": [
+        "E023",
+        "E027",
+        "E037"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-01"
+      ]
+    },
+    {
+      "id": "VC019",
+      "type": "post-completion-boundary",
+      "before": "把任务前与完成后的 MCP 恢复日志并列为任务主链",
+      "after": "区分任务前连接恢复与任务完成后的独立恢复观察",
+      "reason": "任务终止时间为 18:42:53，之后的恢复事件不能回接为任务执行阶段。",
+      "evidence": [
+        "E027",
+        "E037",
+        "E038"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-23"
+      ]
+    },
+    {
+      "id": "VC020",
+      "type": "internal-usage-boundary",
+      "before": "日志内部 usage 累计数值",
+      "after": "公开叙事不展示未定义、不可横向比较的内部累计口径",
+      "reason": "该口径不能稳定映射为 Token、成本或模型工作量；原始值继续保留在冻结来源与结构化证据中。",
+      "evidence": [
+        "E027"
+      ],
+      "affectedSourceVisuals": [
+        "zhikun-07"
+      ]
+    }
+  ]
+}

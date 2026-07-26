@@ -293,6 +293,74 @@
       height: auto;
     }
 
+    /* === Verifiable Case Study === */
+    .case-study {
+      padding: 72px 0;
+      background: linear-gradient(145deg, #0e1822, #142636);
+      border-top: 1px solid #243446;
+      border-bottom: 1px solid #243446;
+    }
+    .case-study-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+      gap: 42px;
+      align-items: center;
+      padding: 38px;
+      border: 1px solid #345066;
+      border-radius: 18px;
+      background: rgba(255,255,255,.035);
+      box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    }
+    .case-study-label {
+      color: #55d6e2;
+      font: 700 .72rem/1.2 "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .case-study-card h2 {
+      margin: 12px 0 14px;
+      color: #f2f6fa;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      line-height: 1.12;
+      letter-spacing: -.03em;
+    }
+    .case-study-card p { margin: 0; color: #aebdcc; line-height: 1.75; }
+    .case-study-facts { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 24px; }
+    .case-study-facts span {
+      padding: 11px 10px;
+      border: 1px solid #30475b;
+      border-radius: 9px;
+      color: #d7e2eb;
+      font: 600 .76rem/1.35 "SFMono-Regular", Consolas, monospace;
+      text-align: center;
+    }
+    .case-study-audit {
+      padding: 24px;
+      border-radius: 14px;
+      background: #f7f9fb;
+      color: #17202b;
+    }
+    .case-study-audit h3 { margin: 0 0 14px; font-size: .92rem; }
+    .case-study-audit-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0;
+      border-top: 1px solid #dbe2e8;
+    }
+    .case-study-audit-row strong { font: 750 1.45rem/1 "SFMono-Regular", Consolas, monospace; }
+    .case-study-audit small { display: block; margin: 14px 0 18px; color: #65717c; line-height: 1.5; }
+    .case-study-link {
+      display: inline-flex;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #1769aa;
+      color: #fff;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .case-study-link:hover { background: #0f568e; color: #fff; text-decoration: none; }
+
     /* === Responsive === */
     @media (max-width: 1200px) {
       .hero h1 { font-size: 2.75rem; }
@@ -314,6 +382,7 @@
       .section-title { font-size: 1.75rem; }
       section { padding: 48px 0; }
       .comparison th, .comparison td { padding: 10px 12px; font-size: 0.85rem; }
+      .case-study-card { grid-template-columns: 1fr; padding: 26px; }
     }
     @media (max-width: 375px) {
       .hero { padding: 100px 0 48px; }
@@ -324,6 +393,7 @@
       .security-item .big-number { font-size: 2.5rem; }
       .section-title { font-size: 1.5rem; }
       footer .footer-links { gap: 16px; }
+      .case-study-facts { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -337,6 +407,7 @@
         <a href="#features">特性</a>
         <a href="#security">安全</a>
         <a href="#comparison">对比</a>
+        <a href="#case-study">案例</a>
         <a href="#quickstart">快速开始</a>
         <a href="ZhikunCode-Architecture.html">Architecture</a>
         <a href="https://github.com/zhikunqingtao/zhikuncode" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.875rem;">GitHub</a>
@@ -3037,6 +3108,31 @@
       <a href="ZhikunCode-Architecture.html" class="btn-arch">
         &#128279; 查看完整系统架构图 / View Full Architecture &rarr;
       </a>
+    </div>
+  </section>
+
+  <!-- Verifiable Case Study -->
+  <section class="case-study" id="case-study">
+    <div class="container">
+      <div class="case-study-card">
+        <div>
+          <div class="case-study-label">Public engineering audit · Case 01</div>
+          <h2>同一黄金监控任务的双工具执行审计</h2>
+          <p>以真实任务、与登记哈希完全一致的原始运行日志核验及脱敏关键摘录、冻结产物哈希、代码检查和由冻结报告解码的公开脱敏截图，对照 ZhikunCode 与 Codex 的需求澄清、Agent 调度、权限控制和工程交付。完整原始日志与冻结 ZIP 未公开；报告公开负面发现与证据边界，不把单次案例外推为产品或模型排名。</p>
+          <div class="case-study-facts">
+            <span>38 条证据</span>
+            <span>14 个评分维度</span>
+            <span>离线可读 / 可复算</span>
+          </div>
+        </div>
+        <aside class="case-study-audit">
+          <h3>公开审计范围</h3>
+          <div class="case-study-audit-row"><span>证据账本</span><strong>38</strong></div>
+          <div class="case-study-audit-row"><span>评分维度</span><strong>14</strong></div>
+          <small>评分结果与区间放在报告方法章节，不用单一总分替代对结构性差异的阅读。</small>
+          <a class="case-study-link" href="case-studies/zhikuncode-codex-gold-monitor-audit.html">查看完整证据与方法 →</a>
+        </aside>
+      </div>
     </div>
   </section>
 

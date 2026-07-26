@@ -10,6 +10,7 @@
     <a href="#-快速开始">快速开始</a> ·
     <a href="#-特性亮点">核心特性</a> ·
     <a href="#-demo">在线演示</a> ·
+    <a href="#-公开工程案例">公开工程案例</a> ·
     <a href="#-swe-bench-lite-评测">SWE-bench 评测</a> ·
     <a href="#-cli-工具">CLI 工具</a> ·
     <a href="#-skill技能系统">skill技能系统</a> ·
@@ -38,8 +39,28 @@
 > 🏗️ **[查看完整系统架构图 →](https://zhikunqingtao.github.io/zhikuncode/ZhikunCode-Architecture.html)**  
 > Java Agent Runtime · React 浏览器操作面 · Python Capability Service · 全景可视化
 
+> 🔎 **[同一黄金监控任务的双工具执行审计 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)**
+> ZhikunCode × Codex · 哈希匹配的原始运行日志核验与脱敏摘录、冻结产物哈希、代码检查与公开脱敏截图、38 条证据与 14 维可复算评分
+
 > 🏆 **[SWE-bench Lite 技术报告 →](https://zhikunqingtao.github.io/zhikuncode/swe-bench-report.html)**  
 > 提交命名空间 `20260525_zhikuncode` · 官方 harness 评测 Resolve **168 / 300 (56.0%)** · Patch 生成率 284 / 300 (94.7%)
+
+---
+
+## 🔎 公开工程案例
+
+### 黄金监控任务：ZhikunCode × Codex
+
+同一需求分别交由 ZhikunCode 与 Codex 完成，并从需求理解、开发交互、过程效率、数据准确性、架构、代码质量、用户体验和可复现性等 14 个维度进行审计。报告保留双方优点与缺陷，公开评分公式、证据编号、截图和已知限制。
+
+- ZhikunCode：Kimi K3 遇到 HTTP 429 后，由用户切换至 GLM-5.2 并在同一逻辑会话中继续。
+- Codex：GPT-5.6 Sol，推理强度 High。
+- 本案例自定义审计评分为 ZhikunCode 68.3、Codex 68.4，评分区间大幅重叠。
+- 该结果只描述本次单任务交付，不代表模型能力等价，也不构成产品排名。
+
+**[查看完整公开审计 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)** ·
+**[下载结构化证据 JSON →](docs/case-studies/zhikuncode-codex-gold-monitor-evidence.json)** ·
+**[查看生成与复核说明 →](docs/case-studies/README.md)**
 
 ---
 
