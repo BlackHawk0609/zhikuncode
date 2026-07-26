@@ -344,9 +344,13 @@ class AgentToolGoldenTest {
             assertTrue(SubAgentExecutor.AgentDefinition.GUIDE.allowedTools().contains("Glob"));
             assertTrue(SubAgentExecutor.AgentDefinition.GUIDE.allowedTools().contains("Grep"));
 
-            // maxTurns 均为 30
-            assertEquals(30, SubAgentExecutor.AgentDefinition.EXPLORE.maxTurns());
-            assertEquals(30, SubAgentExecutor.AgentDefinition.GENERAL_PURPOSE.maxTurns());
+            // 所有内置 Agent 共用同一轮次上限
+            assertEquals(99, BuiltInAgentDefinition.DEFAULT_MAX_TURNS);
+            assertEquals(99, SubAgentExecutor.AgentDefinition.EXPLORE.maxTurns());
+            assertEquals(99, SubAgentExecutor.AgentDefinition.VERIFICATION.maxTurns());
+            assertEquals(99, SubAgentExecutor.AgentDefinition.PLAN.maxTurns());
+            assertEquals(99, SubAgentExecutor.AgentDefinition.GENERAL_PURPOSE.maxTurns());
+            assertEquals(99, SubAgentExecutor.AgentDefinition.GUIDE.maxTurns());
 
             // MAX_RESULT_SIZE_CHARS
             assertEquals(100_000, SubAgentExecutor.MAX_RESULT_SIZE_CHARS);

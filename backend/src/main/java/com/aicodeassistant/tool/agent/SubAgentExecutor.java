@@ -197,7 +197,7 @@ public class SubAgentExecutor {
                     model, systemPrompt, tools, toolDefs,
                     QueryConfig.getRecommendedMaxTokens(modelRegistry, model), 200000,
                     new ThinkingConfig.Adaptive(),
-                    agentDef.maxTurns(),  // 默认 30
+                    agentDef.maxTurns(),
                     "subagent-" + request.agentId()
             );
 
@@ -1144,22 +1144,22 @@ public class SubAgentExecutor {
             boolean omitProjectPrompt, String systemPromptTemplate
     ) {
         static final AgentDefinition EXPLORE = new AgentDefinition(
-                "Explore", 30, null, null,
+                "Explore", BuiltInAgentDefinition.DEFAULT_MAX_TURNS, null, null,
                 Set.of("Agent", "ExitPlanMode", "FileEdit", "FileWrite", "NotebookEdit"),
                 true, EXPLORE_AGENT_PROMPT);
         static final AgentDefinition VERIFICATION = new AgentDefinition(
-                "Verification", 30, null, null,
+                "Verification", BuiltInAgentDefinition.DEFAULT_MAX_TURNS, null, null,
                 Set.of("Agent", "ExitPlanMode", "FileEdit", "FileWrite", "NotebookEdit"),
                 false, VERIFICATION_AGENT_PROMPT);
         static final AgentDefinition PLAN = new AgentDefinition(
-                "Plan", 30, null, null,
+                "Plan", BuiltInAgentDefinition.DEFAULT_MAX_TURNS, null, null,
                 Set.of("Agent", "ExitPlanMode", "FileEdit", "FileWrite", "NotebookEdit"),
                 true, PLAN_AGENT_PROMPT);
         static final AgentDefinition GENERAL_PURPOSE = new AgentDefinition(
-                "GeneralPurpose", 30, null, Set.of("*"), null,
+                "GeneralPurpose", BuiltInAgentDefinition.DEFAULT_MAX_TURNS, null, Set.of("*"), null,
                 false, GENERAL_PURPOSE_AGENT_PROMPT);
         static final AgentDefinition GUIDE = new AgentDefinition(
-                "Guide", 30, null,
+                "Guide", BuiltInAgentDefinition.DEFAULT_MAX_TURNS, null,
                 Set.of("Glob", "Grep", "FileRead", "WebFetch", "WebSearch"), null,
                 false, GUIDE_AGENT_PROMPT);
     }

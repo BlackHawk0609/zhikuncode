@@ -26,6 +26,8 @@ public sealed interface BuiltInAgentDefinition permits
         BuiltInAgentDefinition.PlanAgent,
         BuiltInAgentDefinition.GuideAgent {
 
+    int DEFAULT_MAX_TURNS = 99;
+
     /** Agent 类型标识（用于 switch 路由和 API 输出） */
     String type();
 
@@ -61,7 +63,7 @@ public sealed interface BuiltInAgentDefinition permits
     record GeneralPurposeAgent() implements BuiltInAgentDefinition {
         @Override public String type() { return "general-purpose"; }
         @Override public String description() { return "Full-capability agent for implementation tasks"; }
-        @Override public int maxTurns() { return 99; }
+        @Override public int maxTurns() { return DEFAULT_MAX_TURNS; }
         @Override public Set<String> allowedTools() { return Set.of("*"); }
         @Override public Set<String> deniedTools() { return null; }
         @Override public String modelOverride() { return null; }
@@ -81,7 +83,7 @@ public sealed interface BuiltInAgentDefinition permits
 
         @Override public String type() { return "explore"; }
         @Override public String description() { return "Search and read code, files, documentation"; }
-        @Override public int maxTurns() { return 99; }
+        @Override public int maxTurns() { return DEFAULT_MAX_TURNS; }
         @Override public Set<String> allowedTools() { return null; }
         @Override public Set<String> deniedTools() { return DENIED; }
         @Override public String modelOverride() { return "light"; }
@@ -101,7 +103,7 @@ public sealed interface BuiltInAgentDefinition permits
 
         @Override public String type() { return "verification"; }
         @Override public String description() { return "Test and verify changes with actual commands"; }
-        @Override public int maxTurns() { return 99; }
+        @Override public int maxTurns() { return DEFAULT_MAX_TURNS; }
         @Override public Set<String> allowedTools() { return null; }
         @Override public Set<String> deniedTools() { return DENIED; }
         @Override public String modelOverride() { return null; }
@@ -121,7 +123,7 @@ public sealed interface BuiltInAgentDefinition permits
 
         @Override public String type() { return "plan"; }
         @Override public String description() { return "Create detailed implementation plans"; }
-        @Override public int maxTurns() { return 99; }
+        @Override public int maxTurns() { return DEFAULT_MAX_TURNS; }
         @Override public Set<String> allowedTools() { return null; }
         @Override public Set<String> deniedTools() { return DENIED; }
         @Override public String modelOverride() { return null; }
@@ -141,7 +143,7 @@ public sealed interface BuiltInAgentDefinition permits
 
         @Override public String type() { return "guide"; }
         @Override public String description() { return "Usage guide and documentation expert"; }
-        @Override public int maxTurns() { return 99; }
+        @Override public int maxTurns() { return DEFAULT_MAX_TURNS; }
         @Override public Set<String> allowedTools() { return ALLOWED; }
         @Override public Set<String> deniedTools() { return null; }
         @Override public String modelOverride() { return "light"; }

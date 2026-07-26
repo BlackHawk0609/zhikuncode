@@ -12,6 +12,7 @@ import com.aicodeassistant.model.Usage;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.ToolRegistry;
 import com.aicodeassistant.tool.ToolUseContext;
+import com.aicodeassistant.tool.agent.BuiltInAgentDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -156,7 +157,7 @@ public class SwarmWorkerRunner {
                 QueryConfig.getRecommendedMaxTokens(modelRegistry, model),
                 200_000,
                 new ThinkingConfig.Adaptive(),
-                30,  // maxTurns for worker
+                BuiltInAgentDefinition.DEFAULT_MAX_TURNS,
                 "swarm_worker"
         );
 

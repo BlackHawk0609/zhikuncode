@@ -88,7 +88,7 @@ public class AgentResumeService {
             model, systemPrompt, tools, toolDefs,
             QueryConfig.getRecommendedMaxTokens(modelRegistry, model), 200000,
             new ThinkingConfig.Adaptive(),
-            30,
+            BuiltInAgentDefinition.DEFAULT_MAX_TURNS,
             "resumed-agent-" + agentId
         );
 
