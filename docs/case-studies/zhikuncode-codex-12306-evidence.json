@@ -1,0 +1,232 @@
+{
+  "meta": {
+    "report": "ZhikunCode vs Codex · 12306 候补可视化任务对比评估",
+    "report_file": "zhikuncode-codex-12306-audit.html",
+    "report_version": "1.2",
+    "task_prompt": "帮我做一个动态html，可视化展示\"你后补成功的那一刻，12306后台发送了什么\"，要覆盖候补成功的12306后台完整流程，要展示各种数学原理和12306对应系统的架构，最关键的是一定要动态可视化，页面自己动，有很多惊艳漂亮的可视化动画",
+    "case_dates": ["2026-07-26", "2026-07-27"],
+    "tools": {
+      "zhikuncode": {
+        "tool": "ZhikunCode",
+        "model": "kimi-k3（KimiK3，国产模型）",
+        "deliverable_form": "单文件 HTML（12306-houbu.html）",
+        "deliverable_path": "对比评测/12306/zhikuncode/12306-houbu.html（原件本地留存；源文件副本已随仓库公开：assets/12306-comparison/artifacts/zhikuncode/12306-houbu.html，SHA256 da6001eff154ce90718c3008d552908f3ddade24c17b4c666538bf237130f737）"
+      },
+      "codex": {
+        "tool": "Codex",
+        "model": "GPT-5.6 Sol（高推理模式，操作者提供的配置）",
+        "deliverable_form": "Next.js 工程（本地预览 http://localhost:3000/#journey）",
+        "deliverable_path": "本地工程 codexproject/（原件本地留存；核心源文件 page.tsx / globals.css / layout.tsx / package.json 已随仓库公开：assets/12306-comparison/artifacts/codex/）",
+        "deliverable_title": "兑现时刻｜12306 候补成功后台全链路"
+      }
+    },
+    "disclosure": "本报告由 ZhikunCode 项目生成，已尽量以实测证据保持中立；证据不对称处（Codex 无执行日志，v1.2 起仅有会话界面截图 EV-021）已明确标注，不做无依据推断。",
+    "conflict_of_interest": "评估执行者：Qoder（AI 编程助手）。本评估由 Qoder 执行完成、由 ZhikunCode 项目发布：报告在评估自家产品（ZhikunCode）与竞品（Codex），利益冲突已知；未经独立第三方复核。降偏措施：评分公式与权重公开可复算（含权重敏感性示例）、双向事实如实呈现并参与扣分、证据按档位透明计分（无证据不计分、仅截图证据按\"部分\"档位计分并明示不确定性）且不做超出证据的推断、总分差 0.23 小于 0.5 评分粒度不构成排名、产物源文件已随仓库公开（assets/12306-comparison/artifacts/）可独立核验。",
+    "language": "zh-CN"
+  },
+  "metrics": {
+    "zhikuncode_artifact": {
+      "lines": 1061,
+      "bytes": 64674,
+      "form": "单文件自包含 HTML，零外部网络依赖",
+      "animations": {
+        "css_keyframes": 11,
+        "canvas": 5,
+        "canvas_roles": ["星空", "烟花特效", "令牌桶", "实时图表", "场景画布"],
+        "svg": 7,
+        "svg_roles": ["列车", "架构图", "泊松曲线", "对勾×2", "锁×2"],
+        "requestAnimationFrame": 6,
+        "setInterval": 4,
+        "smil": 0
+      },
+      "scene_player": {"acts": 8, "functions": "play1~play8"},
+      "sections": ["hero", "arch", "flow", "math", "dash", "end"],
+      "architecture_diagram": {
+        "nodes": 13,
+        "edges": 12,
+        "edge_labels": 8,
+        "node_chain": "用户手机→CDN/防火墙→负载均衡→API网关→候补服务→Redis ZSet候补池→余票计算→座位库存→订单服务→MySQL分库分表→Kafka→通知服务→短信/推送"
+      },
+      "math_cards": ["排队论 Little 定律", "退票泊松分布", "区间调度·席位复用", "令牌桶限流", "取模分片", "幂等性"],
+      "interaction": {
+        "buttons": ["重新播放", "上一步", "播放暂停", "下一步", "提交候补"],
+        "event_listeners": 9,
+        "intersection_observer": true
+      }
+    },
+    "codex_artifact": {
+      "framework": "Next.js 16.2.6 + React 19.2.6 + Tailwind 4.2.1 + Vite 8.0.13 + Wrangler",
+      "runtime_dependencies": 4,
+      "dev_dependencies": 16,
+      "animation_libraries": "无（无 framer-motion/gsap/d3）",
+      "page_tsx_lines": 717,
+      "page_tsx_components": ["NetworkCanvas", "AppIcon", "Home"],
+      "page_tsx_note": "\"use client\" 单文件组件",
+      "globals_css_lines": 2063,
+      "globals_css_keyframes": 13,
+      "project_files": 25,
+      "project_files_note": "排除 node_modules 等",
+      "content": {
+        "stages": 10,
+        "stages_note": "T+000ms→T+∞ 时间轴 LIVE SIMULATION",
+        "architecture_layers": 6,
+        "architecture_layers_detail": "App/Web→接入流量层→候补兑现域→客票交易域→资金触达域→数据保障层",
+        "consistency_boundaries": 3,
+        "simulated_log_streams": 10,
+        "simulated_log_note": "含 TRACE ID 事件链路",
+        "math_model_tabs": 4,
+        "math_model_tabs_detail": ["区间位图", "优先队列", "成功概率", "乐观并发"],
+        "playback_controls": "速度调节与播放控制"
+      },
+      "engineering_note": "基于 site-creator-vinext-starter 模板（git 仅 1 次提交），db/drizzle/examples/worker 为模板样板代码与本任务无关"
+    },
+    "runtime_observation": {
+      "method": "两产物均实际在浏览器中运行验证",
+      "zhikuncode": "页面正常加载，8 幕动画流畅自动播放，Canvas 动画运行正常，交互按钮全部工作，实时大屏数据持续更新；控制台有 2 个可访问性相关超时警告（不影响功能）",
+      "codex": "完全加载无误，控制台零错误零警告，10 阶段模拟流畅，数学选项卡可交互，响应性优秀"
+    },
+    "development_process": {
+      "zhikuncode": {
+        "evidence_grade": "已验证（完整执行日志 548KB / 2808 行）",
+        "log_excerpt_file": "zhikuncode-12306-log-excerpts.txt",
+        "model": "kimi-k3",
+        "start": "2026-07-26 21:15:09",
+        "end": "2026-07-26 21:53:20",
+        "total_duration": "≈38 分 11 秒（首轮 37 分 35 秒 + 第二轮\"打开html\" 14 秒）",
+        "user_rounds": 2,
+        "llm_turns": {"total": 50, "main_session": 25, "sub_agent": 23, "second_round": 2},
+        "total_tokens": 2333428,
+        "tool_calls": {
+          "total": 47,
+          "WebBrowser": {"total": 22, "screenshot": 11, "evaluate": 5, "js_error_check": 3, "navigate": 2, "close": 1},
+          "Bash": 11, "Read": 10, "Sleep": 2, "Write": 1, "Agent": 1,
+          "blocked_by_security_pipeline": 3
+        },
+        "self_repaired_errors": [
+          "Write 被 PROTECTED_PATH_DENIED 拦截 → 重发 + 用户授权后原子写入成功",
+          "UNSAFE_PROTOCOL（file:// 协议被拒）第 1 次 → 自行起 python http.server 改走 localhost 验证",
+          "UNSAFE_PROTOCOL（file:// 协议被拒）第 2 次 → 自行起 python http.server 改走 localhost 验证",
+          "子代理 1800s 超时 → 优雅收尾且产物已落盘，主代理接管验证"
+        ],
+        "pre_delivery_self_check": "11 次截图 + 3 次 JS 错误检查 + 5 次 evaluate 滚动核验 + curl 探活；无 ERROR 级日志，两轮均 TERMINATE_SUCCESS",
+        "permission_grants": "3 次权限授权交互（Bash/Write/WebBrowser，SESSION 级）"
+      },
+      "codex": {
+        "evidence_grade": "部分（会话界面截图：总耗时与改动规模可证；无过程日志）",
+        "total_duration": "≈27 分 52 秒（会话界面显示\"已处理 27m 52s\"，EV-021）",
+        "available_evidence": [
+          "会话界面截图 codex-06-duration.png（\"已处理 27m 52s\"，\"已编辑 7 个文件 +2,815 -473\"，EV-021）",
+          "静态截图 codex.jpg（VS Code 集成界面，显示 +2,771 -508 改动 7 个文件，EV-017）",
+          "过程录屏 codex快进版.mp4（24MB，仅证据固定不分析）"
+        ],
+        "diff_readings_note": "两张截图的 diff 读数不同（+2,815 -473 vs +2,771 -508，均为 7 个文件）：采集时点/统计口径差异，以各自截图为准，不改写、不取舍",
+        "limitation": "无执行日志，无法统计 token/轮次/工具调用/错误自修复/一次成功率；维度⑥自 v1.2 起依截图按\"部分\"档位计分，截图以外的过程细节不做推断"
+      }
+    }
+  },
+  "scores": {
+    "scale": "每维 0-10 分",
+    "weighting_formula": "总分 = Σ(维度分 × 权重)；权重：①任务理解20% ②代码质量10% ③动态可视化20% ④架构与数学15% ⑤用户体验15% ⑥开发效率10% ⑦技术实现10%",
+    "weighting_note": "自 v1.2 起两侧总分同为七维加权（Codex 维度⑥依会话界面截图 EV-021 按\"部分\"档位计分 8.0，不再六维归一化）；评分为多维参考而非单一排名。历史：v1.0/v1.1 时 Codex ⑥因无证据不计分，总分按其余六维归一化（除以0.9）得 8.50*",
+    "weighted_total": {"zhikuncode": 8.68, "codex": 8.45},
+    "weighted_total_formula": {
+      "zhikuncode": "9.5×.20 + 7.5×.10 + 9.0×.20 + 8.5×.15 + 8.0×.15 + 9.0×.10 + 8.5×.10 = 8.68",
+      "codex": "8.5×.20 + 8.0×.10 + 8.5×.20 + 9.0×.15 + 9.0×.15 + 8.0×.10 + 7.5×.10 = 8.45"
+    },
+    "dimensions": [
+      {
+        "id": "D1", "name": "任务理解准确性", "weight": 0.2,
+        "zhikuncode": {"score": 9.5, "grade": "已验证", "basis": "四项要求全覆盖（8幕流程/6数学卡/13节点架构/全程自动播放动画），且交付形态严格贴合\"做一个动态html\"的字面要求——单文件 HTML 可直接双击打开"},
+        "codex": {"score": 8.5, "grade": "已验证", "basis": "四项要求同样全覆盖（10阶段流程/4数学模型/6层架构/LIVE SIMULATION），内容组织深入；但交付形态为 Next.js 工程而非单个 html 文件，与指令字面形态有偏离，需本地服务预览"},
+        "evidence_refs": ["EV-001", "EV-002", "EV-004", "EV-005", "EV-007", "EV-009"]
+      },
+      {
+        "id": "D2", "name": "代码质量、结构与可维护性", "weight": 0.1,
+        "zhikuncode": {"score": 7.5, "grade": "已验证", "basis": "1,061 行单文件结构清晰（6 section + 8 幕播放器分区），零依赖易审计；但 HTML/CSS/JS 混于一文件，长期迭代与协作维护成本较高"},
+        "codex": {"score": 8.0, "grade": "已验证", "basis": "TypeScript + 组件化 + Tailwind 工程化规范；但 page.tsx 为 717 行\"use client\"单文件组件（3组件同文件），globals.css 达 2,063 行，且工程内含大量与任务无关的模板样板代码（db/drizzle/examples/worker）"},
+        "evidence_refs": ["EV-002", "EV-008", "EV-020"]
+      },
+      {
+        "id": "D3", "name": "动态可视化效果与动画质量", "weight": 0.2,
+        "zhikuncode": {"score": 9.0, "grade": "已验证", "basis": "11 keyframes + 5 canvas + 7 svg + rAF×6 + setInterval×4 的多技术组合；8 幕自动播放、星空/烟花/列车/发光数据包/实时曲线，实测流畅，\"页面自己动\"要求完成度高"},
+        "codex": {"score": 8.5, "grade": "已验证", "basis": "13 keyframes + 1 canvas(粒子网络) + rAF 驱动的 10 阶段 LIVE SIMULATION，动画节制而精致，控制台零错误；纯手写无动画库，但动画技术手段的丰富度低于对方"},
+        "evidence_refs": ["EV-003", "EV-008", "EV-009", "EV-010"]
+      },
+      {
+        "id": "D4", "name": "12306 架构与数学原理展现", "weight": 0.15,
+        "zhikuncode": {"score": 8.5, "grade": "已验证", "basis": "广度取向：13节点/12边/8边标签的全链路拓扑 + 6 张数学卡（Little定律/泊松/区间调度/令牌桶/取模分片/幂等），覆盖面宽，单点深度较浅"},
+        "codex": {"score": 9.0, "grade": "已验证", "basis": "深度取向：6 层架构 + 3 个一致性边界说明 + 4 个可交互数学模型选项卡（区间位图/优先队列/成功概率/乐观并发）+ 含 TRACE ID 的 10 条模拟日志流，系统性与严谨性更突出"},
+        "evidence_refs": ["EV-004", "EV-005", "EV-009"]
+      },
+      {
+        "id": "D5", "name": "用户体验与交互设计", "weight": 0.15,
+        "zhikuncode": {"score": 8.0, "grade": "已验证", "basis": "5 按钮播放器 + 9 事件监听 + IntersectionObserver 滚动联动，交互全部工作；控制台存在 2 个可访问性相关超时警告（不影响功能）"},
+        "codex": {"score": 9.0, "grade": "已验证", "basis": "速度调节 + 播放控制 + 数学选项卡 + 阶段点击查看；控制台零错误零警告，响应性优秀，视觉设计成熟"},
+        "evidence_refs": ["EV-006", "EV-009", "EV-010"]
+      },
+      {
+        "id": "D6", "name": "开发效率与问题解决能力", "weight": 0.1,
+        "zhikuncode": {"score": 9.0, "grade": "已验证", "basis": "38分11秒端到端交付；4 起错误全部自我修复闭环（含协议受限时自建 http.server 绕行、子代理超时优雅接管）；交付前 11 截图 + 3 JS 检查 + 5 evaluate + curl 自检；两轮 TERMINATE_SUCCESS"},
+        "codex": {"score": 8.0, "grade": "部分（截图耗时与 diff 规模，无过程日志）", "basis": "加分事实：会话界面截图（EV-021）证明总耗时 27m52s（短于对方约 10 分钟）且改动规模可见（7 文件，两处截图读数 +2,815 -473 / +2,771 -508，时点/口径不同以各自截图为准）。限制事实：无执行日志，turns/token/工具调用/错误自修复/一次成功率均不可知，\"问题解决能力\"这一半无从验证，分值不确定度高于其他维度"},
+        "evidence_refs": ["EV-011", "EV-012", "EV-013", "EV-014", "EV-015", "EV-017", "EV-021"]
+      },
+      {
+        "id": "D7", "name": "技术实现优缺点", "weight": 0.1,
+        "zhikuncode": {"score": 8.5, "grade": "已验证", "basis": "单文件 64,674B 零外部依赖，可离线直开、可任意分发，部署门槛为零；代价是无组件复用、单文件较长、可扩展性弱"},
+        "codex": {"score": 7.5, "grade": "已验证", "basis": "现代框架工程化，类型安全、可扩展性强；代价是需 Node≥22 构建运行、依赖本地服务预览、工程含大量模板样板代码，就\"做一个动态html\"的任务语境部署门槛偏高"},
+        "evidence_refs": ["EV-002", "EV-007", "EV-020"]
+      }
+    ]
+  },
+  "evidence": [
+    {"id": "EV-001", "desc": "用户原始指令（两工具收到同一任务），日志行 L0061 记录 WS user_message 原文", "source": "zhikuncode-12306-log-excerpts.txt L0061；完整日志 12306补票.log（548KB/2808行，本地）", "grade": "已验证"},
+    {"id": "EV-002", "desc": "ZhikunCode 产物文件：1,061 行 / 64,674 字节，单文件自包含，零外部网络依赖", "source": "源文件已随仓库公开：assets/12306-comparison/artifacts/zhikuncode/12306-houbu.html，SHA256 da6001eff154ce90718c3008d552908f3ddade24c17b4c666538bf237130f737（原件本地留存，与公开副本逐字节一致）", "grade": "已验证"},
+    {"id": "EV-003", "desc": "ZhikunCode 动画技术统计：11 个 CSS @keyframes、5 个 canvas（星空/烟花/令牌桶/实时图表/场景画布）、7 个 svg（列车/架构图/泊松曲线/2×对勾/2×锁）、requestAnimationFrame×6、setInterval×4、无 SMIL", "source": "对 12306-houbu.html 源码的静态统计", "grade": "已验证"},
+    {"id": "EV-004", "desc": "ZhikunCode 架构图：13 节点 / 12 边 + 8 边标签（用户手机→CDN/防火墙→负载均衡→API网关→候补服务→Redis ZSet候补池→余票计算→座位库存→订单服务→MySQL分库分表→Kafka→通知服务→短信/推送）", "source": "12306-houbu.html #arch 区块源码 + 截图 zhikuncode-02-arch.png", "grade": "已验证"},
+    {"id": "EV-005", "desc": "ZhikunCode 数学原理 6 张卡片：排队论 Little 定律、退票泊松分布、区间调度·席位复用、令牌桶限流、取模分片、幂等性", "source": "12306-houbu.html #math 区块源码 + 截图 zhikuncode-04-math.png", "grade": "已验证"},
+    {"id": "EV-006", "desc": "ZhikunCode 交互：5 按钮（重新播放/上一步/播放暂停/下一步/提交候补）、9 个事件监听、IntersectionObserver 滚动联动；8 幕场景播放器 play1~play8；6 个 section（hero/arch/flow/math/dash/end）", "source": "12306-houbu.html 源码统计 + 浏览器实测", "grade": "已验证"},
+    {"id": "EV-007", "desc": "Codex 工程：Next.js 16.2.6 + React 19.2.6 + Tailwind 4.2.1 + Vite 8.0.13 + Wrangler；运行时依赖 4 个、开发依赖 16 个；无动画库（无 framer-motion/gsap/d3）；工程文件 25 个（排除 node_modules 等）", "source": "本地工程 codexproject/package.json 及工程目录清点", "grade": "已验证"},
+    {"id": "EV-008", "desc": "Codex 核心代码：app/page.tsx 717 行（\"use client\"单文件组件，内含 NetworkCanvas/AppIcon/Home 共 3 组件）；app/globals.css 2,063 行 / 13 个 @keyframes", "source": "本地工程 codexproject/app/page.tsx、app/globals.css；两文件（连同 layout.tsx、package.json）已随仓库公开：assets/12306-comparison/artifacts/codex/，page.tsx SHA256 12bdecde156225d88425915b10087362c710dda03aaf03c6be525c47632d8ce8，globals.css SHA256 fd63e9e08e4f5e8d932530be40186f11c45e794b5da0f99eb9adf67781c9ca56", "grade": "已验证"},
+    {"id": "EV-009", "desc": "Codex 内容结构：10 个 stages（T+000ms→T+∞ LIVE SIMULATION）、6 层架构 + 3 个一致性边界说明、10 条模拟日志流（含 TRACE ID）、4 个数学模型选项卡（区间位图/优先队列/成功概率/乐观并发）、速度调节与播放控制；页面标题\"兑现时刻｜12306 候补成功后台全链路\"", "source": "codexproject 源码 + 本地预览 http://localhost:3000/#journey 实测（此处 URL 仅为素材路径记录）", "grade": "已验证"},
+    {"id": "EV-010", "desc": "浏览器实测观察：ZhikunCode 页面正常加载、8 幕动画流畅自动播放、Canvas 正常、交互按钮全部工作、实时大屏持续更新，控制台 2 个可访问性相关超时警告（不影响功能）；Codex 完全加载无误、控制台零错误零警告、10 阶段模拟流畅、数学选项卡可交互、响应性优秀", "source": "2026-07-26/27 双产物实际运行验证记录", "grade": "已验证"},
+    {"id": "EV-011", "desc": "ZhikunCode 完整执行日志 548KB / 2808 行；公开摘录 65 行（脱敏：UUID/会话ID 掩码，未发现凭据）", "source": "zhikuncode-12306-log-excerpts.txt（本目录）；完整日志 12306补票.log（本地留存不公开，SHA256 锚定：4b29a3077009ca028ebfad95fb671a757cff539e9ab2421d106119a45fc03329）", "grade": "已验证"},
+    {"id": "EV-012", "desc": "ZhikunCode 时间与规模：21:15:09 开始 → 21:53:20 结束，总耗时 ≈38 分 11 秒（首轮 37 分 35 秒 + 第二轮 14 秒）；2 个用户轮次、50 个 LLM turns（主会话 25 + 子代理 23 + 第二轮 2）；总 token 2,333,428", "source": "日志 L0061/L0067、L1497（turns=23, totalTokens=1642716）、L2664（turns=25, totalTokens=629790）、L2751（turns=2, totalTokens=60922）", "grade": "已验证"},
+    {"id": "EV-013", "desc": "ZhikunCode 工具调用 47 次：WebBrowser 22（截图11/evaluate5/JS错误检查3/导航2/关闭1）、Bash 11、Read 10、Sleep 2、Write 1、Agent 1；另有 3 次被安全管线拦截", "source": "完整日志工具调用清点；摘录可见 L0169-L2719 抽样", "grade": "已验证"},
+    {"id": "EV-014", "desc": "ZhikunCode 4 起错误全部自我修复闭环：①Write 被 PROTECTED_PATH_DENIED 拦截（L0566）→重发+用户授权（L0719）后原子写入成功（L0726）；②③两次 UNSAFE_PROTOCOL file:// 被拒（L0794、L1597）→自行起 python http.server（L0845、L1649）改走 localhost 验证；④子代理 1800s 超时（L1496）→优雅收尾且产物已落盘（L1498），主代理接管验证", "source": "zhikuncode-12306-log-excerpts.txt 对应行号", "grade": "已验证"},
+    {"id": "EV-015", "desc": "ZhikunCode 交付前自检：11 次截图 + 3 次 JS 错误检查 + 5 次 evaluate 滚动核验 + curl 探活（L0889）；无 ERROR 级日志，两轮均 TERMINATE_SUCCESS（L2663、L2751 后完成）", "source": "zhikuncode-12306-log-excerpts.txt L0889/L0969/L1007/L2122/L2570/L2663 等", "grade": "已验证"},
+    {"id": "EV-016", "desc": "ZhikunCode 3 次权限授权交互（Bash/Write/WebBrowser，SESSION 级），权限拦截与授权全程留痕", "source": "日志 L0388（Bash TOOL_GUARDED）、L0719（Write EDIT_CAPABILITY）等", "grade": "已验证"},
+    {"id": "EV-017", "desc": "Codex 过程证据（受限）：静态截图 codex.jpg（VS Code 集成界面，+2,771 -508 改动 7 个文件）与过程录屏 codex快进版.mp4（24MB，仅证据固定不分析）；无执行日志。注：会话界面截图（EV-021）显示 +2,815 -473 / 7 文件——两次截图读数不同（采集时点/统计口径差异），以各自截图为准", "source": "对比评测/12306/codex/（本地留存，不公开绝对路径）；codex快进版.mp4 SHA256 锚定：6be9305c386786ad106bae830072990827b69b7d75dbc0b46710406f3ad935f5", "grade": "受限"},
+    {"id": "EV-018", "desc": "视频证据固定：zhikuncode快进版.mp4（28MB）、codex快进版.mp4（24MB）；只列路径与大小，不嵌入、不逐帧分析", "source": "对比评测/12306/zhikuncode/zhikuncode快进版.mp4（本地留存，不公开绝对路径，SHA256 锚定：cb6f130fb871c50a79058a5fcf94696de1dd9448b7c6510590cc22f5353e2310）；对比评测/12306/codex/codex快进版.mp4（本地留存，不公开绝对路径，SHA256 锚定：6be9305c386786ad106bae830072990827b69b7d75dbc0b46710406f3ad935f5）", "grade": "已固定"},
+    {"id": "EV-019", "desc": "运行截图 11 张（ZhikunCode 6 张 + Codex 5 张），均为产物实际运行时拍摄", "source": "assets/12306-comparison/（相对本目录）", "grade": "已验证"},
+    {"id": "EV-020", "desc": "Codex 工程注记：基于 site-creator-vinext-starter 模板（git 仅 1 次提交），db/drizzle/examples/worker 为模板样板代码与本任务无关", "source": "codexproject git 历史与目录结构核查", "grade": "已验证"},
+    {"id": "EV-021", "desc": "Codex 会话界面截图：\"已处理 27m 52s\"（总耗时 ≈27 分 52 秒）、\"已编辑 7 个文件 +2,815 -473\"；文件列表可见 app/globals.css +2,063、app/page.tsx +717、app/layout.tsx +33，与静态统计行数吻合。与 EV-017 读数（+2,771 -508）不同：采集时点/统计口径差异，以各自截图为准。截图仅证明总耗时与改动规模，过程细节（turns/token/工具调用/自修复）仍不可知", "source": "assets/12306-comparison/codex-06-duration.png（操作者提供，2026-07-28 固化入库）；SHA256 91c99ba0f61d6e9178e1a230d77d8b0b4306d78743f02556138a3d1e7d7eb86d", "grade": "部分"}
+  ],
+  "assets": {
+    "screenshots": [
+      {"file": "assets/12306-comparison/zhikuncode-01-hero.png", "side": "zhikuncode", "caption": "开场幕：星空画布 + 金色高亮标题打字机效果，底部自动导览播放器（1/6）"},
+      {"file": "assets/12306-comparison/zhikuncode-02-arch.png", "side": "zhikuncode", "caption": "全局架构：13 节点拓扑与发光数据包沿链路流动，悬停节点可看职责说明"},
+      {"file": "assets/12306-comparison/zhikuncode-03-flow.png", "side": "zhikuncode", "caption": "8 幕剧第 3 幕：等待期的数学，Little 定律 λ×W=L 与泊松曲线 SVG"},
+      {"file": "assets/12306-comparison/zhikuncode-04-math.png", "side": "zhikuncode", "caption": "数学原理 6 卡：Little 定律/泊松分布/区间调度/令牌桶（canvas 微动画）/取模分片/幂等性"},
+      {"file": "assets/12306-comparison/zhikuncode-05-dash.png", "side": "zhikuncode", "caption": "实时大屏：4 个滚动指标 + 每 100ms 追加一点的实时折线"},
+      {"file": "assets/12306-comparison/zhikuncode-06-end.png", "side": "zhikuncode", "caption": "终幕：金色对勾 SVG 描边动画与\"重新播放\"按钮"},
+      {"file": "assets/12306-comparison/codex-01-init.jpg", "side": "codex", "caption": "首屏：深绿主题 Hero，粒子网络 canvas 背景，10 个关键阶段与车站脉络时间轴（03/10）"},
+      {"file": "assets/12306-comparison/codex-02-journey.jpg", "side": "codex", "caption": "后台旅程：LIVE SIMULATION 含 TRACE ID，第 5 阶段席位图/区间匹配，右侧事件流 5 msgs"},
+      {"file": "assets/12306-comparison/codex-03-math.jpg", "side": "codex", "caption": "数学原理选项卡第 4 项乐观并发控制：UPDATE seat IF version=42→43，事务 A/B/C 竞争演示"},
+      {"file": "assets/12306-comparison/codex-04-arch.png", "side": "codex", "caption": "系统架构：6 层堆叠（App/Web→接入流量层→候补兑现域→客票交易域→资金触达域→数据保障层）与 request→commit 纵向链路"},
+      {"file": "assets/12306-comparison/codex-05-logs.png", "side": "codex", "caption": "旅程收尾（第 10 阶段监控/审计平台、END-TO-END 386ms）过渡至数学章节稳定优先队列选项卡"},
+      {"file": "assets/12306-comparison/codex-06-duration.png", "side": "codex", "caption": "会话界面（过程证据，EV-021，非产物运行画面）：已处理 27m 52s、已编辑 7 个文件 +2,815 -473", "sha256": "91c99ba0f61d6e9178e1a230d77d8b0b4306d78743f02556138a3d1e7d7eb86d"}
+    ],
+    "logs": [
+      {"file": "zhikuncode-12306-log-excerpts.txt", "desc": "ZhikunCode 执行日志摘录 65 行（≈2.3%），脱敏版；完整日志 12306补票.log 548KB/2808 行留存本地"}
+    ],
+    "videos": [
+      {"path": "对比评测/12306/zhikuncode/zhikuncode快进版.mp4（本地留存，不公开绝对路径）", "size": "28MB", "sha256": "cb6f130fb871c50a79058a5fcf94696de1dd9448b7c6510590cc22f5353e2310", "role": "ZhikunCode 过程录屏（证据固定）"},
+      {"path": "对比评测/12306/codex/codex快进版.mp4（本地留存，不公开绝对路径）", "size": "24MB", "sha256": "6be9305c386786ad106bae830072990827b69b7d75dbc0b46710406f3ad935f5", "role": "Codex 过程录屏（证据固定，不分析）"}
+    ],
+    "artifacts": [
+      {"path": "assets/12306-comparison/artifacts/zhikuncode/12306-houbu.html", "sha256": "da6001eff154ce90718c3008d552908f3ddade24c17b4c666538bf237130f737", "role": "ZhikunCode 交付产物（源文件副本已随仓库公开，与本地原件逐字节一致）"},
+      {"path": "assets/12306-comparison/artifacts/codex/", "files": {"page.tsx": "12bdecde156225d88425915b10087362c710dda03aaf03c6be525c47632d8ce8", "globals.css": "fd63e9e08e4f5e8d932530be40186f11c45e794b5da0f99eb9adf67781c9ca56", "layout.tsx": "cd61f1ad5b01918e849a58aad6c20edb1b6e192f88ea073bfb5114813fd15743", "package.json": "985fb194062c2f6cd633517e7b67976d6fd76582c83fca7f4c1f5d7d53428ef8"}, "role": "Codex 交付工程核心源文件（副本已随仓库公开；完整工程本地留存）"},
+      {"path": "对比评测/12306/codex/codex.jpg（本地留存，不公开绝对路径）", "role": "Codex 过程静态截图（+2,771 -508 / 7 文件）"}
+    ]
+  }
+}

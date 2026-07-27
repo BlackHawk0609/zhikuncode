@@ -42,6 +42,9 @@
 > 🔎 **[同一黄金监控任务的双工具执行审计 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)**
 > ZhikunCode × Codex · 哈希匹配的原始运行日志核验与脱敏摘录、冻结产物哈希、代码检查与公开脱敏截图、38 条证据与 14 维可复算评分
 
+> 🚄 **[12306 候补可视化双工具对比评估 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-12306-audit.html)**
+> ZhikunCode/KimiK3 × Codex/GPT-5.6 Sol · 7 维评估、20 条证据、65 行脱敏日志摘录、11 张运行截图与 SHA-256 清单
+
 > 🏆 **[SWE-bench Lite 技术报告 →](https://zhikunqingtao.github.io/zhikuncode/swe-bench-report.html)**  
 > 提交命名空间 `20260525_zhikuncode` · 官方 harness 评测 Resolve **168 / 300 (56.0%)** · Patch 生成率 284 / 300 (94.7%)
 
@@ -60,6 +63,19 @@
 
 **[查看完整公开审计 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)** ·
 **[下载结构化证据 JSON →](docs/case-studies/zhikuncode-codex-gold-monitor-evidence.json)** ·
+**[查看生成与复核说明 →](docs/case-studies/README.md)**
+
+### 12306 候补可视化对比评估：ZhikunCode × Codex
+
+同一"12306 候补成功后台全链路"动态可视化任务分别交由 ZhikunCode 与 Codex 完成，从任务理解、代码质量、动态可视化、架构与数学、用户体验、开发效率、技术实现 7 个维度评估。报告保留双方优点与缺陷，公开评分公式、20 条证据编号、11 张运行截图和已知限制。
+
+- ZhikunCode：kimi-k3（KimiK3），交付单文件 HTML（1,061 行，零外部网络依赖），548KB 完整执行日志可审计。
+- Codex：GPT-5.6 Sol（高推理模式），交付 Next.js 工程；过程证据受限（无执行日志），开发效率维度不计分。
+- 本案例自定义加权评分为 ZhikunCode 8.68、Codex 8.5（Codex 按六维归一化），评分区间大幅重叠。
+- 该结果只描述本次单任务交付，不代表模型能力等价，也不构成产品排名。
+
+**[查看完整对比评估 →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-12306-audit.html)** ·
+**[下载结构化证据 JSON →](docs/case-studies/zhikuncode-codex-12306-evidence.json)** ·
 **[查看生成与复核说明 →](docs/case-studies/README.md)**
 
 ---

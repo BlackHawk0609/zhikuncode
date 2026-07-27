@@ -65,3 +65,32 @@ shasum -a 256 -c zhikuncode-codex-gold-monitor-SHA256SUMS.txt
 - 禁止重新出现的已纠正表述和旧版简化 SVG。
 
 修改报告数据、生成器或公开资产后，应连续执行两次公开构建并比较输出哈希，确认生成结果确定，再提交全部相互匹配的 HTML、JSON、摘录、截图和 SHA-256 清单。
+
+---
+
+# 案例二：12306 候补可视化双工具对比评估（2026-07-27）
+
+本案例发布 ZhikunCode（KimiK3）与 Codex（GPT-5.6 Sol）完成同一"12306 候补成功后台全链路"动态可视化任务的对比评估报告、结构化证据、脱敏日志摘录、运行截图和 SHA-256 清单。报告生成不依赖网络、远程字体或第三方 npm 包。
+
+## 公开文件
+
+- `zhikuncode-codex-12306-audit.html`：静态、自包含的 7 维评估报告。
+- `zhikuncode-codex-12306-evidence.json`：21 条证据、7 维评分及可视化所需结构化数据。
+- `zhikuncode-12306-log-excerpts.txt`：保留原始行号的脱敏关键日志摘录（65 行，≈ 完整日志 2.3%）；UUID/会话 ID 已掩码，本机绝对路径的用户段已掩码为 `/Users/***`。
+- `assets/12306-comparison/`：11 张产物实际运行截图（ZhikunCode 6 张 + Codex 5 张），未做修饰；另含 1 张 Codex 会话界面过程证据截图 `codex-06-duration.png`（EV-021，总耗时 27m52s 与改动规模的计分依据，非产物运行画面）。
+- `assets/12306-comparison/artifacts/`：两侧交付产物源文件副本（zhikuncode/12306-houbu.html；codex/ 的 page.tsx、globals.css、layout.tsx、package.json），与评测当晚原件逐字节一致，随仓库公开、内容未做任何修改。
+- `zhikuncode-codex-12306-SHA256SUMS.txt`：上述公开文件及本说明的 SHA-256。
+
+完整运行日志 12306补票.log（548KB / 2,808 行）与两份快进版过程录屏含本机路径或未公开材料，仅本地留存，不属于公开发布物；三者的 SHA-256 已锚定在 `zhikuncode-codex-12306-SHA256SUMS.txt` 注释区（`# … local artifact, not in repo`），持有原件者可据此核验。
+
+## 校验公开产物
+
+```bash
+cd docs/case-studies
+shasum -a 256 -c zhikuncode-codex-12306-SHA256SUMS.txt
+```
+
+## 利益声明与复核方式
+
+本评估由 Qoder（AI 编程助手）执行完成、由 ZhikunCode 项目发布，被评一方（ZhikunCode）与发布方同源，利益冲突已知，且未经独立第三方复核，结论请以"多维参考"而非排名解读。两侧产物源文件已随仓库公开于 `assets/12306-comparison/artifacts/`，任何人可用 `shasum -a 256` 比对清单哈希、并按报告附录 G 的 grep/wc 命令独立复核全部统计数字。评分口径、降偏措施与已知限制详见报告页首"利益披露"块及页脚披露段。
+
