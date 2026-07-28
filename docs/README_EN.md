@@ -10,6 +10,7 @@
     <a href="#-quick-start">Quick Start</a> ·
     <a href="#-key-features">Key Features</a> ·
     <a href="#-demo">Demo</a> ·
+    <a href="#-open-engineering-cases">Engineering Cases</a> ·
     <a href="#-swe-bench-lite-evaluation">SWE-bench</a> ·
     <a href="#-cli-tools">CLI Tools</a> ·
     <a href="#-skill-system">Skill System</a> ·
@@ -38,8 +39,45 @@
 > 🏗️ **[View Full System Architecture →](https://zhikunqingtao.github.io/zhikuncode/ZhikunCode-Architecture.html)**  
 > Java Agent Runtime · React Browser Control Plane · Python Capability Service · Full Visualization
 
+> 🔎 **[Dual-Tool Execution Audit of the Same Gold-Monitor Task →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)**
+> ZhikunCode × Codex · Hash-matched raw run-log verification with redacted excerpts, frozen artifact hashes, code inspection and published redacted screenshots · 38 evidence entries · 14 recomputable scoring dimensions
+
+> 🚄 **[12306 Waitlist Fulfillment Visualization: Dual-Tool Comparative Evaluation →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-12306-audit.html)**
+> ZhikunCode/KimiK3 × Codex/GPT-5.6 Sol · 7-dimension evaluation · 21 evidence entries · 65-line redacted log excerpt · 11 runtime screenshots · SHA-256 manifest
+
 > 🏆 **[SWE-bench Lite Technical Report →](https://zhikunqingtao.github.io/zhikuncode/swe-bench-report.html)**  
 > Submission namespace `20260525_zhikuncode` · Official harness Resolve **168 / 300 (56.0%)** · Patch generation 284 / 300 (94.7%)
+
+---
+
+## 🔎 Open Engineering Cases
+
+### Gold-Monitor Task: ZhikunCode × Codex
+
+The same requirement was given to ZhikunCode and Codex independently, then audited across 14 dimensions including requirement understanding, development interaction, process efficiency, data accuracy, architecture, code quality, user experience, and reproducibility. The report keeps both sides' strengths and defects, and publishes the scoring formulas, evidence IDs, screenshots, and known limitations.
+
+- ZhikunCode: Kimi K3 hit HTTP 429; the user switched to GLM-5.2 and continued within the same logical session.
+- Codex: GPT-5.6 Sol, reasoning effort High.
+- The case's custom audit scores are ZhikunCode 68.3 and Codex 68.4, with heavily overlapping score ranges.
+- This result only describes this single-task delivery; it does not imply model-capability equivalence, nor does it constitute a product ranking.
+
+**[View the full public audit →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-gold-monitor-audit.html)** ·
+**[Download structured evidence JSON →](case-studies/zhikuncode-codex-gold-monitor-evidence.json)** ·
+**[Generation & review notes →](case-studies/README.md)**
+
+### 12306 Waitlist Fulfillment Visualization: ZhikunCode × Codex
+
+The same "12306 waitlist-fulfillment backend full-chain" dynamic visualization task was given to ZhikunCode and Codex independently, then evaluated across 7 dimensions: task understanding, code quality, dynamic visualization, architecture & math, user experience, development efficiency, and technical implementation. The report keeps both sides' strengths and defects, and publishes the scoring formulas, 21 evidence IDs, 11 runtime screenshots, and known limitations.
+
+- ZhikunCode: kimi-k3 (KimiK3), delivered a single-file HTML (1,061 lines, zero external network dependencies), with a 548KB full execution log available for audit.
+- Codex: GPT-5.6 Sol (high reasoning mode), delivered a Next.js project; its process evidence is at the "partial" grade (a session-interface screenshot proves the 27m52s total duration and the change size; no execution log), so the development-efficiency dimension is scored at the "partial" evidence grade.
+- The case's custom weighted scores are ZhikunCode 8.68 and Codex 8.45 (both totals weighted across all 7 dimensions), with heavily overlapping score ranges.
+- This result only describes this single-task delivery; it does not imply model-capability equivalence, nor does it constitute a product ranking.
+
+**[View the full comparative evaluation →](https://zhikunqingtao.github.io/zhikuncode/case-studies/zhikuncode-codex-12306-audit.html)** ·
+**[Live artifact demo →](https://zhikunqingtao.github.io/zhikuncode/case-studies/assets/12306-comparison/artifacts/zhikuncode/12306-houbu.html)** ·
+**[Download structured evidence JSON →](case-studies/zhikuncode-codex-12306-evidence.json)** ·
+**[Generation & review notes →](case-studies/README.md)**
 
 ---
 

@@ -2,7 +2,7 @@
   "meta": {
     "report": "ZhikunCode vs Codex · 12306 候补可视化任务对比评估",
     "report_file": "zhikuncode-codex-12306-audit.html",
-    "report_version": "1.2",
+    "report_version": "1.2.1",
     "task_prompt": "帮我做一个动态html，可视化展示\"你后补成功的那一刻，12306后台发送了什么\"，要覆盖候补成功的12306后台完整流程，要展示各种数学原理和12306对应系统的架构，最关键的是一定要动态可视化，页面自己动，有很多惊艳漂亮的可视化动画",
     "case_dates": ["2026-07-26", "2026-07-27"],
     "tools": {
