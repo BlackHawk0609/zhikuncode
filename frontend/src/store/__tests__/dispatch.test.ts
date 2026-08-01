@@ -134,6 +134,62 @@ describe('dispatch 消息分发', () => {
         expect(useMessageStore.getState().streamingContent).toBe('');
     });
 
+    test('run_input_applied closes the current assistant segment without ending the run', () => {
+        useSessionStore.getState().setStatus('streaming');
+        useMessageStore.getState().appendStreamDelta('before steering');
+        const firstAssistantId = useMessageStore.getState().streamingMessageId;
+
+        dispatch({
+            type: 'run_input_applied', requestId: 'request-1',
+            text: 'change direction', appliedAt: 123,
+        } as never);
+
+        let state = useMessageStore.getState();
+        expect(state.streamingMessageId).toBeNull();
+        expect(state.messages.map(message => message.type))
+            .toEqual(['assistant', 'user']);
+        expect(state.messages[0]).toMatchObject({
+            uuid: firstAssistantId,
+            content: [{ type: 'text', text: 'before steering' }],
+        });
+        expect(state.messages[1]).toMatchObject({
+            uuid: 'request-1',
+            content: [{ type: 'text', text: 'change direction' }],
+        });
+        expect(useSessionStore.getState().status).toBe('streaming');
+
+        dispatch({ type: 'stream_delta', delta: 'after steering', messageId: 'next' } as never);
+        state = useMessageStore.getState();
+        expect(state.streamingMessageId).not.toBe(firstAssistantId);
+        expect(state.messages.map(message => message.type))
+            .toEqual(['assistant', 'user', 'assistant']);
+
+        const nextAssistantId = state.streamingMessageId;
+        dispatch({
+            type: 'run_input_applied', requestId: 'request-1',
+            text: 'change direction', appliedAt: 123,
+        } as never);
+        expect(useMessageStore.getState().streamingMessageId)
+            .toBe(nextAssistantId);
+        expect(useMessageStore.getState().messages.map(message => message.type))
+            .toEqual(['assistant', 'user', 'assistant']);
+    });
+
+    test('run_input_rejected only idles a stale client when no active run exists', () => {
+        useSessionStore.getState().setStatus('streaming');
+        dispatch({
+            type: 'run_input_rejected', requestId: 'request-1',
+            code: 'QUEUE_FULL', message: 'full', rejectedAt: 1,
+        } as never);
+        expect(useSessionStore.getState().status).toBe('streaming');
+
+        dispatch({
+            type: 'run_input_rejected', requestId: 'request-2',
+            code: 'NO_ACTIVE_RUN', message: 'finished', rejectedAt: 2,
+        } as never);
+        expect(useSessionStore.getState().status).toBe('idle');
+    });
+
     test('未知消息类型 → console.warn (不崩溃)', () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         expect(() => {

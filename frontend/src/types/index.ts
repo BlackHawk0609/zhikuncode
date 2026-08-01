@@ -96,6 +96,24 @@ export interface ErrorPayload { type: 'error'; code: string; message: string; re
 export interface CompactEventPayload { type: 'compact_event'; phase: string; usagePercent: number; currentTokens: number }
 export interface TokenWarningPayload { type: 'token_warning'; currentTokens: number; maxTokens: number; usagePercent: number; warningLevel: string }
 export interface InterruptAckPayload { type: 'interrupt_ack'; reason: string }
+export interface RunInputQueuedPayload {
+    type: 'run_input_queued';
+    requestId: string;
+    submittedAt: number;
+}
+export interface RunInputAppliedPayload {
+    type: 'run_input_applied';
+    requestId: string;
+    text: string;
+    appliedAt: number;
+}
+export interface RunInputRejectedPayload {
+    type: 'run_input_rejected';
+    requestId: string;
+    code: string;
+    message: string;
+    rejectedAt: number;
+}
 export interface ModelChangedPayload { type: 'model_changed'; model: string }
 export interface ModelRoutedPayload {
     type: 'model_routed';
@@ -186,6 +204,9 @@ export type ServerMessage =
     | CompactEventPayload
     | TokenWarningPayload
     | InterruptAckPayload
+    | RunInputQueuedPayload
+    | RunInputAppliedPayload
+    | RunInputRejectedPayload
     | ModelChangedPayload
     | ModelRoutedPayload
     | PermissionModeChangedPayload

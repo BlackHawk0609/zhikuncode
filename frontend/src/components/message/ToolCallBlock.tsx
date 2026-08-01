@@ -9,7 +9,7 @@
  * - Progress: 执行中的进度指示
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     ChevronRight, Wrench, Loader2,
     CheckCircle2, XCircle, ShieldAlert,
@@ -46,11 +46,29 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({ toolUseId, toolCall }) =>
     const toggleInput = useCallback(() => setInputExpanded(prev => !prev), []);
     const toggleResult = useCallback(() => setResultExpanded(prev => !prev), []);
 
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (toolCall.status !== 'running') return;
+        setNow(Date.now());
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [toolCall.status]);
+
+    const effectiveDuration = toolCall.status === 'running'
+        ? Math.max(0, now - toolCall.startTime)
+        : toolCall.duration;
+
     const formattedDuration = useMemo(() => {
-        if (!toolCall.duration) return null;
-        if (toolCall.duration < 1000) return `${toolCall.duration}ms`;
-        return `${(toolCall.duration / 1000).toFixed(1)}s`;
-    }, [toolCall.duration]);
+        if (effectiveDuration == null) return null;
+        if (effectiveDuration < 1000) return `${effectiveDuration}ms`;
+        const totalSeconds = Math.floor(effectiveDuration / 1000);
+        if (totalSeconds < 60) return `${totalSeconds}s`;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        if (minutes < 60) return `${minutes}m ${seconds}s`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ${minutes % 60}m`;
+    }, [effectiveDuration]);
 
     const inputStr = useMemo(() => {
         try {

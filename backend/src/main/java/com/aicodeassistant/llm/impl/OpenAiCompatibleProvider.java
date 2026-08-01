@@ -329,17 +329,24 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                             toolMsg.put("content", resultContent != null ? resultContent.toString() : "");
                         }
                     }
-                    // P0 fix: ImageRefInjector 可能在同一 user 消息中追加了 ImageBlock，
-                    // 这些图片块在 tool_result → role:tool 转换时会被 continue 跳过。
-                    // 将它们收集为一条紧随其后的 role:user 多模态消息，确保模型能看到图片。
-                    boolean hasImage = blocks.stream().anyMatch(b ->
-                            b instanceof Map<?,?> m && "image".equals(m.get("type")));
-                    if (hasImage) {
-                        ObjectNode userImgMsg = messagesArray.addObject();
-                        userImgMsg.put("role", "user");
-                        ArrayNode contentArray = userImgMsg.putArray("content");
+                    // tool_result 后的文本或图片仍是用户内容，必须紧随 tool 消息保留。
+                    boolean hasRemainingUserContent = blocks.stream().anyMatch(b ->
+                            b instanceof Map<?,?> m
+                                    && ("text".equals(m.get("type"))
+                                        || "image".equals(m.get("type"))));
+                    if (hasRemainingUserContent) {
+                        ObjectNode userMsg = messagesArray.addObject();
+                        userMsg.put("role", "user");
+                        ArrayNode contentArray = userMsg.putArray("content");
                         for (Object block : blocks) {
-                            if (block instanceof Map<?,?> b && "image".equals(b.get("type"))) {
+                            if (!(block instanceof Map<?,?> b)) continue;
+                            if ("text".equals(b.get("type"))) {
+                                Object text = b.get("text");
+                                if (text == null) continue;
+                                ObjectNode textPart = contentArray.addObject();
+                                textPart.put("type", "text");
+                                textPart.put("text", text.toString());
+                            } else if ("image".equals(b.get("type"))) {
                                 Object srcObj = b.get("source");
                                 if (!(srcObj instanceof Map<?,?> src)) continue;
                                 Object mediaType = src.get("media_type");
@@ -350,6 +357,9 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                                 ObjectNode imgUrl = imgPart.putObject("image_url");
                                 imgUrl.put("url", "data:" + mediaType + ";base64," + data);
                             }
+                        }
+                        if (contentArray.isEmpty()) {
+                            messagesArray.remove(messagesArray.size() - 1);
                         }
                     }
                     continue;
@@ -605,7 +615,8 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                 // usage-only chunk
                 if (chunk.has("usage")) {
                     Usage usage = parseUsage(chunk.get("usage"));
-                    callback.onEvent(new LlmStreamEvent.MessageDelta(usage, "end_turn"));
+                    // 只补 usage，不覆盖前一个非空 finish_reason。
+                    callback.onEvent(new LlmStreamEvent.MessageDelta(usage, null));
                 }
                 return;
             }
@@ -641,15 +652,40 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                                 index, k -> new ToolCallAccumulator());
 
                         if (tc.has("id")) {
-                            acc.id = tc.get("id").asText();
-                        }
-                        if (tc.has("function")) {
-                            JsonNode fn = tc.get("function");
-                            if (fn.has("name")) {
-                                acc.name = fn.get("name").asText();
-                                callback.onEvent(new LlmStreamEvent.ToolUseStart(acc.id, acc.name));
+                            String id = tc.get("id").isNull()
+                                    ? "" : tc.get("id").asText("");
+                            if (id.isBlank() && acc.id == null) {
+                                throw invalidToolCallStream(
+                                        index, "empty id before identity");
                             }
+                            if (!id.isBlank() && acc.id == null) acc.id = id;
+                        }
+                        JsonNode fn = null;
+                        if (tc.has("function")) {
+                            fn = tc.get("function");
+                            if (fn.has("name")) {
+                                String name = fn.get("name").isNull()
+                                        ? "" : fn.get("name").asText("");
+                                if (name.isBlank() && acc.name == null) {
+                                    throw invalidToolCallStream(
+                                            index, "empty name before identity");
+                                }
+                                if (!name.isBlank() && acc.name == null) {
+                                    acc.name = name;
+                                }
+                            }
+                        }
+                        if (!acc.startEmitted && acc.id != null && acc.name != null) {
+                            callback.onEvent(new LlmStreamEvent.ToolUseStart(
+                                    acc.id, acc.name));
+                            acc.startEmitted = true;
+                        }
+                        if (fn != null) {
                             if (fn.has("arguments")) {
+                                if (!acc.startEmitted) {
+                                    throw invalidToolCallStream(
+                                            index, "arguments before identity");
+                                }
                                 String argDelta = fn.get("arguments").asText();
                                 acc.arguments.append(argDelta);
                                 callback.onEvent(new LlmStreamEvent.ToolInputDelta(acc.id, argDelta));
@@ -666,7 +702,11 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                 // 这解决了 Qwen 等模型将 finish_reason 和最后一批 arguments
                 // 放在同一 chunk 时的时序问题。
                 for (Map.Entry<Integer, ToolCallAccumulator> entry : accumulators.entrySet()) {
-                    callback.onEvent(new LlmStreamEvent.BlockStop(entry.getKey()));
+                    if (entry.getValue().startEmitted
+                            && !entry.getValue().stopEmitted) {
+                        callback.onEvent(new LlmStreamEvent.BlockStop(entry.getKey()));
+                        entry.getValue().stopEmitted = true;
+                    }
                 }
                 Usage usage = chunk.has("usage")
                         ? parseUsage(chunk.get("usage"))
@@ -674,10 +714,19 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                 callback.onEvent(new LlmStreamEvent.MessageDelta(usage, finishReason));
             }
 
+        } catch (LlmApiException e) {
+            throw e;
         } catch (Exception e) {
             callback.onError(new LlmApiException(
                     "Failed to parse OpenAI chunk: " + e.getMessage(), false));
         }
+    }
+
+    private static LlmApiException invalidToolCallStream(
+            int index, String detail) {
+        return new LlmApiException(
+                "INVALID_TOOL_CALL_STREAM: index=" + index + ", " + detail,
+                false);
     }
 
     // ═══════════════════════════════════════════
@@ -732,6 +781,8 @@ public class OpenAiCompatibleProvider implements LlmProvider {
     private static class ToolCallAccumulator {
         String id;
         String name;
+        boolean startEmitted;
+        boolean stopEmitted;
         final StringBuilder arguments = new StringBuilder();
     }
 }

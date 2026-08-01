@@ -24,6 +24,7 @@ services:
       - "JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx1024m --enable-preview}"
       # ---- Multi-Provider LLM (Recommended) ----
       - LLM_PROVIDER_DASHSCOPE_API_KEY=${LLM_PROVIDER_DASHSCOPE_API_KEY:-}
+      - LLM_PROVIDER_DASHSCOPE_TOKEN_PLAN_API_KEY=${LLM_PROVIDER_DASHSCOPE_TOKEN_PLAN_API_KEY:-}
       - LLM_PROVIDER_DEEPSEEK_API_KEY=${LLM_PROVIDER_DEEPSEEK_API_KEY:-}
       - LLM_PROVIDER_MOONSHOT_API_KEY=${LLM_PROVIDER_MOONSHOT_API_KEY:-}
       # ---- Legacy Single-Provider (Backward Compatible) ----

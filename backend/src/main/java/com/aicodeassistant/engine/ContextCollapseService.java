@@ -200,6 +200,7 @@ public class ContextCollapseService {
         List<CollapseLevel> sortedLevels = levels != null ? levels : DEFAULT_LEVELS;
         int totalMessages = messages.size();
         List<Message> result = new ArrayList<>(totalMessages);
+        int candidateCount = 0;
         int collapsedCount = 0;
         int estimatedCharsFreed = 0;
         int changedCount = 0;
@@ -226,36 +227,40 @@ public class ContextCollapseService {
             if (level instanceof CollapseLevel.FullRetention) {
                 result.add(msg); // 完整保留
             } else {
+                candidateCount++;
                 // 对工具结果和助手消息执行折叠
                 Message collapsedMsg = collapseMessage(msg, level);
                 int charsBefore = estimateMessageChars(msg);
                 int charsAfter = estimateMessageChars(collapsedMsg);
                 int charsFreed = charsBefore - charsAfter;
-                estimatedCharsFreed += charsFreed;
-                if (diagnosticallyDifferent(msg, collapsedMsg)) {
-                    changedCount++;
-                    if (charsBefore == charsAfter) sameLengthChangedCount++;
+                boolean changed = diagnosticallyDifferent(msg, collapsedMsg);
+                if (!changed || charsFreed <= 0) {
+                    result.add(msg);
+                    if (charsFreed < 0) {
+                        negativeCount++;
+                    } else {
+                        zeroCount++;
+                        if (changed) sameLengthChangedCount++;
+                    }
+                    continue;
                 }
-                if (charsFreed > 0) {
-                    positiveCount++;
-                } else if (charsFreed == 0) {
-                    zeroCount++;
-                } else {
-                    negativeCount++;
-                }
+
                 result.add(collapsedMsg);
                 collapsedCount++;
+                changedCount++;
+                positiveCount++;
+                estimatedCharsFreed += charsFreed;
             }
         }
 
-        String outcome = classifyOutcome(collapsedCount, positiveCount, negativeCount,
+        String outcome = classifyOutcome(candidateCount, positiveCount, negativeCount,
                 estimatedCharsFreed);
         try {
             boolean diagnosticsEnabled = negativeCount > 0 ? log.isWarnEnabled() : log.isDebugEnabled();
             boolean fingerprintNeeded = negativeCount > 0 || zeroCount > 0 || sameLengthChangedCount > 0;
             String inputFingerprint = diagnosticsEnabled && fingerprintNeeded ? fingerprint(messages) : "not_sampled";
             String outputFingerprint = diagnosticsEnabled && fingerprintNeeded ? fingerprint(result) : "not_sampled";
-            logProgressiveDiagnostics(outcome, totalMessages, collapsedCount,
+            logProgressiveDiagnostics(outcome, totalMessages, candidateCount,
                     changedCount, sameLengthChangedCount, positiveCount, zeroCount,
                     negativeCount, estimatedCharsFreed, inputFingerprint, outputFingerprint,
                     elapsedMicros(startedAt));

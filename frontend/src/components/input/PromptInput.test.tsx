@@ -20,6 +20,7 @@ function renderInput(
     onSubmit: (event: unknown) => Promise<boolean>,
     onSlashCommand = vi.fn().mockResolvedValue(true),
     commands: Command[] = [],
+    state: { runActive?: boolean; compacting?: boolean } = {},
 ) {
     render(
         <PromptInput
@@ -27,7 +28,8 @@ function renderInput(
             onSlashCommand={onSlashCommand}
             onInterrupt={vi.fn()}
             disabled={false}
-            isLoading={false}
+            runActive={state.runActive ?? false}
+            compacting={state.compacting ?? false}
             permissionMode="read_write"
             messages={[]}
             commands={commands}
@@ -157,5 +159,32 @@ describe('PromptInput asynchronous submit', () => {
         await waitFor(() => expect(onSlashCommand)
             .toHaveBeenCalledWith('/compact'));
         expect(input).toHaveValue('keep this normal draft');
+    });
+
+    it('sends slash-looking text as steering input while a run is active', async () => {
+        const onSubmit = vi.fn().mockResolvedValue(true);
+        const onSlashCommand = vi.fn().mockResolvedValue(true);
+        renderInput(onSubmit, onSlashCommand, [], { runActive: true });
+        const input = screen.getByRole('textbox', { name: '输入消息' });
+
+        fireEvent.change(input, { target: { value: '/change direction' } });
+        fireEvent.click(screen.getByRole('button', { name: '发送运行中干预' }));
+
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(
+            expect.objectContaining({ text: '/change direction' }),
+        ));
+        expect(onSlashCommand).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: '停止当前任务' })).toBeEnabled();
+    });
+
+    it('disables input and command submission while compacting', () => {
+        const onSubmit = vi.fn().mockResolvedValue(true);
+        const onSlashCommand = vi.fn().mockResolvedValue(true);
+        renderInput(onSubmit, onSlashCommand, [], { compacting: true });
+
+        expect(screen.getByRole('textbox', { name: '输入消息' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: '发送消息' })).toBeDisabled();
+        fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+        expect(onSlashCommand).not.toHaveBeenCalled();
     });
 });

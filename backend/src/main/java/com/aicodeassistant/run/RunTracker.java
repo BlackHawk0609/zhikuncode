@@ -40,6 +40,13 @@ public class RunTracker {
         return control.appendEvent(runId, canonicalEventType(eventType), null, data);
     }
 
+    public RunEvent recordEvent(
+            String runId, String eventType,
+            String toolUseId, Object data) {
+        return control.appendEvent(
+                runId, canonicalEventType(eventType), toolUseId, data);
+    }
+
     public void completeRun(String runId, int totalTokens, double totalCost,
                             int ignoredToolCallCount, int turnCount) {
         executions.beginCompletion(runId);

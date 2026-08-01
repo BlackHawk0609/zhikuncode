@@ -77,10 +77,12 @@ class ToolExecutionPipelineExternalArtifactTest {
                             "USER_APPROVED_ONCE", null, null,
                             "interaction", "attempt");
                 });
-        when(gateway.execute(any(), any(), any(), any()))
+        when(gateway.execute(any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> {
                     Runnable admission = invocation.getArgument(3);
                     admission.run();
+                    Runnable started = invocation.getArgument(4);
+                    started.run();
                     Tool tool = invocation.getArgument(0);
                     AuthorizedOperation allowed = invocation.getArgument(1);
                     ToolUseContext context = invocation.getArgument(2);

@@ -38,6 +38,13 @@ public final class ToolExecutionGateway {
      */
     public ToolResult execute(Tool tool, AuthorizedOperation allowed, ToolUseContext context,
                               Runnable admissionAction) {
+        return execute(tool, allowed, context, admissionAction, null);
+    }
+
+    /** Notifies the caller only after the tool_started transaction commits. */
+    public ToolResult execute(
+            Tool tool, AuthorizedOperation allowed, ToolUseContext context,
+            Runnable admissionAction, Runnable executionStartedAction) {
         if (context.currentRunId() == null) throw new AuthorizationException("AUTHORIZATION_ANCESTRY_INVALID",
                 "Authorized tool execution requires a persisted Run");
         try {
@@ -58,6 +65,7 @@ public final class ToolExecutionGateway {
             authorization.recordFinalDenial(allowed, context, denied.code());
             throw denied;
         }
+        if (executionStartedAction != null) executionStartedAction.run();
         return tool.call(allowed.executionInput(), context);
     }
 }

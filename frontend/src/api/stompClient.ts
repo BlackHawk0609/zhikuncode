@@ -27,7 +27,8 @@ const VALID_MESSAGE_TYPES: ReadonlySet<string> = new Set([
     'bridge_status', 'notification', 'teammate_message', 'mcp_tool_update',
     'mcp_tool_progress',
     'mcp_health_status', 'session_restored', 'pong', 'compact_event', 'token_warning',
-    'interrupt_ack', 'model_changed', 'model_routed', 'permission_mode_changed', 'command_result',
+    'interrupt_ack', 'run_input_queued', 'run_input_applied', 'run_input_rejected',
+    'model_changed', 'model_routed', 'permission_mode_changed', 'command_result',
     'rewind_complete', 'token_budget_nudge', 'plan_update',
     'swarm_state_update', 'worker_progress', 'workflow_phase_update',
     'session_list_updated',
@@ -323,6 +324,11 @@ export function send(destination: string, body: object): void {
 /** #1 发送用户消息 → /app/chat */
 export function sendUserMessage(text: string, attachments?: Attachment[], references?: Array<{ type: string; path: string }>): void {
     send('/app/chat', { text, attachments, references });
+}
+
+/** 向当前运行中的根任务追加指令，不中断当前调用。 */
+export function sendRunInput(requestId: string, text: string): boolean {
+    return sendToServer('/app/run-input', { requestId, text });
 }
 
 /** #3 发送中断 → /app/interrupt */

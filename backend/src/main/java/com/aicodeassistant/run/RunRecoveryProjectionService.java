@@ -33,8 +33,9 @@ public class RunRecoveryProjectionService {
             if (page.isEmpty()) break;
             for (RunEvent event : page) {
                 if (event.seq() > cursor) break;
-                Map<String, Object> payload = payload(event.eventData());
-                String toolUseId = string(payload.get("toolUseId"));
+                EventPayload projected = payload(event.eventData());
+                Map<String, Object> payload = projected.data();
+                String toolUseId = projected.toolUseId();
                 if (toolUseId.isBlank()) continue;
                 if ("tool_started".equals(event.eventType())) {
                     Map<String, Object> tool = new LinkedHashMap<>();
@@ -51,14 +52,25 @@ public class RunRecoveryProjectionService {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> payload(String value) {
+    private EventPayload payload(String value) {
         try {
-            JsonNode data = json.readTree(value).path("data");
-            return data.isObject() ? json.convertValue(data, Map.class) : Map.of();
-        } catch (Exception ignored) { return Map.of(); }
+            JsonNode envelope = json.readTree(value);
+            JsonNode dataNode = envelope.path("data");
+            Map<String, Object> data = dataNode.isObject()
+                    ? json.convertValue(dataNode, Map.class) : Map.of();
+            String toolUseId = envelope.path("toolUseId").asText("");
+            if (toolUseId.isBlank()) {
+                toolUseId = string(data.get("toolUseId"));
+            }
+            return new EventPayload(toolUseId, data);
+        } catch (Exception ignored) {
+            return new EventPayload("", Map.of());
+        }
     }
 
     private static String string(Object value) { return value == null ? "" : String.valueOf(value); }
+    private record EventPayload(
+            String toolUseId, Map<String, Object> data) {}
     public record Projection(RunEnvelope runSnapshot, int snapshotEventSeq,
                              List<Map<String, Object>> activeToolCalls) { }
 }

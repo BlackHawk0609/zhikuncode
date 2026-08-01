@@ -252,7 +252,8 @@ public class WebSocketController implements PermissionNotifier {
         "permission_request", "tool_result", "tool_finished", "message_complete",
         "run_completed", "run_failed", "error", "cost_update",
         "interaction_created", "interaction_terminal", "interaction_updated",
-        "permission_mode_changed", "tool_use_start"
+        "permission_mode_changed", "tool_use_start",
+        "run_input_applied", "run_input_rejected"
     );
 
     private boolean isCriticalMessage(String type) {
@@ -659,6 +660,55 @@ public class WebSocketController implements PermissionNotifier {
         });
     }
 
+    /** Queues a user instruction for the currently running root Run. */
+    @MessageMapping("/run-input")
+    public void handleRunInput(
+            @Payload ClientMessage.RunInputPayload payload,
+            Principal principal) {
+        String sessionId = resolveSessionId(principal);
+        if (sessionId == null) {
+            log.warn("Ignoring run input: session not yet bound for principal={}",
+                    principal != null ? principal.getName() : "null");
+            return;
+        }
+        wsSessionManager.refreshActivity(sessionId);
+        var result = runExecutions.offerInputForSession(
+                sessionId,
+                payload != null ? payload.requestId() : null,
+                payload != null ? payload.text() : null);
+        var receipt = result.receipt();
+        switch (receipt.state()) {
+            case QUEUED, APPLYING -> push(
+                    sessionId, "run_input_queued", Map.of(
+                            "requestId", safeString(receipt.requestId()),
+                            "submittedAt", receipt.submittedAt()));
+            case APPLIED -> push(
+                    sessionId, "run_input_applied", Map.of(
+                            "requestId", safeString(receipt.requestId()),
+                            "text", safeString(receipt.text()),
+                            "appliedAt", receipt.appliedAt() != null
+                                    ? receipt.appliedAt()
+                                    : System.currentTimeMillis()));
+            case REJECTED -> pushRunInputRejected(sessionId, receipt);
+        }
+    }
+
+    private void pushRunInputRejected(
+            String sessionId,
+            com.aicodeassistant.run.RunExecutionRegistry.InputReceipt receipt) {
+        push(sessionId, "run_input_rejected", Map.of(
+                "requestId", safeString(receipt.requestId()),
+                "code", safeString(receipt.rejectionCode()),
+                "message", safeString(receipt.rejectionMessage()),
+                "rejectedAt", receipt.rejectedAt() != null
+                        ? receipt.rejectedAt()
+                        : System.currentTimeMillis()));
+    }
+
+    private static String safeString(String value) {
+        return value == null ? "" : value;
+    }
+
     /**
      * 执行普通用户查询（无图片附件）。使用全量工具和会话默认模型。
      */
@@ -1014,6 +1064,23 @@ public class WebSocketController implements PermissionNotifier {
         @Override
         public void onAssistantMessage(Message.AssistantMessage message) {
             // 已通过 onTextDelta 流式推送
+        }
+
+        @Override
+        public void onStreamEvent(String eventType, Object payload) {
+            if (!"run_input_applied".equals(eventType)
+                    && !"run_input_rejected".equals(eventType)) {
+                return;
+            }
+            if (!(payload instanceof Map<?, ?> mapPayload)) {
+                log.warn("Ignoring malformed {} payload for session={}",
+                        eventType, sessionId);
+                return;
+            }
+            Map<String, Object> fields = new LinkedHashMap<>();
+            mapPayload.forEach((key, value) ->
+                    fields.put(String.valueOf(key), value));
+            push(sessionId, eventType, fields);
         }
 
         @Override

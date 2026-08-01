@@ -57,4 +57,7 @@ public final class ClientMessage {
 
     /** #10 ping → /app/ping (无字段) */
     public record PingPayload() {}
+
+    /** 运行中的根 Run 追加用户指令 → /app/run-input */
+    public record RunInputPayload(String requestId, String text) {}
 }

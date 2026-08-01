@@ -6,8 +6,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,8 +28,55 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Component
 public class RunExecutionRegistry {
+    private static final int MAX_INPUT_CHARS = 16 * 1024;
+    private static final int MAX_PENDING_INPUTS = 10;
+    private static final int MAX_TOTAL_INPUTS_PER_RUN = 50;
+
     private final ConcurrentHashMap<String, Execution> byRun = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> runBySession = new ConcurrentHashMap<>();
+
+    public enum InputState {
+        QUEUED,
+        APPLYING,
+        APPLIED,
+        REJECTED
+    }
+
+    public record SteeringInput(
+            String requestId,
+            String text,
+            long submittedAt
+    ) {}
+
+    public record InputReceipt(
+            String requestId,
+            String text,
+            InputState state,
+            String rejectionCode,
+            String rejectionMessage,
+            long submittedAt,
+            Long appliedAt,
+            Long rejectedAt
+    ) {}
+
+    public record InputOfferResult(
+            boolean accepted,
+            InputReceipt receipt
+    ) {}
+
+    public record CompletionInputDecision(
+            boolean sealed,
+            List<InputApplication> applications
+    ) {
+        public CompletionInputDecision {
+            applications = applications == null
+                    ? List.of() : List.copyOf(applications);
+        }
+
+        public boolean hasApplications() {
+            return !applications.isEmpty();
+        }
+    }
 
     public void register(String runId, String sessionId, AbortContext cancellation) {
         if (runId == null || sessionId == null || cancellation == null)
@@ -43,8 +94,84 @@ public class RunExecutionRegistry {
     public boolean abortRun(String runId, AbortReason reason) {
         Execution execution = byRun.get(runId);
         if (execution == null) return false;
+        execution.closeAdmissions(true);
         execution.cancellation.abort(reason);
         return true;
+    }
+
+    /** Offers one idempotent instruction to the active Run for a Session. */
+    public InputOfferResult offerInputForSession(
+            String sessionId, String requestId, String text) {
+        long now = System.currentTimeMillis();
+        if (sessionId == null || sessionId.isBlank()
+                || requestId == null || requestId.isBlank()) {
+            return rejectedOffer(requestId, text, "INVALID_REQUEST",
+                    "Invalid run input request", now);
+        }
+        try {
+            UUID.fromString(requestId);
+        } catch (IllegalArgumentException invalidUuid) {
+            return rejectedOffer(requestId, text, "INVALID_REQUEST",
+                    "requestId must be a UUID", now);
+        }
+        if (text == null || text.isBlank()) {
+            return rejectedOffer(requestId, text, "EMPTY_INPUT",
+                    "Input text must not be empty", now);
+        }
+        if (text.length() > MAX_INPUT_CHARS) {
+            return rejectedOffer(requestId, text, "INPUT_TOO_LARGE",
+                    "Input text exceeds " + MAX_INPUT_CHARS + " characters", now);
+        }
+
+        String runId = runBySession.get(sessionId);
+        Execution execution = runId == null ? null : byRun.get(runId);
+        if (execution == null) {
+            return rejectedOffer(requestId, text, "NO_ACTIVE_RUN",
+                    "No active task is running for this session", now);
+        }
+        return execution.offerInput(requestId, text, now);
+    }
+
+    public List<InputApplication> claimInputs(String runId, int limit) {
+        Execution execution = byRun.get(runId);
+        if (execution == null || limit <= 0) return List.of();
+        return execution.claimInputs(limit);
+    }
+
+    public CompletionInputDecision claimOrSealInputs(String runId, int limit) {
+        Execution execution = byRun.get(runId);
+        if (execution == null) {
+            return new CompletionInputDecision(true, List.of());
+        }
+        return execution.claimOrSealInputs(limit);
+    }
+
+    public List<InputReceipt> sealAndRejectInputs(
+            String runId, String rejectionCode) {
+        Execution execution = byRun.get(runId);
+        if (execution == null) return List.of();
+        String code = rejectionCode == null
+                ? "RUN_NOT_ACCEPTING_INPUT" : rejectionCode;
+        return execution.sealAndRejectInputs(code, rejectionMessage(code));
+    }
+
+    private static InputOfferResult rejectedOffer(
+            String requestId, String text, String code,
+            String message, long now) {
+        return new InputOfferResult(false, new InputReceipt(
+                requestId, text, InputState.REJECTED, code, message,
+                now, null, now));
+    }
+
+    private static String rejectionMessage(String code) {
+        return switch (code == null ? "" : code) {
+            case "TURN_LIMIT_REACHED" ->
+                    "The task reached its maximum turn limit";
+            case "APPLY_FAILED" ->
+                    "The queued instruction could not be applied";
+            default ->
+                    "The task is no longer accepting additional instructions";
+        };
     }
 
     public WorkLease acquireWork(String runId, String kind, String workId) {
@@ -110,6 +237,54 @@ public class RunExecutionRegistry {
         @Override public void close() { owner.release(token); }
     }
 
+    /** A claimed input is Run-owned work until it reaches a terminal state. */
+    public final class InputApplication implements AutoCloseable {
+        private final Execution owner;
+        private final String workToken;
+        private final SteeringInput input;
+        private boolean settled;
+
+        private InputApplication(
+                Execution owner, String workToken, SteeringInput input) {
+            this.owner = owner;
+            this.workToken = workToken;
+            this.input = input;
+        }
+
+        public SteeringInput input() {
+            return input;
+        }
+
+        public synchronized InputReceipt completeApplied(long appliedAt) {
+            if (settled) return owner.receipt(input.requestId());
+            InputReceipt receipt = owner.settleInput(
+                    workToken, input.requestId(), InputState.APPLIED,
+                    null, null, appliedAt);
+            settled = true;
+            return receipt;
+        }
+
+        public synchronized InputReceipt reject(String code) {
+            if (settled) return owner.receipt(input.requestId());
+            long now = System.currentTimeMillis();
+            InputReceipt receipt = owner.settleInput(
+                    workToken, input.requestId(), InputState.REJECTED,
+                    code, rejectionMessage(code), now);
+            settled = true;
+            return receipt;
+        }
+
+        @Override
+        public synchronized void close() {
+            if (settled) return;
+            long now = System.currentTimeMillis();
+            owner.settleInput(
+                    workToken, input.requestId(), InputState.REJECTED,
+                    "APPLY_FAILED", rejectionMessage("APPLY_FAILED"), now);
+            settled = true;
+        }
+    }
+
     public static final class WorkRejectedException extends IllegalStateException {
         public WorkRejectedException(String message) { super(message); }
     }
@@ -121,7 +296,11 @@ public class RunExecutionRegistry {
         private final ReentrantLock lock = new ReentrantLock();
         private final Condition quiescent = lock.newCondition();
         private final Map<String, Work> work = new HashMap<>();
+        private final Deque<String> pendingInputIds = new ArrayDeque<>();
+        private final Map<String, InputReceipt> inputReceipts =
+                new LinkedHashMap<>();
         private boolean admissionsOpen = true;
+        private boolean inputAdmissionOpen = true;
         private boolean unregisterRequested;
 
         private Execution(String runId, String sessionId, AbortContext cancellation) {
@@ -140,13 +319,170 @@ public class RunExecutionRegistry {
             } finally { lock.unlock(); }
         }
 
+        private InputOfferResult offerInput(
+                String requestId, String text, long submittedAt) {
+            lock.lock();
+            try {
+                InputReceipt existing = inputReceipts.get(requestId);
+                if (existing != null) {
+                    return new InputOfferResult(
+                            existing.state() != InputState.REJECTED, existing);
+                }
+                if (!inputAdmissionOpen || cancellation.isAborted()
+                        || unregisterRequested) {
+                    return rejectedOffer(requestId, text,
+                            "RUN_NOT_ACCEPTING_INPUT",
+                            "The task is no longer accepting additional instructions",
+                            submittedAt);
+                }
+                if (pendingInputIds.size() >= MAX_PENDING_INPUTS) {
+                    return rejectedOffer(requestId, text, "QUEUE_FULL",
+                            "Too many instructions are already queued", submittedAt);
+                }
+                if (inputReceipts.size() >= MAX_TOTAL_INPUTS_PER_RUN) {
+                    return rejectedOffer(requestId, text, "INPUT_LIMIT_REACHED",
+                            "The task reached its run input limit", submittedAt);
+                }
+
+                InputReceipt receipt = new InputReceipt(
+                        requestId, text, InputState.QUEUED,
+                        null, null, submittedAt, null, null);
+                inputReceipts.put(requestId, receipt);
+                pendingInputIds.addLast(requestId);
+                return new InputOfferResult(true, receipt);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private List<InputApplication> claimInputs(int limit) {
+            lock.lock();
+            try {
+                return claimInputsLocked(limit);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private List<InputApplication> claimInputsLocked(int limit) {
+            if (limit <= 0 || !admissionsOpen || !inputAdmissionOpen
+                    || cancellation.isAborted() || unregisterRequested) {
+                return List.of();
+            }
+            List<InputApplication> applications = new ArrayList<>();
+            while (applications.size() < limit
+                    && !pendingInputIds.isEmpty()) {
+                String requestId = pendingInputIds.removeFirst();
+                InputReceipt current = inputReceipts.get(requestId);
+                if (current == null || current.state() != InputState.QUEUED) {
+                    continue;
+                }
+                InputReceipt applying = new InputReceipt(
+                        current.requestId(), current.text(), InputState.APPLYING,
+                        null, null, current.submittedAt(), null, null);
+                inputReceipts.put(requestId, applying);
+
+                String workToken = UUID.randomUUID().toString();
+                work.put(workToken, new Work("run_input", requestId));
+                applications.add(new InputApplication(
+                        this, workToken,
+                        new SteeringInput(requestId, current.text(),
+                                current.submittedAt())));
+            }
+            return List.copyOf(applications);
+        }
+
+        private CompletionInputDecision claimOrSealInputs(int limit) {
+            lock.lock();
+            try {
+                if (!inputAdmissionOpen || cancellation.isAborted()
+                        || unregisterRequested) {
+                    return new CompletionInputDecision(true, List.of());
+                }
+                List<InputApplication> applications = claimInputsLocked(limit);
+                if (!applications.isEmpty()) {
+                    return new CompletionInputDecision(false, applications);
+                }
+                inputAdmissionOpen = false;
+                return new CompletionInputDecision(true, List.of());
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private List<InputReceipt> sealAndRejectInputs(
+                String code, String message) {
+            lock.lock();
+            try {
+                inputAdmissionOpen = false;
+                List<InputReceipt> rejected = new ArrayList<>();
+                while (!pendingInputIds.isEmpty()) {
+                    String requestId = pendingInputIds.removeFirst();
+                    InputReceipt current = inputReceipts.get(requestId);
+                    if (current == null
+                            || current.state() != InputState.QUEUED) {
+                        continue;
+                    }
+                    long now = System.currentTimeMillis();
+                    InputReceipt terminal = new InputReceipt(
+                            current.requestId(), current.text(),
+                            InputState.REJECTED, code, message,
+                            current.submittedAt(), null, now);
+                    inputReceipts.put(requestId, terminal);
+                    rejected.add(terminal);
+                }
+                return List.copyOf(rejected);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private InputReceipt settleInput(
+                String workToken, String requestId,
+                InputState terminalState, String rejectionCode,
+                String rejectionMessage, long terminalAt) {
+            boolean removeAfterRelease = false;
+            lock.lock();
+            try {
+                InputReceipt current = inputReceipts.get(requestId);
+                if (current == null
+                        || current.state() != InputState.APPLYING) {
+                    throw new IllegalStateException("RUN_INPUT_NOT_APPLYING");
+                }
+                InputReceipt terminal = new InputReceipt(
+                        current.requestId(), current.text(), terminalState,
+                        rejectionCode, rejectionMessage, current.submittedAt(),
+                        terminalState == InputState.APPLIED ? terminalAt : null,
+                        terminalState == InputState.REJECTED ? terminalAt : null);
+                inputReceipts.put(requestId, terminal);
+                if (work.remove(workToken) != null && work.isEmpty()) {
+                    quiescent.signalAll();
+                    removeAfterRelease = unregisterRequested;
+                }
+                return terminal;
+            } finally {
+                lock.unlock();
+                if (removeAfterRelease) removeExecution(this);
+            }
+        }
+
+        private InputReceipt receipt(String requestId) {
+            lock.lock();
+            try {
+                return inputReceipts.get(requestId);
+            } finally {
+                lock.unlock();
+            }
+        }
+
         private boolean closeAdmissions(boolean cancel) {
             ArrayList<Runnable> callbacks = new ArrayList<>();
             boolean changed;
             lock.lock();
             try {
-                changed = admissionsOpen;
+                changed = admissionsOpen || inputAdmissionOpen;
                 admissionsOpen = false;
+                inputAdmissionOpen = false;
                 if (cancel) {
                     for (Work item : work.values()) {
                         item.cancelRequested = true;
@@ -200,6 +536,9 @@ public class RunExecutionRegistry {
                 unregisterRequested = true;
             } finally { lock.unlock(); }
             closeAdmissions(true);
+            sealAndRejectInputs(
+                    "RUN_NOT_ACCEPTING_INPUT",
+                    "The task is no longer accepting additional instructions");
         }
 
         private boolean awaitQuiescence(Duration timeout) {

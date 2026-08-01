@@ -43,5 +43,28 @@ class ApiRetryCancellationTest {
         assertInstanceOf(LlmApiException.class, failure.getCause());
         assertEquals("LLM_CALL_CANCELLED", failure.getCause().getMessage());
         assertEquals(1, calls.get());
+        verify(circuit, times(1)).allowRequest();
+        verify(circuit, never()).recordFailure();
+    }
+
+    @Test
+    void terminalFailureCountsOncePerLogicalCall() {
+        ModelTierService tiers = mock(ModelTierService.class);
+        ModelAwareRetryPolicy policy = mock(ModelAwareRetryPolicy.class);
+        ApiCircuitBreaker circuit = mock(ApiCircuitBreaker.class);
+        when(circuit.allowRequest()).thenReturn(true);
+        ApiRetryService retries = new ApiRetryService(tiers, policy, circuit);
+
+        LlmApiException failure = assertThrows(LlmApiException.class,
+                () -> retries.executeWithRetry(
+                        () -> { throw new LlmApiException(
+                                "overloaded", true, 529,
+                                "overloaded_error", 0); },
+                        "background", "model"));
+
+        assertEquals(529, failure.getStatusCode());
+        verify(circuit, times(1)).allowRequest();
+        verify(circuit, times(1)).recordFailure();
+        verify(circuit, never()).recordSuccess();
     }
 }

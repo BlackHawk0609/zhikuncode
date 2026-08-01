@@ -44,6 +44,7 @@ public class ModelRegistry {
         entry("moonshot-v1-128k",  caps("moonshot-v1-128k",  "Moonshot V1 128K",   8192, 128000,  true, false, false, 0, true, 0.001, 0.002)),
         entry("qwen-turbo",        caps("qwen-turbo",        "Qwen Turbo",         8192, 1000000,  true, false, false, 0, true, 0.0003, 0.0006)),
         entry("qwen3.7-max", caps("qwen3.7-max", "Qwen 3.7 Max", 65536, 1000000, true, true, false, 0, true, 0.009, 0.054)),
+        entry("qwen3.8-max-preview", caps("qwen3.8-max-preview", "Qwen 3.8 Max Preview (百炼订阅)", 65536, 1000000, true, true, true, 4, true, 0.009, 0.054)),
         entry("qwen3.7-plus",      caps("qwen3.7-plus",      "Qwen 3.7 Plus",      8192, 1000000,  true, true, true, 4, true, 0.0008, 0.002)),
         entry("glm-5.2",           caps("glm-5.2",           "GLM-5.2",            131072, 1048576,  true, true, false, 0, true, 0.001, 0.001)),
         entry("glm-5v-turbo",      caps("glm-5v-turbo",      "GLM-5V-Turbo",       131072, 204800,  true, true, true, 150, true, 0.0012, 0.004)),

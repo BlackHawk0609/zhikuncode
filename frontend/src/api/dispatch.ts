@@ -309,6 +309,61 @@ const handlers: Record<string, (data: any) => void> = {
     'tool_use_progress':  (d) => useMessageStore.getState().updateToolCallProgress(d.toolUseId, d.progress),
     'tool_result':        (d) => useMessageStore.getState().completeToolCall(d.toolUseId, d.result ?? { content: d.content ?? '', isError: d.isError ?? false }),
 
+    'run_input_queued':   (d: { requestId: string }) => {
+        const key = `run-input-${d.requestId}`;
+        useNotificationStore.getState().removeNotification(key);
+        useNotificationStore.getState().addNotification({
+            key,
+            level: 'info',
+            message: '指令已排队，将在当前操作完成后应用',
+            timeout: 8000,
+        });
+    },
+    'run_input_applied':  (d: {
+        requestId: string;
+        text: string;
+        appliedAt: number;
+    }) => {
+        const key = `run-input-${d.requestId}`;
+        const messageStore = useMessageStore.getState();
+        const alreadyApplied = messageStore.messages.some(
+            message => message.uuid === d.requestId);
+        useNotificationStore.getState().removeNotification(key);
+        // 先结束当前 assistant 段，再插入 steering user 消息；Run 本身仍保持运行中。
+        // 重连后可能重放同一 applied receipt；此时快照已含该 user 消息，
+        // 不得再次封口随后正在生成的 assistant 段。
+        if (!alreadyApplied) messageStore.finalizeAssistantSegment();
+        messageStore.addMessage({
+            type: 'user',
+            uuid: d.requestId,
+            timestamp: d.appliedAt,
+            content: [{ type: 'text', text: d.text }],
+        } as Message);
+        useNotificationStore.getState().addNotification({
+            key,
+            level: 'success',
+            message: '运行中指令已应用',
+            timeout: 4000,
+        });
+    },
+    'run_input_rejected': (d: {
+        requestId: string;
+        code: string;
+        message: string;
+    }) => {
+        const key = `run-input-${d.requestId}`;
+        useNotificationStore.getState().removeNotification(key);
+        useNotificationStore.getState().addNotification({
+            key,
+            level: 'error',
+            message: d.message || `运行中指令未应用（${d.code}）`,
+            timeout: 8000,
+        });
+        if (d.code === 'NO_ACTIVE_RUN') {
+            useSessionStore.getState().setStatus('idle');
+        }
+    },
+
     // === messageStore + sessionStore (2 种) ===
     'error':              (d) => handleError(d),
     'compact_complete':   (d) => handleCompactComplete(d),
@@ -704,7 +759,7 @@ function handleMessageComplete(data: { usage: Usage; stopReason: string }): void
         useMessageStore.getState().finalizeStream(data.usage);
         // ★ 回合结束时清除 token budget 状态
         useMessageStore.getState().clearTokenBudgetState();
-        if (data.stopReason === 'end_turn') {
+        if (data.stopReason !== 'tool_use') {
             useSessionStore.getState().setStatus('idle');
         }
     });
@@ -730,7 +785,8 @@ function handleCompactComplete(data: {
     summary?: string; tokensSaved?: number;  // 旧格式: 自动压缩
     displayText?: string; compactionData?: Record<string, unknown>;  // 新格式: /compact 手动压缩
 }): void {
-    useSessionStore.getState().setStatus('idle');
+    // 自动压缩属于 QueryEngine 运行的一部分；独立 /compact 完成才回到 idle。
+    useSessionStore.getState().setStatus(data.compactionData ? 'idle' : 'streaming');
     if (data.compactionData) {
         // 新格式: 来自 /compact 命令
         useMessageStore.getState().addMessage({
@@ -788,10 +844,15 @@ function handleSessionRestore(data: {
     usePermissionStore.getState().clearPermissions();
     useAppUiStore.setState({ elicitationDialog: null });
 
-    // 3. 清除旧状态 → 加载完整消息历史
-    useMessageStore.getState().clearMessages();
-    data.messages.forEach(msg => useMessageStore.getState().addMessage(msg));
-    useMessageStore.getState().replaceActiveToolCalls(data.activeToolCalls ?? []);
+    // 3. 原子替换消息历史和仍在运行的工具投影。
+    const runStatus = data.runSnapshot?.status;
+    const runCanHaveActiveTools = runStatus === 'RUNNING'
+        || runStatus === 'CANCELLING'
+        || runStatus === 'WAITING_INTERACTION';
+    useMessageStore.getState().restoreSessionSnapshot(
+        data.messages,
+        runCanHaveActiveTools ? data.activeToolCalls ?? [] : [],
+    );
     if (data.runSnapshot?.id) {
         useRunStore.getState().replaceRecoverySnapshot(
             data.runSnapshot.id,

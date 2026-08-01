@@ -63,6 +63,7 @@ public class QueryEngine {
             "no recap of what you were doing. Pick up mid-thought if " +
             "that is where the cut happened. Break remaining work " +
             "into smaller pieces.";
+    private static final int MAX_RUN_INPUTS_PER_TURN = 10;
 
     private final LlmProviderRegistry providerRegistry;
     private final CompactService compactService;
@@ -313,6 +314,12 @@ public class QueryEngine {
                 log.error("QueryEngine 执行异常", e);
                 handler.onError(e);
             }
+            rejectPendingRunInputs(
+                    currentRunId,
+                    state.getTurnCount() >= config.maxTurns()
+                            ? "TURN_LIMIT_REACHED"
+                            : "RUN_NOT_ACCEPTING_INPUT",
+                    handler);
             // ★ RunTracker: 异常路径 — 标记为 FAILED
             if (currentRunId != null && runTracker != null) {
                 try {
@@ -336,6 +343,13 @@ public class QueryEngine {
                 abortContexts.remove(sessionId);
             }
         }
+
+        rejectPendingRunInputs(
+                currentRunId,
+                state.getTurnCount() >= config.maxTurns()
+                        ? "TURN_LIMIT_REACHED"
+                        : "RUN_NOT_ACCEPTING_INPUT",
+                handler);
 
         // ★ RunTracker: 根据实际结束原因选择正确的状态转换
         if (!runFailureRecorded && currentRunId != null && runTracker != null) {
@@ -382,6 +396,87 @@ public class QueryEngine {
         catch (Exception e) { log.error("Run execution cleanup failed: run={}", runId, e); }
     }
 
+    private static String currentRunId(QueryLoopState state) {
+        return state.getToolUseContext() == null
+                ? null : state.getToolUseContext().currentRunId();
+    }
+
+    private int applyRunInputs(
+            List<com.aicodeassistant.run.RunExecutionRegistry.InputApplication>
+                    applications,
+            QueryLoopState state,
+            QueryMessageHandler handler) {
+        int appliedCount = 0;
+        for (var application : applications) {
+            com.aicodeassistant.run.RunExecutionRegistry.InputReceipt
+                    appliedReceipt = null;
+            com.aicodeassistant.run.RunExecutionRegistry.InputReceipt
+                    rejectedReceipt = null;
+            try (application) {
+                var input = application.input();
+                state.addMessage(new Message.UserMessage(
+                        input.requestId(), Instant.now(),
+                        List.of(new ContentBlock.TextBlock(input.text())),
+                        null, null));
+                appliedReceipt = application.completeApplied(
+                        System.currentTimeMillis());
+                appliedCount++;
+            } catch (RuntimeException applyFailure) {
+                try {
+                    rejectedReceipt = application.reject("APPLY_FAILED");
+                } catch (RuntimeException settleFailure) {
+                    applyFailure.addSuppressed(settleFailure);
+                }
+                log.error("Failed to apply queued run input: requestId={}",
+                        application.input().requestId(), applyFailure);
+            }
+            if (appliedReceipt != null) {
+                emitRunInputApplied(handler, appliedReceipt);
+            } else if (rejectedReceipt != null) {
+                emitRunInputRejected(handler, rejectedReceipt);
+            }
+        }
+        return appliedCount;
+    }
+
+    private void rejectPendingRunInputs(
+            String runId, String rejectionCode,
+            QueryMessageHandler handler) {
+        if (runExecutions == null || runId == null) return;
+        runExecutions.sealAndRejectInputs(runId, rejectionCode)
+                .forEach(receipt ->
+                        emitRunInputRejected(handler, receipt));
+    }
+
+    private void emitRunInputApplied(
+            QueryMessageHandler handler,
+            com.aicodeassistant.run.RunExecutionRegistry.InputReceipt receipt) {
+        try {
+            handler.onStreamEvent("run_input_applied", Map.of(
+                    "requestId", receipt.requestId(),
+                    "text", receipt.text(),
+                    "appliedAt", receipt.appliedAt()));
+        } catch (RuntimeException deliveryFailure) {
+            log.warn("Failed to deliver run_input_applied: requestId={}, error={}",
+                    receipt.requestId(), deliveryFailure.getMessage());
+        }
+    }
+
+    private void emitRunInputRejected(
+            QueryMessageHandler handler,
+            com.aicodeassistant.run.RunExecutionRegistry.InputReceipt receipt) {
+        try {
+            handler.onStreamEvent("run_input_rejected", Map.of(
+                    "requestId", receipt.requestId(),
+                    "code", receipt.rejectionCode(),
+                    "message", receipt.rejectionMessage(),
+                    "rejectedAt", receipt.rejectedAt()));
+        } catch (RuntimeException deliveryFailure) {
+            log.warn("Failed to deliver run_input_rejected: requestId={}, error={}",
+                    receipt.requestId(), deliveryFailure.getMessage());
+        }
+    }
+
     private static boolean isCancellation(Throwable error) {
         if (error instanceof LlmApiException llm) {
             return "cancelled".equals(llm.getErrorType())
@@ -424,7 +519,23 @@ public class QueryEngine {
         final Set<String> confirmedImageHashes = new HashSet<>();
         final Map<String,Integer> rejectedImageBudgets = new HashMap<>();
 
+        queryLoop:
         while (!aborted.get()) {
+            String runInputRunId = currentRunId(state);
+            if (state.getTurnCount() >= config.maxTurns()) {
+                rejectPendingRunInputs(
+                        runInputRunId, "TURN_LIMIT_REACHED", handler);
+                break;
+            }
+            applyRunInputs(
+                    runExecutions == null || runInputRunId == null
+                            ? List.of()
+                            : runExecutions.claimInputs(
+                                    runInputRunId,
+                                    MAX_RUN_INPUTS_PER_TURN),
+                    state, handler);
+            if (aborted.get()) break;
+
             state.incrementTurnCount();
             int turn = state.getTurnCount();
             log.debug("Turn {} 开始: messageCount={}, model={}", turn, state.getMessages().size(), currentModel[0]);
@@ -1118,6 +1229,34 @@ public class QueryEngine {
                     }
                 }
 
+                if (turn >= config.maxTurns()) {
+                    rejectPendingRunInputs(
+                            currentRunId(state),
+                            "TURN_LIMIT_REACHED", handler);
+                    handler.onTurnEnd(turn, "max_turns");
+                    break;
+                }
+
+                if (runExecutions != null) {
+                    String completionRunId = currentRunId(state);
+                    if (completionRunId != null) {
+                        while (true) {
+                            var inputDecision =
+                                    runExecutions.claimOrSealInputs(
+                                            completionRunId,
+                                            MAX_RUN_INPUTS_PER_TURN);
+                            if (!inputDecision.hasApplications()) break;
+                            int appliedInputs = applyRunInputs(
+                                    inputDecision.applications(), state, handler);
+                            if (appliedInputs > 0) {
+                                handler.onTurnEnd(
+                                        turn, "user_intervention");
+                                continue queryLoop;
+                            }
+                        }
+                    }
+                }
+
                 handler.onTurnEnd(turn, stopReason);
                 break;
             }
@@ -1718,7 +1857,10 @@ public class QueryEngine {
                 }
                 case LlmStreamEvent.MessageDelta delta -> {
                     this.usage = delta.usage();
-                    this.stopReason = delta.stopReason();
+                    if (delta.stopReason() != null
+                            && !delta.stopReason().isBlank()) {
+                        this.stopReason = delta.stopReason();
+                    }
                     log.debug("MessageDelta: stopReason={}, currentToolId={}", delta.stopReason(), currentToolId);
                     // ★ 修复：不在 MessageDelta 中触发 flushToolBlock()。
                     // Qwen 等 OpenAI 兼容模型可能在最后一批 ToolInputDelta 到达前

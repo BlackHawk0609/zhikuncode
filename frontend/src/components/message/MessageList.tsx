@@ -47,7 +47,7 @@ const MessageList: React.FC = () => {
                 isStreaming={isStreaming}
                 streamingContent={isStreaming ? streamingContent : undefined}
                 thinkingContent={isStreaming ? thinkingContent : undefined}
-                activeToolCalls={isStreaming ? activeToolCalls : undefined}
+                activeToolCalls={activeToolCalls}
             />
         );
     }, [messages, streamingMessageId, streamingContent, thinkingContent, activeToolCalls]);

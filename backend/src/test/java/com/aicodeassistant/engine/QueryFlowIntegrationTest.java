@@ -82,7 +82,11 @@ class QueryFlowIntegrationTest {
                         inv.<com.aicodeassistant.tool.ToolInput>getArgument(2),
                         com.aicodeassistant.authorization.AuthorizationDiagnostic.Source.POLICY,
                         "TEST", null, null, null, "attempt-test"));
-        when(gateway.execute(any(), any(), any(), any())).thenAnswer(inv -> {
+        when(gateway.execute(any(), any(), any(), any(), any())).thenAnswer(inv -> {
+            Runnable admission = inv.getArgument(3);
+            admission.run();
+            Runnable started = inv.getArgument(4);
+            started.run();
             Tool tool = inv.getArgument(0);
             AuthorizedOperation allowed = inv.getArgument(1);
             ToolUseContext context = inv.getArgument(2);
@@ -193,6 +197,10 @@ class QueryFlowIntegrationTest {
                         "{\"message\":\"test\"}"));
                 callback.onEvent(new LlmStreamEvent.MessageDelta(
                         new Usage(10, 5, 0, 0), "tool_use"));
+                // OpenAI-compatible providers may send usage in a final chunk
+                // without a stop reason. It must not erase tool_use.
+                callback.onEvent(new LlmStreamEvent.MessageDelta(
+                        new Usage(10, 5, 0, 0), null));
                 callback.onComplete();
             } else {
                 // 第 2 轮: LLM 收到工具结果后返回文本

@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 工具执行的唯一入口。
@@ -121,6 +122,10 @@ public class ToolExecutionPipeline {
         String toolName = tool.getName();
         long startTime = System.currentTimeMillis();
         FrozenToolInput frozen = null;
+        ToolInput processedInput = input;
+        String currentRunId = context.currentRunId();
+        AtomicBoolean toolStarted = new AtomicBoolean(false);
+        ToolResult terminalResult = null;
 
         try {
             // ── 阶段 1: Schema 输入验证 ──
@@ -142,7 +147,7 @@ public class ToolExecutionPipeline {
             }
 
             // ── 阶段 2.5: 输入预处理 ──
-            ToolInput processedInput = tool.backfillObservableInput(input);
+            processedInput = tool.backfillObservableInput(input);
 
             // ── 阶段 3: PreToolUse 钩子 ──
             String inputJson;
@@ -209,8 +214,6 @@ public class ToolExecutionPipeline {
             log.debug("Executing tool: {} (stage 5: call)", toolName);
 
             // 授权诊断和 tool_started 由 AuthorizationService/Gateway 统一记录。
-            String currentRunId = context.currentRunId();
-
             List<DeclaredOutput> declaredOutputs;
             try {
                 declaredOutputs = planOutputs(
@@ -231,7 +234,7 @@ public class ToolExecutionPipeline {
                         } catch (RuntimeException admissionFailure) {
                             throw new AdmissionException("ARTIFACT_DECLARATION_FAILED", admissionFailure);
                         }
-                    });
+                    }, () -> toolStarted.set(true));
 
             // 工具可能在文件副作用已提交后才报告错误（例如原子移动后的校验失败）。此时仍需封存产物，
             // 让数据库反映真实工作区状态，并避免模型因“假失败”重复写入。
@@ -298,6 +301,7 @@ public class ToolExecutionPipeline {
                 ToolExecutionResult recoveryResult = attemptBashErrorRecovery(
                         tool, input, context, wsPusher, result, attemptCount, durationMs);
                 if (recoveryResult != null) {
+                    terminalResult = recoveryResult.result();
                     return recoveryResult;
                 }
             }
@@ -309,9 +313,6 @@ public class ToolExecutionPipeline {
                 result = result.withContent(truncated, true);
             }
 
-            // 只持久化最终返回给模型和用户的映射、展示处理、脱敏及截断后结果。
-            recordToolResult(currentRunId, toolName, processedInput, context, result);
-
             // ── 阶段 7: contextModifier 提取与应用 ──
             var modifier = result.getContextModifier();
             ToolUseContext updatedContext = null;
@@ -320,6 +321,7 @@ public class ToolExecutionPipeline {
                 log.debug("Tool {} applied contextModifier", toolName);
             }
 
+            terminalResult = result;
             return ToolExecutionResult.of(result.toSerializable(), updatedContext);
 
         } catch (AuthorizationException denied) {
@@ -328,41 +330,49 @@ public class ToolExecutionPipeline {
                 effectivePusher.sendToolPermissionDenied(context.sessionId(),
                         context.toolUseId() == null ? toolName : context.toolUseId(), toolName);
             }
-            return ToolExecutionResult.of(ToolResult.permissionDenied(denied.code(), denied.getMessage()));
+            terminalResult = ToolResult.permissionDenied(
+                    denied.code(), denied.getMessage());
+            return ToolExecutionResult.of(terminalResult);
         } catch (AdmissionException admissionFailure) {
             log.warn("Tool admission rejected: tool={}, runId={}, toolUseId={}, code={}",
                     toolName, context.currentRunId(), context.toolUseId(), admissionFailure.code());
             log.debug("Tool admission rejection detail: tool={}", toolName, admissionFailure);
-            return ToolExecutionResult.of(ToolResult.failed(
+            terminalResult = ToolResult.failed(
                     ToolResult.ToolFailureType.VALIDATION, admissionFailure.code(),
                     "Tool admission failed before execution: " + admissionFailure.getCause().getMessage(),
-                    ToolResult.Retryability.NEVER, ToolResult.EffectState.NOT_STARTED, null, Map.of()));
+                    ToolResult.Retryability.NEVER,
+                    ToolResult.EffectState.NOT_STARTED, null, Map.of());
+            return ToolExecutionResult.of(terminalResult);
         } catch (com.aicodeassistant.config.database.SqliteConfig.DatabaseWriteUnavailableException unavailable) {
             log.warn("Authorization database unavailable: tool={}, runId={}, toolUseId={}, code={}",
                     toolName, context.currentRunId(), context.toolUseId(), unavailable.code());
             ToolResult.Retryability retryability = tool.isReadOnly(input)
                     ? ToolResult.Retryability.SAFE_READ_ONLY
                     : ToolResult.Retryability.IDEMPOTENCY_REQUIRED;
-            return ToolExecutionResult.of(ToolResult.failed(
+            terminalResult = ToolResult.failed(
                     ToolResult.ToolFailureType.INTERNAL, unavailable.code(),
                     "Authorization state is temporarily unavailable",
                     retryability, ToolResult.EffectState.NOT_STARTED,
-                    null, Map.of()));
+                    null, Map.of());
+            return ToolExecutionResult.of(terminalResult);
         } catch (InteractionOperationException interactionFailure) {
             log.error("Permission interaction operation failed: tool={}, runId={}, toolUseId={}, code={}",
                     toolName, context.currentRunId(), context.toolUseId(), interactionFailure.code(),
                     interactionFailure);
             boolean invalidPayload = "INTERACTION_PAYLOAD_INVALID".equals(interactionFailure.code());
-            return ToolExecutionResult.of(ToolResult.failed(
+            terminalResult = ToolResult.failed(
                     invalidPayload ? ToolResult.ToolFailureType.VALIDATION : ToolResult.ToolFailureType.INTERNAL,
                     interactionFailure.code(), invalidPayload
                             ? "Permission interaction payload is invalid"
                             : "Permission interaction could not be persisted",
                     ToolResult.Retryability.NEVER, ToolResult.EffectState.NOT_STARTED,
-                    null, Map.of()));
+                    null, Map.of());
+            return ToolExecutionResult.of(terminalResult);
         } catch (ToolInputValidationException e) {
             log.warn("Tool {} input validation error: {}", toolName, e.getMessage());
-            return ToolExecutionResult.of(ToolResult.validationError("INVALID_TOOL_INPUT", e.getMessage()));
+            terminalResult = ToolResult.validationError(
+                    "INVALID_TOOL_INPUT", e.getMessage());
+            return ToolExecutionResult.of(terminalResult);
         } catch (Exception e) {
             long durationMs = System.currentTimeMillis() - startTime;
             log.error("Tool {} execution failed after {}ms: {}", toolName, durationMs, e.getMessage(), e);
@@ -375,11 +385,25 @@ public class ToolExecutionPipeline {
 
             if (recovery.isPresent()) {
                 RecoveryDecision decision = recovery.get();
-                return buildRecoveryResult(decision, failedResult);
+                ToolExecutionResult recoveryResult =
+                        buildRecoveryResult(decision, failedResult);
+                terminalResult = recoveryResult.result();
+                return recoveryResult;
             }
 
+            terminalResult = failedResult;
             return ToolExecutionResult.of(failedResult);
         } finally {
+            if (toolStarted.get()) {
+                ToolResult resultToRecord = terminalResult != null
+                        ? terminalResult
+                        : ToolResult.internalError(
+                                "TOOL_EXECUTION_TERMINATED_WITHOUT_RESULT",
+                                "Tool execution terminated without a result",
+                                ToolResult.EffectState.UNKNOWN);
+                recordToolResult(currentRunId, toolName,
+                        processedInput, context, resultToRecord);
+            }
             if (frozen != null) frozen.close();
         }
     }
@@ -456,14 +480,17 @@ public class ToolExecutionPipeline {
             payload.put("outputTruncated", result.outputTruncated());
             String filePath = extractFilePathFromInput(processedInput);
             if (filePath != null) payload.put("filePath", filePath);
-            runTracker.recordEvent(runId, "tool_result", payload);
+            runTracker.recordEvent(
+                    runId, "tool_result", context.toolUseId(), payload);
             if (result.executionStatus() == ToolResult.ExecutionStatus.TIMED_OUT) {
-                runTracker.recordEvent(runId, "process_timed_out", Map.of(
+                runTracker.recordEvent(
+                        runId, "process_timed_out", context.toolUseId(), Map.of(
                         "toolName", toolName, "toolUseId", context.toolUseId() == null ? "" : context.toolUseId(),
                         "failureCode", result.failureCode() == null ? "PROCESS_DEADLINE_EXCEEDED" : result.failureCode(),
                         "terminationConfirmed", result.metadata().getOrDefault("terminationConfirmed", false)));
             } else if (result.executionStatus() == ToolResult.ExecutionStatus.CANCELLED) {
-                runTracker.recordEvent(runId, "process_cancelled", Map.of(
+                runTracker.recordEvent(
+                        runId, "process_cancelled", context.toolUseId(), Map.of(
                         "toolName", toolName, "toolUseId", context.toolUseId() == null ? "" : context.toolUseId(),
                         "failureCode", result.failureCode() == null ? "PROCESS_CANCELLED" : result.failureCode(),
                         "effectState", result.effectState().name().toLowerCase()));

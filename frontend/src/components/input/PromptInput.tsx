@@ -14,9 +14,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { Send, Square, X } from 'lucide-react';
 import type { Command, LocalAttachment, SubmitEvent, Message, Attachment } from '@/types';
-import { useSessionStore } from '@/store/sessionStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { sendToServer } from '@/api/stompClient';
 import CommandPalette from './CommandPalette';
 import FileUpload from './FileUpload';
 import { FileAutoComplete } from './FileAutoComplete';
@@ -56,7 +54,8 @@ interface PromptInputProps {
     onSlashCommand: (command: string) => Promise<boolean>;
     onInterrupt: () => void;
     disabled: boolean;
-    isLoading: boolean;
+    runActive: boolean;
+    compacting: boolean;
     permissionMode: string;
     messages: Message[];
     commands: Command[];
@@ -67,7 +66,8 @@ const PromptInput: React.FC<PromptInputProps> = ({
     onSlashCommand,
     onInterrupt,
     disabled,
-    isLoading,
+    runActive,
+    compacting,
     commands,
 }) => {
     const [input, setInput] = useState('');
@@ -105,12 +105,23 @@ const PromptInput: React.FC<PromptInputProps> = ({
         const handler = (e: globalThis.KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault();
+                if (runActive || compacting) {
+                    setShowGlobalPalette(false);
+                    return;
+                }
                 setShowGlobalPalette(prev => !prev);
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, []);
+    }, [runActive, compacting]);
+
+    useEffect(() => {
+        if (runActive || compacting) {
+            setShowCommands(false);
+            setShowGlobalPalette(false);
+        }
+    }, [runActive, compacting]);
 
     const submitSlashCommand = useCallback(async (
         command: string,
@@ -139,12 +150,22 @@ const PromptInput: React.FC<PromptInputProps> = ({
         if ((!trimmed && attachments.length === 0)
                 || submissionRef.current) return;
 
-        if (trimmed.startsWith('/')) {
-            await submitSlashCommand(trimmed);
+        if (compacting) return;
+
+        if (runActive && attachments.length > 0) {
+            useNotificationStore.getState().addNotification({
+                key: 'run-input-attachments',
+                level: 'warning',
+                message: '运行中干预暂不支持附件，请先移除附件',
+                timeout: 5000,
+            });
             return;
         }
-        if (useSessionStore.getState().status === 'streaming') {
-            sendToServer('/app/interrupt', { isSubmitInterrupt: true });
+        if (runActive && !trimmed) return;
+
+        if (!runActive && trimmed.startsWith('/')) {
+            await submitSlashCommand(trimmed);
+            return;
         }
         const submitAttachments: Attachment[] = attachments.map(a => ({
             type: a.type.startsWith('image/') ? 'image' as const : 'file' as const,
@@ -179,6 +200,8 @@ const PromptInput: React.FC<PromptInputProps> = ({
         attachments,
         onSubmit,
         submitSlashCommand,
+        runActive,
+        compacting,
     ]);
 
     // Keyboard event handling
@@ -189,7 +212,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
         }
 
         // Ctrl+C → interrupt (only when no text selected, v1.44.0)
-        if (e.ctrlKey && e.key === 'c' && isLoading && !window.getSelection()?.toString()) {
+        if (e.ctrlKey && e.key === 'c' && runActive && !window.getSelection()?.toString()) {
             onInterrupt();
             e.preventDefault();
             return;
@@ -203,7 +226,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
         }
 
         // / at empty input → show command palette
-        if (e.key === '/' && input === '') {
+        if (e.key === '/' && input === '' && !runActive && !compacting) {
             setShowCommands(true);
         }
 
@@ -238,9 +261,18 @@ const PromptInput: React.FC<PromptInputProps> = ({
         if (e.key === 'Tab' && showCommands) {
             e.preventDefault();
         }
-    }, [input, isLoading, showCommands, showGlobalPalette, historyIndex, onInterrupt, handleSubmit]);
+    }, [input, runActive, compacting, showCommands, showGlobalPalette, historyIndex, onInterrupt, handleSubmit]);
 
     const handleFiles = useCallback(async (files: File[]) => {
+        if (runActive || compacting) {
+            useNotificationStore.getState().addNotification({
+                key: 'run-input-attachments',
+                level: 'warning',
+                message: '任务运行或压缩期间不能添加附件',
+                timeout: 5000,
+            });
+            return;
+        }
         const accepted: LocalAttachment[] = [];
         const notify = useNotificationStore.getState().addNotification;
         // 使用独立计数器避免同一批多张图片同时越限
@@ -309,7 +341,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
         if (accepted.length > 0) {
             setAttachments(prev => [...prev, ...accepted]);
         }
-    }, [imageCount, maxImages]);
+    }, [imageCount, maxImages, runActive, compacting]);
 
     // Drag & drop file upload
     const handleDrop = useCallback((e: React.DragEvent) => {
@@ -381,7 +413,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
             )}
 
             {/* Slash command palette */}
-            {showCommands && (
+            {showCommands && !runActive && !compacting && (
                 <CommandPalette
                     commands={commands}
                     filter={input.slice(1)}
@@ -393,7 +425,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
             )}
 
             {/* Global command palette (Ctrl+K) */}
-            {showGlobalPalette && (
+            {showGlobalPalette && !runActive && !compacting && (
                 <CommandPalette
                     commands={commands}
                     filter=""
@@ -495,16 +527,18 @@ const PromptInput: React.FC<PromptInputProps> = ({
                         }
 
                         // 检测 / 命令触发
-                        if (text.startsWith('/')) setShowCommands(true);
+                        if (!runActive && !compacting && text.startsWith('/')) setShowCommands(true);
                         else setShowCommands(false);
                     }}
                     onKeyDown={handleKeyDown}
                     placeholder={
-                        isLoading
-                            ? 'AI is thinking... (Ctrl+C to interrupt)'
+                        compacting
+                            ? '正在压缩上下文，请稍候…'
+                            : runActive
+                            ? '输入对当前任务的新指令，将在当前操作完成后应用'
                             : `Type a message... (/ for commands, ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl+'}K for palette)`
                     }
-                    disabled={disabled || isSubmitting}
+                    disabled={disabled || compacting || isSubmitting}
                     aria-label="输入消息"
                     aria-multiline="true"
                     className="flex-1 resize-none rounded-lg border border-gray-700 bg-gray-900
@@ -516,28 +550,39 @@ const PromptInput: React.FC<PromptInputProps> = ({
                 />
 
                 {/* Toolbar */}
-                <FileUpload
-                    onFiles={handleFiles}
-                    accept="image/*"
-                    disabled={disabled || isSubmitting}
-                    title={`上传图片（不支持图片的模型将由视觉模型自动处理，上限 ${maxImages} 张）`}
-                />
+                {!runActive && !compacting && (
+                    <FileUpload
+                        onFiles={handleFiles}
+                        accept="image/*"
+                        disabled={disabled || isSubmitting}
+                        title={`上传图片（不支持图片的模型将由视觉模型自动处理，上限 ${maxImages} 张）`}
+                    />
+                )}
                 <button
-                    onClick={isLoading
-                        ? onInterrupt
-                        : () => { void handleSubmit(); }}
-                    disabled={disabled || isSubmitting
-                        || (!isLoading && !input.trim()
-                            && attachments.length === 0)}
-                    aria-label={isLoading ? '中断生成' : '发送消息'}
-                    className={`shrink-0 p-2.5 rounded-lg text-white transition-colors
-                        ${isLoading
-                            ? 'bg-red-500 hover:bg-red-600'
-                            : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600'}`}
+                    onClick={() => { void handleSubmit(); }}
+                    disabled={disabled || compacting || isSubmitting
+                        || (!input.trim() && attachments.length === 0)}
+                    aria-label={runActive ? '发送运行中干预' : '发送消息'}
+                    title={runActive ? '发送运行中干预' : '发送消息'}
+                    className="shrink-0 p-2.5 rounded-lg text-white transition-colors
+                               bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
                     type="button"
                 >
-                    {isLoading ? <Square size={16} /> : <Send size={16} />}
+                    <Send size={16} />
                 </button>
+                {runActive && (
+                    <button
+                        onClick={onInterrupt}
+                        disabled={disabled || isSubmitting}
+                        aria-label="停止当前任务"
+                        title="停止当前任务"
+                        className="shrink-0 p-2.5 rounded-lg text-white transition-colors
+                                   bg-red-500 hover:bg-red-600 disabled:opacity-50"
+                        type="button"
+                    >
+                        <Square size={16} />
+                    </button>
+                )}
             </div>
         </div>
     );

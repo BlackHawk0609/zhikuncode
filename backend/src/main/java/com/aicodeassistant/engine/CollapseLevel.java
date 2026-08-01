@@ -41,14 +41,19 @@ public sealed interface CollapseLevel
     record SkeletonRetention(int maxAgeMessages) implements CollapseLevel {
         public SkeletonRetention() { this(Integer.MAX_VALUE); }
         @Override public String collapse(String originalContent) {
-            if (originalContent == null || originalContent.length() <= 50) {
+            if (originalContent == null
+                    || originalContent.length() <= 50
+                    || originalContent.startsWith("[skeleton] ")) {
                 return originalContent;
             }
             int newline = originalContent.indexOf('\n');
             String firstLine = newline > 0
                     ? originalContent.substring(0, Math.min(newline, 80))
                     : originalContent.substring(0, Math.min(80, originalContent.length()));
-            return "[skeleton] " + firstLine + "...";
+            String candidate = "[skeleton] " + firstLine + "...";
+            return candidate.length() < originalContent.length()
+                    ? candidate
+                    : originalContent;
         }
     }
 }

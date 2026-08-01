@@ -82,16 +82,16 @@ public class ApiRetryService {
         int attempt = 0;
         int retries529 = 0;
 
+        // 一次逻辑调用只执行一次 breaker admission；内部重试不重复消耗配额。
+        if (!circuitBreaker.allowRequest()) {
+            throw new LlmApiException(
+                    "Circuit breaker is OPEN — API calls temporarily blocked. "
+                            + "Please wait for recovery.",
+                    true, 503);
+        }
+
         while (true) {
             if (cancellation.isCancelled()) throw cancelled();
-            // ★ 熔断器检查 — 如果处于 OPEN 状态则快速失败
-            if (!circuitBreaker.allowRequest()) {
-                throw new LlmApiException(
-                        "Circuit breaker is OPEN — API calls temporarily blocked. "
-                                + "Please wait for recovery.",
-                        true, 503);
-            }
-
             try {
                 T result = operation.get();
                 // ★ 成功 → 报告给 ModelTierService 和熔断器
@@ -105,8 +105,6 @@ public class ApiRetryService {
                 if (isCancellation(e) || cancellation.isCancelled()) {
                     throw cancelled();
                 }
-                // ★ 失败 → 记录到熔断器
-                circuitBreaker.recordFailure();
                 attempt++;
 
                 // 1. 检查是否为 529 错误 (容量超限)
@@ -117,6 +115,7 @@ public class ApiRetryService {
                             "529_overloaded: " + e.getMessage());
 
                     if (!shouldRetry529(querySource, retries529)) {
+                        circuitBreaker.recordFailure();
                         throw e;
                     }
                     retries529++;
@@ -125,11 +124,13 @@ public class ApiRetryService {
                 }
                 // 2. 检查是否为可重试的标准错误
                 else if (!isRetryableError(e)) {
+                    circuitBreaker.recordFailure();
                     throw e;
                 }
 
                 // 3. 超过最大重试次数
                 if (attempt >= DEFAULT_MAX_RETRIES) {
+                    circuitBreaker.recordFailure();
                     log.error("API 调用超过最大重试次数 ({}), 放弃", DEFAULT_MAX_RETRIES);
                     throw e;
                 }
@@ -180,6 +181,7 @@ public class ApiRetryService {
      * 检查是否为可重试的错误。
      */
     private boolean isRetryableError(LlmApiException e) {
+        if (e.isRetryable()) return true;
         if (e.getStatusCode() >= 500) return true;
         String errorType = e.getErrorType();
         return errorType != null && RETRYABLE_ERROR_TYPES.contains(errorType);

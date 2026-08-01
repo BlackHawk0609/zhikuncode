@@ -18,6 +18,13 @@ export interface TokenBudgetState {
     visible: boolean;
 }
 
+export interface RecoveredToolCall {
+    toolUseId: string;
+    toolName: string;
+    input: unknown;
+    startedAt?: number;
+}
+
 export interface MessageStoreState {
     // 状态
     messages: Message[];
@@ -36,7 +43,9 @@ export interface MessageStoreState {
     updateToolCallInput: (toolUseId: string, input: unknown) => void;
     updateToolCallProgress: (toolUseId: string, progress: string) => void;
     completeToolCall: (toolUseId: string, result: ToolResult) => void;
-    replaceActiveToolCalls: (calls: Array<{ toolUseId: string; toolName: string; input: unknown; startedAt?: number }>) => void;
+    replaceActiveToolCalls: (calls: RecoveredToolCall[]) => void;
+    restoreSessionSnapshot: (messages: Message[], calls: RecoveredToolCall[]) => void;
+    finalizeAssistantSegment: () => void;
     finalizeStream: (usage: Usage) => void;
     clearMessages: () => void;
     rewindToMessage: (messageId: string) => void;
@@ -138,6 +147,46 @@ export const useMessageStore = create<MessageStoreState>()(
                 startTime: call.startedAt ?? Date.now(),
             }));
         }),
+        restoreSessionSnapshot: (messages, calls) => {
+            flushStreamingBuffer();
+            streamingStore.clear();
+            set(d => {
+                d.messages = messages;
+                d.streamingMessageId = null;
+                d.streamingContent = '';
+                d.thinkingContent = '';
+                d.activeToolCalls.clear();
+                calls.forEach(call => d.activeToolCalls.set(call.toolUseId, {
+                    toolName: call.toolName || 'Tool',
+                    input: call.input ?? {},
+                    status: 'running',
+                    startTime: call.startedAt ?? Date.now(),
+                }));
+                d.tokenBudgetState = null;
+                d.tokenWarning = null;
+            });
+        },
+        finalizeAssistantSegment: () => set(d => {
+            flushStreamingBuffer();
+            const externalContent = streamingStore.clear();
+            const combinedContent = d.streamingContent + externalContent;
+            if (d.streamingMessageId) {
+                const msg = d.messages.find(m => m.uuid === d.streamingMessageId);
+                if (msg && msg.type === 'assistant') {
+                    const content: any[] = [];
+                    if (d.thinkingContent) {
+                        content.push({ type: 'thinking' as const, thinking: d.thinkingContent, completed: true });
+                    }
+                    if (combinedContent) {
+                        content.push({ type: 'text' as const, text: combinedContent });
+                    }
+                    (msg as { content: unknown }).content = content;
+                }
+            }
+            d.streamingMessageId = null;
+            d.streamingContent = '';
+            d.thinkingContent = '';
+        }),
         finalizeStream: (_usage) => set(d => {
             // 先刷新 streamingStore 中的剩余缓冲
             flushStreamingBuffer();
@@ -164,7 +213,19 @@ export const useMessageStore = create<MessageStoreState>()(
             d.streamingContent = '';
             d.thinkingContent = '';
         }),
-        clearMessages: () => set(d => { d.messages = []; d.activeToolCalls.clear(); d.tokenBudgetState = null; d.tokenWarning = null; }),
+        clearMessages: () => {
+            flushStreamingBuffer();
+            streamingStore.clear();
+            set(d => {
+                d.messages = [];
+                d.streamingMessageId = null;
+                d.streamingContent = '';
+                d.thinkingContent = '';
+                d.activeToolCalls.clear();
+                d.tokenBudgetState = null;
+                d.tokenWarning = null;
+            });
+        },
         rewindToMessage: (messageId) => set(d => {
             const idx = d.messages.findIndex(m => m.uuid === messageId);
             if (idx >= 0) d.messages.splice(idx + 1);

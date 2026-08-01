@@ -7,13 +7,14 @@ import { DialogManager } from '@/components/DialogManager';
 import { useMessageStore } from '@/store/messageStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { useConfigStore } from '@/store/configStore';
-import { sendToServer, sendSlashCommand } from '@/api/stompClient';
+import { sendToServer, sendRunInput, sendSlashCommand } from '@/api/stompClient';
 import { SkillDetailModal } from '@/components/skills/SkillDetailModal';
 import { MobileApprovalSheet } from '@/components/verify/MobileApprovalSheet';
 import type { SubmitEvent, Message, Command } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 import { useAPOSInitialization } from '@/hooks/useAPOSInitialization';
 import { useActivityStore } from '@/store/activityStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { ProjectSelectionDialog } from '@/components/project/ProjectSelectionDialog';
 import {
   NEW_AUTHORIZED_SESSION_EVENT,
@@ -159,6 +160,27 @@ function App() {
     }
     if (!currentSessionId) return false;
 
+    const currentStatus = useSessionStore.getState().status;
+    if (currentStatus === 'streaming' || currentStatus === 'waiting_permission') {
+      if (event.attachments && event.attachments.length > 0) {
+        useNotificationStore.getState().addNotification({
+          key: 'run-input-attachments',
+          level: 'warning',
+          message: '运行中干预暂不支持附件，请先移除附件',
+          timeout: 5000,
+        });
+        return false;
+      }
+      const interventionText = event.text?.trim();
+      if (!interventionText) return false;
+      if (!sendRunInput(generateUUID(), interventionText)) {
+        addSessionError('运行中指令未发送，请检查 WebSocket 连接后重试。');
+        return false;
+      }
+      return true;
+    }
+    if (currentStatus === 'compacting') return false;
+
     // 在 bind/restore 完成后再添加用户消息，确保不被恢复流程清除。
     const contentBlocks: any[] = [];
     if (event.text) {
@@ -199,8 +221,22 @@ function App() {
     return true;
   }, [addMessage, addSessionError, ensureSessionReady]);
 
+  const rejectCommandWhileBusy = useCallback((): boolean => {
+    if (useSessionStore.getState().status === 'idle') return false;
+    const notifications = useNotificationStore.getState();
+    notifications.removeNotification('command-blocked-while-running');
+    notifications.addNotification({
+      key: 'command-blocked-while-running',
+      level: 'warning',
+      message: '当前任务正在运行；请直接输入干预信息，或停止任务后再执行命令',
+      timeout: 5000,
+    });
+    return true;
+  }, []);
+
   // 处理命令
   const handleSlashCommand = useCallback(async (command: string) => {
+    if (rejectCommandWhileBusy()) return false;
     const raw = command.startsWith('/') ? command.slice(1) : command;
     // 技能命令：/skill <name> → 打开详情弹窗
     if (raw.startsWith('skill ')) {
@@ -237,10 +273,11 @@ function App() {
     } as Message);
 
     return true;
-  }, [addMessage, addSessionError, ensureSessionReady]);
+  }, [addMessage, addSessionError, ensureSessionReady, rejectCommandWhileBusy]);
 
   // 执行技能
   const executeSkill = useCallback(async (skillName: string, userInput: string) => {
+    if (rejectCommandWhileBusy()) return;
     try {
       const sessionId = await ensureSessionReady();
       if (!sessionId) return;
@@ -256,7 +293,7 @@ function App() {
       return;
     }
     setSelectedSkill(null);
-  }, [addSessionError, ensureSessionReady]);
+  }, [addSessionError, ensureSessionReady, rejectCommandWhileBusy]);
 
   const startNewAuthorizedSession = useCallback(
     (): Promise<string | null> => {
@@ -337,7 +374,8 @@ function App() {
               onSlashCommand={handleSlashCommand}
               onInterrupt={handleInterrupt}
               disabled={false}
-              isLoading={status === 'streaming'}
+              runActive={status === 'streaming' || status === 'waiting_permission'}
+              compacting={status === 'compacting'}
               permissionMode="read_write"
               messages={messages}
               commands={allCommands}

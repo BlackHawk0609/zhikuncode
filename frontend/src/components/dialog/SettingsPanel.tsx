@@ -99,6 +99,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                         >
                             <option value="qwen3.7-max">Qwen 3.7 Max</option>
                             <option value="qwen3.7-plus">Qwen 3.7 Plus</option>
+                            <option value="qwen3.8-max-preview">Qwen 3.8 Max Preview (百炼订阅)</option>
                             <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
                             <option value="deepseek-v4-flash">DeepSeek V4 Flash</option>
                             <option value="kimi-k3">Kimi K3</option>
