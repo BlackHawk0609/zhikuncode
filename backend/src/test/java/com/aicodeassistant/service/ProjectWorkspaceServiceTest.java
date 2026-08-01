@@ -183,7 +183,7 @@ class ProjectWorkspaceServiceTest {
     }
 
     @Test
-    void localBrowserUsesOnlyDefaultRootAndSkipsSymlinks()
+    void localBrowserStartsAtDefaultAndCanNavigateFilesystemRoots()
             throws Exception {
         Path root = Files.createDirectory(
                 temp.resolve("browser-root")).toRealPath();
@@ -194,6 +194,7 @@ class ProjectWorkspaceServiceTest {
         Path external = Files.createDirectory(
                 temp.resolve("external-browser-root"))
                 .toRealPath();
+        Path filesystemRoot = root.getRoot().toRealPath();
         Files.createSymbolicLink(
                 root.resolve("external-link"), external);
         ProjectWorkspaceService service = service(
@@ -203,9 +204,10 @@ class ProjectWorkspaceServiceTest {
                 service.browseDirectories(null, "127.0.0.1");
 
         assertThat(listing.roots())
-                .containsExactly(root.toString());
+                .contains(filesystemRoot.toString());
         assertThat(listing.current()).isEqualTo(root.toString());
-        assertThat(listing.parent()).isNull();
+        assertThat(listing.parent()).isEqualTo(
+                root.getParent().toString());
         assertThat(listing.directories())
                 .extracting(ProjectWorkspaceService
                         .DirectoryEntry::name)
@@ -216,9 +218,19 @@ class ProjectWorkspaceServiceTest {
                         alpha.toString(), "::1");
         assertThat(child.current()).isEqualTo(alpha.toString());
         assertThat(child.parent()).isEqualTo(root.toString());
-        assertCode(() -> service.browseDirectories(
-                        external.toString(), "127.0.0.1"),
-                "DIRECTORY_BROWSE_OUTSIDE_ROOTS");
+        assertThat(service.browseDirectories(
+                        external.toString(), "127.0.0.1")
+                .current()).isEqualTo(external.toString());
+        ProjectWorkspaceService.DirectoryListing rootListing =
+                service.browseDirectories(
+                        filesystemRoot.toString(), "127.0.0.1");
+        assertThat(rootListing.current())
+                .isEqualTo(filesystemRoot.toString());
+        assertThat(rootListing.parent()).isNull();
+        assertCode(() -> service.create(
+                        "Filesystem root", filesystemRoot.toString(),
+                        "127.0.0.1"),
+                "WORKSPACE_ROOT_FORBIDDEN");
         assertCode(() -> service.browseDirectories(
                         root.resolve("external-link").toString(),
                         "127.0.0.1"),
@@ -243,6 +255,9 @@ class ProjectWorkspaceServiceTest {
         assertThat(restricted.browseDirectories(
                         null, "192.0.2.10").roots())
                 .containsExactly(root.toString());
+        assertCode(() -> restricted.browseDirectories(
+                        temp.toRealPath().toString(), "192.0.2.10"),
+                "DIRECTORY_BROWSE_OUTSIDE_ROOTS");
     }
 
     @Test
@@ -266,7 +281,7 @@ class ProjectWorkspaceServiceTest {
                         projects, "", root.toString(), true);
         assertThat(explicitlyLocal.browseDirectories(
                         null, "127.0.0.1").roots())
-                .containsExactly(root.toString());
+                .contains(root.getRoot().toRealPath().toString());
 
         ProjectWorkspaceService configuredRoots =
                 new ProjectWorkspaceService(
@@ -277,12 +292,102 @@ class ProjectWorkspaceServiceTest {
                 .containsExactly(root.toString());
     }
 
+    @Test
+    void nativePickerIsOnlyAdvertisedForDirectLoopbackDesktopUse()
+            throws Exception {
+        Path root = Files.createDirectory(
+                temp.resolve("native-picker-root")).toRealPath();
+        NativeDirectoryPicker picker = mock(NativeDirectoryPicker.class);
+        when(picker.isAvailable()).thenReturn(true);
+        ProjectRepository projects = mock(ProjectRepository.class);
+
+        assertThat(nativeService(
+                projects, "", root, true, picker)
+                .browseDirectories(null, "127.0.0.1")
+                .nativePickerAvailable()).isTrue();
+        assertThat(nativeService(
+                projects, "", root, true, picker)
+                .nativePickerAvailable("192.0.2.10")).isFalse();
+        assertThat(nativeService(
+                projects, "", root, false, picker)
+                .nativePickerAvailable("127.0.0.1")).isFalse();
+        assertThat(nativeService(
+                projects, root.toString(), root,
+                true, picker)
+                .nativePickerAvailable("127.0.0.1")).isFalse();
+    }
+
+    @Test
+    void nativePickerCanonicalizesSelectionAndRecognizesCancellation()
+            throws Exception {
+        Path root = Files.createDirectory(
+                temp.resolve("native-selection-root")).toRealPath();
+        Path selected = Files.createDirectory(
+                root.resolve("selected")).toRealPath();
+        Path alias = root.resolve("selected-alias");
+        Files.createSymbolicLink(alias, selected);
+        NativeDirectoryPicker picker = mock(NativeDirectoryPicker.class);
+        when(picker.isAvailable()).thenReturn(true);
+        when(picker.pick()).thenReturn(
+                Optional.of(alias.toString()), Optional.empty());
+        ProjectWorkspaceService service = nativeService(
+                mock(ProjectRepository.class), "", root,
+                true, picker);
+
+        Optional<ProjectWorkspaceService.DirectoryListing> listing =
+                service.pickDirectory("127.0.0.1");
+
+        assertThat(listing).isPresent();
+        assertThat(listing.orElseThrow().current())
+                .isEqualTo(selected.toString());
+        assertThat(listing.orElseThrow().nativePickerAvailable())
+                .isTrue();
+        assertThat(service.pickDirectory("127.0.0.1")).isEmpty();
+    }
+
+    @Test
+    void nativePickerRejectsUnsafeInvocationAndMapsProcessFailures()
+            throws Exception {
+        Path root = Files.createDirectory(
+                temp.resolve("native-picker-errors")).toRealPath();
+        NativeDirectoryPicker picker = mock(NativeDirectoryPicker.class);
+        when(picker.isAvailable()).thenReturn(true);
+        ProjectWorkspaceService service = nativeService(
+                mock(ProjectRepository.class), "", root,
+                true, picker);
+
+        assertCode(() -> service.pickDirectory("192.0.2.10"),
+                "NATIVE_PICKER_FORBIDDEN");
+
+        doThrow(new NativeDirectoryPicker.BusyException())
+                .when(picker).pick();
+        assertCode(() -> service.pickDirectory("127.0.0.1"),
+                "NATIVE_PICKER_BUSY");
+
+        doThrow(new NativeDirectoryPicker.TimeoutException())
+                .when(picker).pick();
+        assertCode(() -> service.pickDirectory("127.0.0.1"),
+                "NATIVE_PICKER_TIMEOUT");
+
+    }
+
     private ProjectWorkspaceService service(
             ProjectRepository projects,
             String allowedRoots,
             Path defaultRoot) {
         return new ProjectWorkspaceService(
                 projects, allowedRoots, defaultRoot.toString(), true);
+    }
+
+    private ProjectWorkspaceService nativeService(
+            ProjectRepository projects,
+            String allowedRoots,
+            Path defaultRoot,
+            boolean localPickerEnabled,
+            NativeDirectoryPicker picker) {
+        return new ProjectWorkspaceService(
+                projects, allowedRoots, defaultRoot.toString(),
+                localPickerEnabled, picker);
     }
 
     private static void assertCode(

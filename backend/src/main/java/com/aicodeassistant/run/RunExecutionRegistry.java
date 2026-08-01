@@ -255,11 +255,12 @@ public class RunExecutionRegistry {
             return input;
         }
 
-        public synchronized InputReceipt completeApplied(long appliedAt) {
+        public synchronized InputReceipt applyIfAccepting(
+                long appliedAt, Runnable applyAction) {
+            java.util.Objects.requireNonNull(applyAction, "applyAction");
             if (settled) return owner.receipt(input.requestId());
-            InputReceipt receipt = owner.settleInput(
-                    workToken, input.requestId(), InputState.APPLIED,
-                    null, null, appliedAt);
+            InputReceipt receipt = owner.applyInputIfAccepting(
+                    workToken, input.requestId(), appliedAt, applyAction);
             settled = true;
             return receipt;
         }
@@ -454,6 +455,53 @@ public class RunExecutionRegistry {
                         rejectionCode, rejectionMessage, current.submittedAt(),
                         terminalState == InputState.APPLIED ? terminalAt : null,
                         terminalState == InputState.REJECTED ? terminalAt : null);
+                inputReceipts.put(requestId, terminal);
+                if (work.remove(workToken) != null && work.isEmpty()) {
+                    quiescent.signalAll();
+                    removeAfterRelease = unregisterRequested;
+                }
+                return terminal;
+            } finally {
+                lock.unlock();
+                if (removeAfterRelease) removeExecution(this);
+            }
+        }
+
+        private InputReceipt applyInputIfAccepting(
+                String workToken, String requestId, long appliedAt,
+                Runnable applyAction) {
+            boolean removeAfterRelease = false;
+            lock.lock();
+            try {
+                InputReceipt current = inputReceipts.get(requestId);
+                if (current == null
+                        || current.state() != InputState.APPLYING) {
+                    throw new IllegalStateException("RUN_INPUT_NOT_APPLYING");
+                }
+                Work inputWork = work.get(workToken);
+                if (inputWork == null) {
+                    throw new IllegalStateException("RUN_INPUT_WORK_NOT_FOUND");
+                }
+
+                final InputReceipt terminal;
+                if (!admissionsOpen || !inputAdmissionOpen
+                        || cancellation.isAborted()
+                        || unregisterRequested
+                        || inputWork.cancelRequested) {
+                    long rejectedAt = System.currentTimeMillis();
+                    terminal = new InputReceipt(
+                            current.requestId(), current.text(),
+                            InputState.REJECTED,
+                            "RUN_NOT_ACCEPTING_INPUT",
+                            rejectionMessage("RUN_NOT_ACCEPTING_INPUT"),
+                            current.submittedAt(), null, rejectedAt);
+                } else {
+                    applyAction.run();
+                    terminal = new InputReceipt(
+                            current.requestId(), current.text(),
+                            InputState.APPLIED, null, null,
+                            current.submittedAt(), appliedAt, null);
+                }
                 inputReceipts.put(requestId, terminal);
                 if (work.remove(workToken) != null && work.isEmpty()) {
                     quiescent.signalAll();

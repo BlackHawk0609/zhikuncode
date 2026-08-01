@@ -414,13 +414,21 @@ public class QueryEngine {
                     rejectedReceipt = null;
             try (application) {
                 var input = application.input();
-                state.addMessage(new Message.UserMessage(
-                        input.requestId(), Instant.now(),
-                        List.of(new ContentBlock.TextBlock(input.text())),
-                        null, null));
-                appliedReceipt = application.completeApplied(
-                        System.currentTimeMillis());
-                appliedCount++;
+                var receipt = application.applyIfAccepting(
+                        System.currentTimeMillis(),
+                        () -> state.addMessage(new Message.UserMessage(
+                                input.requestId(), Instant.now(),
+                                List.of(new ContentBlock.TextBlock(
+                                        input.text())),
+                                null, null)));
+                if (receipt.state()
+                        == com.aicodeassistant.run.RunExecutionRegistry
+                                .InputState.APPLIED) {
+                    appliedReceipt = receipt;
+                    appliedCount++;
+                } else {
+                    rejectedReceipt = receipt;
+                }
             } catch (RuntimeException applyFailure) {
                 try {
                     rejectedReceipt = application.reject("APPLY_FAILED");

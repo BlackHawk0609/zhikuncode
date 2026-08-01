@@ -259,6 +259,21 @@ def main(
     # 非交互 CLI 不能绕过系统安全不变量；DONT_ASK 会结构化拒绝需要用户确认的操作。
     perm = permission_mode.value.upper()
 
+    if working_dir is not None and not _is_loopback_server(server):
+        console.print(
+            "[red]Error: --working-dir can only authorize a directory "
+            "when the backend is on localhost; use --project-id for a "
+            "remote backend[/red]"
+        )
+        raise typer.Exit(code=2)
+
+    if working_dir is not None and project_id is not None:
+        console.print(
+            "[red]Error: --working-dir cannot be combined "
+            "with --project-id[/red]"
+        )
+        raise typer.Exit(code=2)
+
     # 5. 解析会话
     cache = SessionCache()
     wd = str(Path(working_dir or os.getcwd()).expanduser().resolve())
@@ -282,17 +297,6 @@ def main(
         if (
             working_dir is not None
             and not resolved_sid
-            and not effective_project_id
-            and not _is_loopback_server(server)
-        ):
-            console.print(
-                "[red]Error: --working-dir can only authorize a directory "
-                "when the backend is on localhost; use --project-id for a "
-                "remote backend[/red]"
-            )
-            raise typer.Exit(code=2)
-        if (
-            not resolved_sid
             and not effective_project_id
             and _is_loopback_server(server)
         ):

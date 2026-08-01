@@ -113,6 +113,15 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
     set +a
 fi
 
+# 本地一键启动需要能完成首次 Project 授权，同时保留显式的安全策略配置。
+if [ -z "${ZHIKUN_DEFAULT_WORKSPACE:-}" ]; then
+    export ZHIKUN_DEFAULT_WORKSPACE="$PROJECT_ROOT"
+fi
+if [ -z "${ZHIKUN_WORKSPACE_ALLOWED_ROOTS:-}" ] \
+        && [ -z "${ZHIKUN_LOCAL_PICKER_ENABLED:-}" ]; then
+    export ZHIKUN_LOCAL_PICKER_ENABLED=true
+fi
+
 # ======================== 清理端口 ========================
 log_step "检查并清理端口..."
 kill_port $BACKEND_PORT
@@ -164,7 +173,7 @@ log_info "Backend 进程已启动 (PID: $BACKEND_PID)"
 log_step "启动 Python 服务 (FastAPI :$PYTHON_PORT)..."
 cd "$PROJECT_ROOT/python-service"
 nohup env PYTHONPATH=./src "$PYTHON_CMD" -m uvicorn src.main:app \
-    --host 0.0.0.0 --port $PYTHON_PORT --reload > "$PYTHON_LOG" 2>&1 < /dev/null &
+    --host 127.0.0.1 --port $PYTHON_PORT --reload > "$PYTHON_LOG" 2>&1 < /dev/null &
 PYTHON_PID=$!
 log_info "Python 进程已启动 (PID: $PYTHON_PID)"
 

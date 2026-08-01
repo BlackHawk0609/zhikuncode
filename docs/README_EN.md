@@ -195,20 +195,24 @@ All three services start simultaneously:
 | **Python Service** | `http://localhost:8000` | FastAPI service, code analysis |
 | **Frontend** | `http://localhost:5173` | React dev server |
 
+> `./start.sh` uses the repository root as the default workspace. It enables direct-local directory browsing only when neither allowed roots nor the local-picker flag has a non-empty value.
+
 <details>
 <summary><b>Start each service manually</b></summary>
 
 ```bash
-# Backend
+# Backend (run from the repository root; direct local development only)
+export ZHIKUN_DEFAULT_WORKSPACE="$PWD"
+export ZHIKUN_LOCAL_PICKER_ENABLED=true
 cd backend && ./mvnw spring-boot:run -DskipTests
 
-# Python Service
+# Python Service (new terminal, from the repository root)
 cd python-service
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+uvicorn src.main:app --host 127.0.0.1 --port 8000
 
-# Frontend
+# Frontend (new terminal, from the repository root)
 cd frontend && npm install && npm run dev
 ```
 
@@ -532,14 +536,14 @@ Schema/Tool validation
 
 ### Folder Selection and Persistent Authorization
 
-A new Web session must first select an authorized directory. The directory browser exposes only server-side roots allowed by configuration and their descendants. In Docker, the host `WORKSPACE_PATH` is mounted as `/app/workspace`; a browser cannot turn a client-local path into a remote server path.
+A new Web session must first select an authorized directory. In remote and Docker deployments, the directory browser exposes only configured server roots and their descendants. For direct-local deployments with the local picker enabled, the built-in browser starts at the default workspace and may browse directories readable by the server process. macOS and Windows also show a native folder button when the operating-system picker is available; that dialog normally starts at the Desktop. Linux continues to use the built-in browser. In Docker, the host `WORKSPACE_PATH` is mounted as `/app/workspace`; a browser cannot turn a client-local path into a remote server path.
 
 - A Project is a global, persistent, revocable trust scope and default relative-path root, not a general operating-system sandbox. Dedicated file tools resolve relative paths from the Session's canonical workspace and separately authorize and recheck external paths.
 - In DEFAULT mode, ordinary file operations inside the Project do not prompt repeatedly. Ordinary requests outside it enter the normal authorization flow and may be remembered when policy permits; sensitive files and high-risk operations still require per-operation approval.
 - Revoking a Project disables persistent automatic authorization for subsequent ordinary writes. Existing Sessions retain the original directory as their default relative-path root; safe reads still follow Session policy, while other controlled operations return to the normal authorization flow.
 - Session, Query, and file-search APIs use `projectId` or `sessionId`; arbitrary client-provided `workingDirectory` values are rejected.
 - Ordinary directories and Git subdirectories may both be authorized. Built-in repository context and Git slash commands are available only when the selected directory is itself the Git worktree root. Bash is not a directory sandbox, but it always follows its separate command-authorization flow and is never auto-approved merely by selecting a Project.
-- Remote or reverse-proxied deployments should set `ZHIKUN_WORKSPACE_ALLOWED_ROOTS`. Without allowed roots, directory selection is disabled by default. Only a directly connected local desktop server should set `ZHIKUN_LOCAL_PICKER_ENABLED=true`, and requests must still come from loopback. Do not enable it behind a reverse proxy.
+- The backend security default for `ZHIKUN_LOCAL_PICKER_ENABLED` is `false`. For local quick starts, `./start.sh` enables the picker only when neither `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` nor the picker variable has a non-empty value; an explicit `false` or configured allowed roots is preserved and never implicitly enables it. Remote, reverse-proxied, and production deployments should explicitly keep it disabled and configure allowed roots.
 
 ### Authorization Scopes and Multi-Agent Inheritance
 
@@ -587,21 +591,20 @@ The following paths are always protected by system security invariants; permissi
   | E1 | `SwarmController.createSwarm` | teamName allowlist `^[A-Za-z0-9_-]{1,64}$` | 8 |
   | P2-A | `BrowserReplayController` | sessionId format validation (400) + principal ownership validation (403) | — |
 
-- The full security test suite runs on every code change
+- These scenarios have dedicated tests; run the full security suite locally or through the specialized workflows.
 
 ### 🧪 Quality Assurance
 
 Full test report: [ZhikunCode v9.3 End-to-End Test Report](test-results/v9.3/ZhikunCode全链路测试报告.md) (2026-05-16)
 
 **Continuous Integration:**
-- **GitHub Actions Pipeline**: Automatically runs backend compilation, frontend build, Python tests, and Docker image verification on every push
+- **GitHub Actions Pipeline**: The main CI runs backend compilation and the frontend build. Python tests are currently non-blocking, and Docker image verification runs only on pushes to `main`.
 
-**Current Main-Branch Verification (2026-07-18):**
-- **Backend Unit/Integration Tests**: 2076 tests / 0 failure / 0 error / 48 skipped
-- **Python pytest**: 69 PASS
-- **Frontend vitest**: 87 PASS / 16 skipped (103 total)
-- **Static and Build Validation**: frontend ESLint, TypeScript, and Vite production build passed
-- **Three-Service Startup Validation**: Backend/SQLite `UP`, Python health `ok`, and the Frontend page responded successfully
+**Current Code Verification (2026-08-02):**
+- **Backend Unit/Integration Tests**: 2244 tests / 0 failure / 0 error / 48 skipped
+- **Python pytest**: 104 PASS
+- **Frontend vitest**: 142 PASS / 16 skipped (158 total)
+- **Static and Build Validation**: TypeScript and the Vite production build passed
 
 **Historical Specialized and E2E Baselines:**
 - **36-Module REST/WS/LLM/Session Smoke**: 45/45 PASS (42 REST + 1 WS STOMP + 1 LLM live inference + 1 Session persistence)
@@ -616,10 +619,10 @@ Full test report: [ZhikunCode v9.3 End-to-End Test Report](test-results/v9.3/Zhi
 
 | Framework | Layer | Coverage | Count |
 |-----------|-------|----------|-------|
-| JUnit 5 + Mockito | Backend Unit/Integration | Context/Authorization Gateway/Skill/Plugin/LLM/MCP/Memory/Concurrency/SSE/Persistence/Tool/Coordinator/Swarm etc. | 2076 tests / 0 failure / 0 error |
-| Vitest | Frontend Unit | Store lifecycle/cross-tab sync/streaming/permission interactions/reconnect recovery/route boundary | 87 PASS |
+| JUnit 5 + Mockito | Backend Unit/Integration | Context/Authorization Gateway/Skill/Plugin/LLM/MCP/Memory/Concurrency/SSE/Persistence/Tool/Coordinator/Swarm etc. | 2244 tests / 0 failure / 0 error |
+| Vitest | Frontend Unit | Store lifecycle/cross-tab sync/streaming/permission interactions/reconnect recovery/route boundary | 142 PASS / 16 skipped |
 | Playwright + Node scripts | E2E | Coordinator WS subscription / Three visualization viewTypes / Browser snapshot MVP / APOS Phase 1 full-stack / APOS Phase 2 full-stack | Task 6/7/8/APOS all green |
-| Pytest | Python Service | Token estimation/file processing/browser automation/semantic snapshots/code analyzers/CLI | 69 PASS |
+| Pytest | Python Service | Token estimation/file processing/browser automation/semantic snapshots/code analyzers/CLI | 104 PASS |
 
 **Performance Baseline (v9.3, 490 real request samples):**
 
@@ -937,6 +940,12 @@ pip install -e ".[cli]"
 # Basic usage
 aica "refactor this function"
 
+# Explicitly authorize the current directory (localhost backend only)
+aica --working-dir "$PWD" "refactor this function"
+
+# Use an existing Project with a remote backend
+aica --server https://example.com --project-id PROJECT_ID "review the project"
+
 # Pipe input — compose like grep/sed
 cat src/main.py | aica "review this code"
 
@@ -949,6 +958,8 @@ aica -f stream-json "refactor this module"
 # Continue last conversation
 aica --continue "fix the bug we just discussed"
 ```
+
+When neither `--working-dir` nor `--project-id` is provided, and no Session is selected through `--session-id`, `--continue`, or `--resume`, the CLI uses the backend's default workspace. `--working-dir` is localhost-only; remote backends require `--project-id`, and the two options cannot be combined.
 
 **Key features:**
 
@@ -1259,9 +1270,9 @@ Environment variables are managed via the `.env` file. Copy `.env.example` and m
 | `SPRING_PROFILES_ACTIVE` | — | production | Spring profile |
 | `JAVA_OPTS` | — | -Xms256m -Xmx1024m | JVM options |
 | `WORKSPACE_PATH` | — | ./workspace | Working directory mounted into the container |
-| `ZHIKUN_DEFAULT_WORKSPACE` | — | Server startup directory | Server-owned fallback for non-Web clients without a Project; it does not grant automatic ordinary edits |
+| `ZHIKUN_DEFAULT_WORKSPACE` | — | Server process directory; repository root under `./start.sh` | Server-owned fallback for non-Web clients without a Project; it does not grant automatic ordinary edits |
 | `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` | — | Empty | Server roots available for registration and browsing, comma-separated; required for remote registration |
-| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false | Enables default-root selection only for a directly connected local desktop server; keep disabled behind proxies and in production, and configure allowed roots instead |
+| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false (backend); true under `./start.sh` when both related variables lack non-empty values | Lets a directly connected local desktop server browse the local filesystem; explicit `false` and allowed-roots configuration are preserved, and proxy/production deployments should keep it disabled and configure allowed roots |
 | `ZHIKUN_GLOBAL_DB_PATH` | — | `~/.config/ai-code-assistant/global.db` | Database file path for Project authorizations and global configuration |
 | `ZHIKUNCODE_DATABASE_PROJECT_ROOT` | — | Project workspace | Root for the Session database; Docker Compose pins it to `/app/data` |
 | `ALLOW_PRIVATE_NETWORK` | — | true (Docker) | Allow private network IPs to bypass auth in Docker |

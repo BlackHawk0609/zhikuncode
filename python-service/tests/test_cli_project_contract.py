@@ -157,7 +157,7 @@ def test_non_loopback_hosts_are_not_inferred_to_be_local(server):
     assert cli_main._is_loopback_server(server) is False
 
 
-def test_first_local_run_registers_canonical_cwd_and_query_creates_session(
+def test_first_local_run_without_working_dir_uses_server_default(
     monkeypatch,
     tmp_path,
 ):
@@ -171,13 +171,37 @@ def test_first_local_run_registers_canonical_cwd_and_query_creates_session(
     )
 
     assert result.exit_code == 0, result.output
+    assert fake.project_calls == []
+    assert "projectId" not in fake.query_body
+    assert "sessionId" not in fake.query_body
+    assert "workingDirectory" not in fake.query_body
+
+
+def test_explicit_local_working_dir_registers_canonical_project(
+    monkeypatch,
+    tmp_path,
+):
+    fake = FakeClient()
+    install_client(monkeypatch, fake)
+
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "hello",
+            "--working-dir",
+            str(tmp_path),
+            "--output-format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
     canonical = str(tmp_path.resolve())
     assert fake.project_calls == [
         ("list_projects",),
         ("create_project", tmp_path.name, canonical),
     ]
     assert fake.query_body["projectId"] == "created-project"
-    assert "sessionId" not in fake.query_body
     assert "workingDirectory" not in fake.query_body
 
 
@@ -250,12 +274,10 @@ def test_create_conflict_relists_and_reuses_racing_project(
     assert fake.query_body["projectId"] == "racing-project"
 
 
-@pytest.mark.parametrize("explicit_working_dir", [False, True])
 @pytest.mark.parametrize("failure_stage", ["list", "create"])
-def test_project_api_404_for_local_directory_exits_without_query(
+def test_project_api_404_for_explicit_local_directory_exits_without_query(
     monkeypatch,
     tmp_path,
-    explicit_working_dir,
     failure_stage,
 ):
     fake = FakeClient(
@@ -269,13 +291,15 @@ def test_project_api_404_for_local_directory_exits_without_query(
     install_client(monkeypatch, fake)
     monkeypatch.setattr(cli_main.os, "getcwd", lambda: str(tmp_path))
 
-    args = ["hello", "--output-format", "json"]
-    if explicit_working_dir:
-        args.extend(["--working-dir", str(tmp_path)])
-
     result = runner.invoke(
         cli_main.app,
-        args,
+        [
+            "hello",
+            "--working-dir",
+            str(tmp_path),
+            "--output-format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 1
@@ -367,6 +391,79 @@ def test_remote_server_rejects_client_local_working_directory(
     assert fake.project_calls == []
     assert fake.query_body is None
     assert "use --project-id for a remote backend" in result.output
+
+
+@pytest.mark.parametrize(
+    "extra_args",
+    [
+        ["--project-id", "project-1"],
+        ["--session-id", "session-1"],
+        ["--resume", "session-2"],
+        ["--continue"],
+    ],
+)
+def test_remote_working_directory_is_rejected_with_project_or_session_options(
+    monkeypatch,
+    tmp_path,
+    extra_args,
+):
+    client_created = False
+
+    def create_client(**_kwargs):
+        nonlocal client_created
+        client_created = True
+        return FakeClient()
+
+    monkeypatch.setattr(cli_main, "AicaClient", create_client)
+
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "hello",
+            "--server",
+            "https://remote.example",
+            "--working-dir",
+            str(tmp_path),
+            *extra_args,
+            "--output-format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "use --project-id for a remote backend" in result.output
+    assert client_created is False
+
+
+def test_local_working_directory_cannot_be_combined_with_project_id(
+    monkeypatch,
+    tmp_path,
+):
+    client_created = False
+
+    def create_client(**_kwargs):
+        nonlocal client_created
+        client_created = True
+        return FakeClient()
+
+    monkeypatch.setattr(cli_main, "AicaClient", create_client)
+
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "hello",
+            "--working-dir",
+            str(tmp_path),
+            "--project-id",
+            "project-1",
+            "--output-format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--working-dir cannot be combined with --project-id" in result.output
+    assert client_created is False
 
 
 def test_remote_server_without_local_path_uses_server_default(monkeypatch):

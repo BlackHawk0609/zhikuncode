@@ -195,20 +195,24 @@ cp .env.example .env
 | **Python Service** | `http://localhost:8000` | FastAPI 服务，代码分析 |
 | **Frontend** | `http://localhost:5173` | React 开发服务器 |
 
+> `./start.sh` 默认把仓库根目录设为 workspace；仅当 allowed roots 和本地 picker 开关都没有非空配置时，才自动启用直连本机目录浏览。
+
 <details>
 <summary><b>手动分别启动各服务</b></summary>
 
 ```bash
-# 后端
+# 后端（从仓库根目录启动，仅适用于直连本机开发）
+export ZHIKUN_DEFAULT_WORKSPACE="$PWD"
+export ZHIKUN_LOCAL_PICKER_ENABLED=true
 cd backend && ./mvnw spring-boot:run -DskipTests
 
-# Python 服务
+# Python 服务（另开终端，从仓库根目录启动）
 cd python-service
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+uvicorn src.main:app --host 127.0.0.1 --port 8000
 
-# 前端
+# 前端（另开终端，从仓库根目录启动）
 cd frontend && npm install && npm run dev
 ```
 
@@ -533,14 +537,14 @@ Schema/Tool 校验
 
 ### 文件夹选择与持久授权
 
-Web 新会话必须先选择一个已授权目录。目录浏览只展示服务端配置允许的根目录及其子目录；Docker 中宿主机的 `WORKSPACE_PATH` 对应容器内的 `/app/workspace`。浏览器不能把客户端本地路径直接当作远程服务端路径。
+Web 新会话必须先选择一个已授权目录。远程和 Docker 部署的目录浏览只展示服务端配置允许的根目录及其子目录；启用本地 picker 的直连本机部署中，内置目录浏览器从默认 workspace 起始，可浏览本机服务进程可读的目录。macOS 和 Windows 还会在系统能力可用时显示原生文件夹选择按钮，系统对话框通常从桌面目录开始；Linux 继续使用内置目录浏览器。Docker 中宿主机的 `WORKSPACE_PATH` 对应容器内的 `/app/workspace`。浏览器不能把客户端本地路径直接当作远程服务端路径。
 
 - Project 是一个全局、持久、可撤销的信任范围和默认相对路径根，并不是通用的操作系统文件沙箱；专用文件工具以 Session 的规范化工作目录解析相对路径，范围外路径另行授权并复检。
 - DEFAULT 模式下，Project 内的普通文件操作免于重复确认；Project 外的普通请求进入常规授权流程，并可在策略允许时记住授权；敏感文件和高风险操作仍需逐次批准。
 - 撤销 Project 会停止后续普通写入的持久自动授权。已有 Session 仍以原目录作为默认相对路径根；安全读取仍按 Session 策略执行，其他受控操作重新进入正常授权流程。
 - Session、Query 和文件搜索使用 `projectId` 或 `sessionId`；客户端提交任意 `workingDirectory` 会被拒绝。
 - 普通目录和 Git 子目录都可授权；只有所选目录本身就是 Git worktree 根目录时，才提供内置仓库上下文和 Git slash 命令。Bash 不是目录沙箱，但始终走独立的命令授权，不会因 Project 选择而自动获准。
-- 远程或反向代理部署应设置 `ZHIKUN_WORKSPACE_ALLOWED_ROOTS`。未配置允许根时目录选择默认关闭；仅直连本机桌面部署可显式设置 `ZHIKUN_LOCAL_PICKER_ENABLED=true`，并且请求仍必须来自 loopback。不要在反向代理后开启该选项。
+- 后端的 `ZHIKUN_LOCAL_PICKER_ENABLED` 安全默认值为 `false`。使用 `./start.sh` 本地快速启动时，如果 `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` 和该变量均无非空配置，脚本会为直连本机桌面场景启用 picker；显式设置 `false` 或配置 allowed roots 时不会被覆盖或隐式启用。远程、反向代理和生产部署应显式保持关闭并配置 allowed roots。
 
 ### 授权范围与多 Agent 继承
 
@@ -588,21 +592,20 @@ Web 新会话必须先选择一个已授权目录。目录浏览只展示服务�
   | E1 | `SwarmController.createSwarm` | teamName 白名单 `^[A-Za-z0-9_-]{1,64}$` | 8 |
   | P2-A | `BrowserReplayController` | sessionId 格式校验 (400) + principal 归属校验 (403) | — |
 
-- 每次代码变更都会执行完整安全测试套件
+- 上述场景均有专项测试覆盖；完整安全套件通过本地回归或专项工作流执行。
 
 ### 🧪 质量验证
 
 完整功能测试报告见 [ZhikunCode v9.3 全链路测试报告](docs/test-results/v9.3/ZhikunCode全链路测试报告.md)（2026-05-16）
 
 **持续集成：**
-- **GitHub Actions 自动化流水线**：每次提交自动执行后端编译验证、前端构建、Python 测试及 Docker 镜像构建
+- **GitHub Actions 自动化流水线**：主 CI 执行后端编译和前端构建；Python 测试当前为非阻塞检查，Docker 镜像验证仅在 `main` push 时执行。
 
-**当前主干验证结果（2026-07-18）：**
-- **后端单元/集成测试**：2076 tests / 0 failure / 0 error / 48 skipped
-- **Python pytest**：69 PASS
-- **前端 vitest**：87 PASS / 16 skipped（103 total）
-- **静态与构建验证**：前端 ESLint、TypeScript 与 Vite 生产构建通过
-- **三端启动验证**：Backend/SQLite `UP`、Python health `ok`、Frontend 首页正常返回
+**当前代码验证结果（2026-08-02）：**
+- **后端单元/集成测试**：2244 tests / 0 failure / 0 error / 48 skipped
+- **Python pytest**：104 PASS
+- **前端 vitest**：142 PASS / 16 skipped（158 total）
+- **静态与构建验证**：TypeScript 与 Vite 生产构建通过
 
 **历史专项与 E2E 基线：**
 - **36 模块 REST/WS/LLM/Session 冒烟**：45/45 PASS（42 REST + 1 WS STOMP + 1 LLM 真推理 + 1 Session 持久化）
@@ -617,10 +620,10 @@ Web 新会话必须先选择一个已授权目录。目录浏览只展示服务�
 
 | 框架 | 层级 | 覆盖范围 | 数量 |
 |------|------|---------|------|
-| JUnit 5 + Mockito | 后端单元/集成测试 | 上下文/授权网关/技能/插件/LLM/MCP/记忆/并发/SSE/持久化/工具/Coordinator/Swarm 等 | 2076 tests / 0 failure / 0 error |
-| Vitest | 前端单元测试 | Store 生命周期/跨 Tab 同步/流式渲染/权限交互/重连恢复/路由边界 | 87 PASS |
+| JUnit 5 + Mockito | 后端单元/集成测试 | 上下文/授权网关/技能/插件/LLM/MCP/记忆/并发/SSE/持久化/工具/Coordinator/Swarm 等 | 2244 tests / 0 failure / 0 error |
+| Vitest | 前端单元测试 | Store 生命周期/跨 Tab 同步/流式渲染/权限交互/重连恢复/路由边界 | 142 PASS / 16 skipped |
 | Playwright + 节点脚本 | 端到端 E2E | Coordinator WS 订阅 / 可视化 3 种 viewType / 浏览器快照 MVP / APOS Phase 1 全栈 / APOS Phase 2 全栈 | Task 6/7/8/APOS 全绿 |
-| Pytest | Python 服务测试 | Token 估算/文件处理/浏览器自动化/语义快照/代码分析器/CLI | 69 PASS |
+| Pytest | Python 服务测试 | Token 估算/文件处理/浏览器自动化/语义快照/代码分析器/CLI | 104 PASS |
 
 **性能基线（v9.3，490 次真实请求采样）：**
 
@@ -938,6 +941,12 @@ pip install -e ".[cli]"
 # 基础使用
 aica "帮我重构这个函数"
 
+# 显式授权当前目录（仅 localhost 后端）
+aica --working-dir "$PWD" "帮我重构这个函数"
+
+# 远程后端使用已有 Project
+aica --server https://example.com --project-id PROJECT_ID "检查项目"
+
 # 管道输入 — 像 grep/sed 一样组合
 cat src/main.py | aica "review this code"
 
@@ -950,6 +959,8 @@ aica -f stream-json "refactor this module"
 # 继续上次对话
 aica --continue "fix the bug we just discussed"
 ```
+
+未提供 `--working-dir`、`--project-id`，且没有通过 `--session-id`、`--continue` 或 `--resume` 选择 Session 时，CLI 使用后端默认 workspace。`--working-dir` 只适用于 localhost，远程后端应使用 `--project-id`；两者不能同时使用。
 
 **核心特性：**
 
@@ -1260,9 +1271,9 @@ ZhikunCode 内置 11 项可视化能力，让 AI 编程过程中的数据和状�
 | `SPRING_PROFILES_ACTIVE` | — | production | Spring 配置文件 |
 | `JAVA_OPTS` | — | -Xms256m -Xmx1024m | JVM 参数 |
 | `WORKSPACE_PATH` | — | ./workspace | 挂载到容器的工作目录 |
-| `ZHIKUN_DEFAULT_WORKSPACE` | — | 服务端启动目录 | 非 Web 客户端未指定 Project 时的服务端兜底目录，不自动授予普通编辑权限 |
+| `ZHIKUN_DEFAULT_WORKSPACE` | — | 服务进程目录；`./start.sh` 为仓库根 | 非 Web 客户端未指定 Project 时的服务端兜底目录，不自动授予普通编辑权限 |
 | `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` | — | 空 | 允许登记和浏览的服务端根目录，多个目录用逗号分隔；远程登记时必须配置 |
-| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false | 仅供直连本机桌面服务启用默认目录选择；反向代理和生产部署应保持关闭并配置 allowed roots |
+| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false（后端）；true（`./start.sh` 且两个相关变量均无非空配置） | 仅供直连本机桌面服务浏览本机文件系统；显式 `false` 和 allowed roots 配置均会保留，反向代理和生产部署应保持关闭并配置 allowed roots |
 | `ZHIKUN_GLOBAL_DB_PATH` | — | `~/.config/ai-code-assistant/global.db` | Project 授权和全局配置数据库文件路径 |
 | `ZHIKUNCODE_DATABASE_PROJECT_ROOT` | — | Project 工作目录 | Session 数据库根目录；Docker Compose 固定为 `/app/data` |
 | `ALLOW_PRIVATE_NETWORK` | — | true（Docker） | Docker 环境下允许私有网段免认证访问 |

@@ -1,6 +1,7 @@
 package com.aicodeassistant.prompt;
 
 import com.aicodeassistant.config.FeatureFlagService;
+import com.aicodeassistant.coordinator.CoordinatorPromptBuilder;
 import com.aicodeassistant.coordinator.CoordinatorService;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.agent.SubAgentExecutor;
@@ -23,6 +24,7 @@ class EffectiveSystemPromptBuilderTest {
 
     private SystemPromptBuilder systemPromptBuilder;
     private FeatureFlagService featureFlags;
+    private CoordinatorPromptBuilder coordinatorPromptBuilder;
     private CoordinatorService coordinatorService;
     private EffectiveSystemPromptBuilder effectiveBuilder;
 
@@ -30,9 +32,11 @@ class EffectiveSystemPromptBuilderTest {
     void setUp() {
         systemPromptBuilder = mock(SystemPromptBuilder.class);
         featureFlags = mock(FeatureFlagService.class);
+        coordinatorPromptBuilder = mock(CoordinatorPromptBuilder.class);
         coordinatorService = mock(CoordinatorService.class);
         effectiveBuilder = new EffectiveSystemPromptBuilder(
-                systemPromptBuilder, featureFlags, null, coordinatorService);
+                systemPromptBuilder, featureFlags,
+                coordinatorPromptBuilder, coordinatorService);
 
         // 默认 mock 行为
         when(systemPromptBuilder.buildDefaultSystemPrompt(
@@ -105,6 +109,26 @@ class EffectiveSystemPromptBuilderTest {
 
         // Then
         assertEquals("COORDINATOR_PROMPT", result);
+    }
+
+    @Test
+    void testPriority1_AutomaticCoordinatorPromptReceivesSessionWorkingDirectory() {
+        when(coordinatorService.isCoordinatorTopLevel(null)).thenReturn(true);
+        Path workingDir = Path.of("/Users/zhikun/Desktop/郭庆涛/测试 zk");
+        when(coordinatorPromptBuilder.buildCoordinatorPromptForProject(
+                "session-project", workingDir))
+                .thenReturn("COORDINATOR_PROJECT_PROMPT: " + workingDir);
+
+        SystemPromptConfig config = SystemPromptConfig.defaults()
+                .withSessionId("session-project");
+
+        String result = effectiveBuilder.buildEffectiveSystemPrompt(
+                config, List.of(), "gpt-4o", workingDir);
+
+        assertEquals("COORDINATOR_PROJECT_PROMPT: " + workingDir, result);
+        verify(coordinatorPromptBuilder).buildCoordinatorPromptForProject(
+                "session-project", workingDir);
+        verifyNoInteractions(systemPromptBuilder);
     }
 
     @Test

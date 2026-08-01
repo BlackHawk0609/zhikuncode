@@ -28,25 +28,28 @@ export default defineConfig(({ mode }) => {
 
         server: {
             port: 5173,
-            host: true,
+            // The dev proxy targets localhost services whose security model
+            // trusts loopback peers. Exposing this proxy would make remote
+            // requests indistinguishable from local ones at the backend.
+            host: '127.0.0.1',
             proxy: {
                 '/api/git': {
-                    target: env.VITE_PYTHON_URL || 'http://localhost:8000',
+                    target: env.VITE_PYTHON_URL || 'http://127.0.0.1:8000',
                     changeOrigin: true,
                     secure: false,
                 },
                 '/api/files': {
-                    target: env.VITE_PYTHON_URL || 'http://localhost:8000',
+                    target: env.VITE_PYTHON_URL || 'http://127.0.0.1:8000',
                     changeOrigin: true,
                     secure: false,
                 },
                 '/api/code-quality': {
-                    target: env.VITE_PYTHON_URL || 'http://localhost:8000',
+                    target: env.VITE_PYTHON_URL || 'http://127.0.0.1:8000',
                     changeOrigin: true,
                     secure: false,
                 },
                 '/api/analysis': {
-                    target: env.VITE_PYTHON_URL || 'http://localhost:8000',
+                    target: env.VITE_PYTHON_URL || 'http://127.0.0.1:8000',
                     changeOrigin: true,
                     secure: false,
                 },
@@ -87,7 +90,10 @@ export default defineConfig(({ mode }) => {
             globals: true,
             environment: 'jsdom',
             setupFiles: './src/test-setup.ts',
-            include: ['src/**/*.{test,spec}.{ts,tsx}'],
+            include: [
+                'src/**/*.{test,spec}.{ts,tsx}',
+                'tests/**/*.{test,spec}.{ts,tsx}',
+            ],
         },
     };
 });

@@ -4,6 +4,7 @@ import com.aicodeassistant.exception.WorkspaceException;
 import com.aicodeassistant.model.Project;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -11,15 +12,18 @@ import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
 import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -37,7 +41,9 @@ public class ProjectWorkspaceService {
     private final List<Path> allowedRoots;
     private final String configuredDefaultRoot;
     private final boolean localPickerEnabled;
+    private final NativeDirectoryPicker nativeDirectoryPicker;
 
+    @Autowired
     public ProjectWorkspaceService(
             ProjectRepository projects,
             @Value("${zhikuncode.workspace.allowed-roots:}")
@@ -46,10 +52,21 @@ public class ProjectWorkspaceService {
             String configuredDefaultRoot,
             @Value("${zhikuncode.workspace.local-picker-enabled:false}")
             boolean localPickerEnabled) {
+        this(projects, configuredAllowedRoots, configuredDefaultRoot,
+                localPickerEnabled, new SystemNativeDirectoryPicker());
+    }
+
+    ProjectWorkspaceService(
+            ProjectRepository projects,
+            String configuredAllowedRoots,
+            String configuredDefaultRoot,
+            boolean localPickerEnabled,
+            NativeDirectoryPicker nativeDirectoryPicker) {
         this.projects = projects;
         this.allowedRoots = parseAllowedRoots(configuredAllowedRoots);
         this.configuredDefaultRoot = configuredDefaultRoot;
         this.localPickerEnabled = localPickerEnabled;
+        this.nativeDirectoryPicker = nativeDirectoryPicker;
     }
 
     public Project create(
@@ -91,9 +108,10 @@ public class ProjectWorkspaceService {
 
     /**
      * Lists server-side directories without exposing an unrestricted filesystem
-     * browser. Configured allowed roots are the browser roots. Without that
-     * configuration, explicitly enabled loopback callers may browse and the
-     * server default is the sole root.
+     * browser to remote callers. Configured allowed roots are strict browser
+     * boundaries. Without that configuration, an explicitly enabled loopback
+     * picker starts at the server default and may navigate the local filesystem
+     * roots, matching the paths that local Project creation already accepts.
      */
     public DirectoryListing browseDirectories(
             String requestedPath, String remoteAddress) {
@@ -135,7 +153,49 @@ public class ProjectWorkspaceService {
                 roots.stream()
                         .map(Path::toString)
                         .toList(),
-                current.toString(), parent, directories);
+                current.toString(), parent, directories,
+                nativePickerAvailable(remoteAddress));
+    }
+
+    /**
+     * Whether this direct request may open a native host folder chooser.
+     */
+    public boolean nativePickerAvailable(String remoteAddress) {
+        return localPickerEnabled
+                && allowedRoots.isEmpty()
+                && isLoopback(remoteAddress)
+                && nativeDirectoryPicker.isAvailable();
+    }
+
+    /**
+     * Opens the native chooser and returns the selected directory listing.
+     * Selection alone never creates or authorizes a Project.
+     */
+    public Optional<DirectoryListing> pickDirectory(
+            String remoteAddress) {
+        assertNativePickerAllowed(remoteAddress);
+        final Optional<String> selected;
+        try {
+            selected = nativeDirectoryPicker.pick();
+        } catch (NativeDirectoryPicker.BusyException busy) {
+            throw failure(HttpStatus.CONFLICT,
+                    "NATIVE_PICKER_BUSY",
+                    "Another folder chooser is already open");
+        } catch (NativeDirectoryPicker.TimeoutException timeout) {
+            throw failure(HttpStatus.GATEWAY_TIMEOUT,
+                    "NATIVE_PICKER_TIMEOUT",
+                    "The folder chooser timed out");
+        } catch (NativeDirectoryPicker.UnavailableException unavailable) {
+            throw failure(HttpStatus.SERVICE_UNAVAILABLE,
+                    "NATIVE_PICKER_UNAVAILABLE",
+                    "The native folder chooser is unavailable");
+        }
+        if (selected.isEmpty()) {
+            return Optional.empty();
+        }
+        Path canonical = canonicalizeForCreate(selected.get());
+        return Optional.of(browseDirectories(
+                canonical.toString(), remoteAddress));
     }
 
     /**
@@ -302,6 +362,21 @@ public class ProjectWorkspaceService {
         }
     }
 
+    private void assertNativePickerAllowed(String remoteAddress) {
+        if (!localPickerEnabled || !allowedRoots.isEmpty()
+                || !isLoopback(remoteAddress)) {
+            throw failure(HttpStatus.FORBIDDEN,
+                    "NATIVE_PICKER_FORBIDDEN",
+                    "Native folder selection is only available for direct "
+                            + "local desktop access");
+        }
+        if (!nativeDirectoryPicker.isAvailable()) {
+            throw failure(HttpStatus.NOT_IMPLEMENTED,
+                    "NATIVE_PICKER_UNAVAILABLE",
+                    "The native folder chooser is unavailable");
+        }
+    }
+
     private void assertLocalPickerEnabled() {
         if (!localPickerEnabled) {
             throw failure(
@@ -317,8 +392,28 @@ public class ProjectWorkspaceService {
 
     private List<Path> currentBrowseRoots() {
         if (allowedRoots.isEmpty()) {
-            return List.of(canonicalizeForCreate(
-                    configuredDefaultRoot));
+            List<Path> roots = new ArrayList<>();
+            for (Path root : FileSystems.getDefault()
+                    .getRootDirectories()) {
+                try {
+                    Path canonical = root.toRealPath();
+                    if (Files.isDirectory(canonical)
+                            && Files.isReadable(canonical)) {
+                        roots.add(canonical);
+                    }
+                } catch (Exception unavailable) {
+                    // An unavailable drive/root is omitted from this snapshot.
+                }
+            }
+            List<Path> distinctRoots = roots.stream()
+                    .distinct()
+                    .toList();
+            if (distinctRoots.isEmpty()) {
+                throw failure(HttpStatus.CONFLICT,
+                        "WORKSPACE_UNAVAILABLE",
+                        "No local filesystem roots are available");
+            }
+            return distinctRoots;
         }
         List<Path> roots = allowedRoots.stream()
                 .map(root -> {
@@ -341,7 +436,9 @@ public class ProjectWorkspaceService {
     private Path resolveBrowseDirectory(
             String requestedPath, List<Path> roots) {
         if (requestedPath == null || requestedPath.isBlank()) {
-            return roots.getFirst();
+            return allowedRoots.isEmpty()
+                    ? canonicalizeForCreate(configuredDefaultRoot)
+                    : roots.getFirst();
         }
 
         final Path raw;
@@ -501,6 +598,7 @@ public class ProjectWorkspaceService {
             List<String> roots,
             String current,
             String parent,
-            List<DirectoryEntry> directories
+            List<DirectoryEntry> directories,
+            boolean nativePickerAvailable
     ) {}
 }

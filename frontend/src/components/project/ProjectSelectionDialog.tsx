@@ -24,8 +24,9 @@ interface DirectoryEntry {
 interface DirectoryListing {
     roots: string[];
     current: string;
-    parent: string | null;
+    parent?: string | null;
     directories: DirectoryEntry[];
+    nativePickerAvailable?: boolean;
 }
 
 function isDirectoryListing(value: unknown): value is DirectoryListing {
@@ -34,8 +35,10 @@ function isDirectoryListing(value: unknown): value is DirectoryListing {
     return Array.isArray(listing.roots)
         && listing.roots.every(root => typeof root === 'string')
         && typeof listing.current === 'string'
-        && (listing.parent === null
+        && (listing.parent == null
             || typeof listing.parent === 'string')
+        && (listing.nativePickerAvailable === undefined
+            || typeof listing.nativePickerAvailable === 'boolean')
         && Array.isArray(listing.directories)
         && listing.directories.every(directory =>
             typeof directory === 'object'
@@ -68,8 +71,10 @@ export function ProjectSelectionDialog() {
     const [directoryListing, setDirectoryListing] =
         useState<DirectoryListing | null>(null);
     const [directoryLoading, setDirectoryLoading] = useState(false);
+    const [nativePickerLoading, setNativePickerLoading] = useState(false);
     const [directoryError, setDirectoryError] = useState<string | null>(null);
     const directoryRequestId = useRef(0);
+    const nativePickerInFlight = useRef(false);
     const selectedManually = useRef(false);
     const busy = requesting || revokingProjectId !== null;
 
@@ -110,7 +115,12 @@ export function ProjectSelectionDialog() {
     }, []);
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            // Prevent a native picker response from a closed dialog from
+            // replacing the next selection.
+            directoryRequestId.current += 1;
+            return;
+        }
         setSelectedId('');
         setName('');
         setWorkspaceRoot('');
@@ -118,6 +128,52 @@ export function ProjectSelectionDialog() {
         setDirectoryError(null);
         void loadDirectory();
     }, [isOpen, loadDirectory]);
+
+    const handleNativePicker = async () => {
+        if (busy || directoryLoading || nativePickerInFlight.current) return;
+        nativePickerInFlight.current = true;
+        const requestId = ++directoryRequestId.current;
+        setNativePickerLoading(true);
+        try {
+            const response = await fetch(
+                '/api/projects/directories/pick',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Zhikun-Native-Picker': '1',
+                    },
+                    body: JSON.stringify({}),
+                },
+            );
+            if (response.status === 204) return;
+            if (!response.ok) {
+                throw new Error(
+                    await projectApiErrorMessage(response));
+            }
+            const listing = await response.json() as unknown;
+            if (!isDirectoryListing(listing)) {
+                throw new Error('服务端返回了无效的目录列表');
+            }
+            if (requestId !== directoryRequestId.current) return;
+            selectedManually.current = false;
+            setDirectoryError(null);
+            setDirectoryListing(listing);
+            setWorkspaceRoot(listing.current);
+            setName(nameForPath(listing.current));
+            const existing = projects.find(
+                project => project.workspaceRoot === listing.current);
+            setSelectedId(existing?.id ?? '');
+        } catch (pickerFailure) {
+            if (requestId !== directoryRequestId.current) return;
+            setDirectoryError(pickerFailure instanceof Error
+                ? pickerFailure.message
+                : '选择本机文件夹失败');
+        } finally {
+            nativePickerInFlight.current = false;
+            setNativePickerLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!isOpen || !workspaceRoot) return;
@@ -265,7 +321,8 @@ export function ProjectSelectionDialog() {
                                     type="button"
                                     key={root}
                                     onClick={() => void loadDirectory(root)}
-                                    disabled={busy || directoryLoading}
+                                    disabled={busy || directoryLoading
+                                        || nativePickerLoading}
                                     className="rounded border border-[var(--border)] px-2 py-1 text-xs hover:bg-[var(--bg-hover)] disabled:opacity-50"
                                 >
                                     {root}
@@ -287,7 +344,8 @@ export function ProjectSelectionDialog() {
                                     onClick={() => void loadDirectory(
                                         directoryListing.parent ?? undefined,
                                     )}
-                                    disabled={busy || directoryLoading}
+                                    disabled={busy || directoryLoading
+                                        || nativePickerLoading}
                                     aria-label="打开上一级目录"
                                     className="rounded p-1 hover:bg-[var(--bg-hover)] disabled:opacity-50"
                                 >
@@ -309,7 +367,7 @@ export function ProjectSelectionDialog() {
                                         onClick={() => void loadDirectory(
                                             directory.path,
                                         )}
-                                        disabled={busy}
+                                        disabled={busy || nativePickerLoading}
                                         aria-label={`打开目录 ${directory.name}`}
                                         className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-[var(--bg-hover)] disabled:opacity-50"
                                     >
@@ -326,6 +384,25 @@ export function ProjectSelectionDialog() {
                             )}
                         </div>
                     </div>
+
+                    {directoryListing?.nativePickerAvailable === true && (
+                        <button
+                            type="button"
+                            onClick={() => void handleNativePicker()}
+                            disabled={busy || directoryLoading
+                                || nativePickerLoading}
+                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                        >
+                            {nativePickerLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Folder className="h-4 w-4 text-blue-500" />
+                            )}
+                            {nativePickerLoading
+                                ? '正在打开文件夹选择器…'
+                                : '选择本机文件夹…'}
+                        </button>
+                    )}
 
                     {directoryError && (
                         <div role="alert" className="mt-2 text-sm text-red-500">
@@ -353,7 +430,7 @@ export function ProjectSelectionDialog() {
                                         setName(nameForPath(nextPath));
                                     }}
                                     placeholder="例如 /srv/projects/demo"
-                                    disabled={busy}
+                                    disabled={busy || nativePickerLoading}
                                     className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)]"
                                 />
                             </label>
@@ -375,6 +452,7 @@ export function ProjectSelectionDialog() {
                         type="button"
                         onClick={() => void handleCreate()}
                         disabled={busy || directoryLoading
+                            || nativePickerLoading
                             || !name.trim() || !workspaceRoot.trim()
                             || Boolean(existingForPath)}
                         className="mt-3 rounded-lg border border-[var(--border)] px-3 py-2 text-sm hover:bg-[var(--bg-hover)] disabled:opacity-50"

@@ -32,6 +32,19 @@ public class CoordinatorPromptBuilder {
     }
 
     /**
+     * 构建包含当前 Project 主工作目录的 Coordinator 系统提示。
+     *
+     * @param sessionId   会话 ID
+     * @param projectRoot 当前 Session 持久化绑定的 Project 根目录
+     */
+    public String buildCoordinatorPromptForProject(String sessionId, Path projectRoot) {
+        if (projectRoot == null) {
+            throw new IllegalArgumentException("projectRoot must not be null");
+        }
+        return buildCoordinatorPrompt(sessionId, projectRoot, null);
+    }
+
+    /**
      * 构建 Coordinator 系统提示（增强版）。
      * 包含 MCP 客户端列表和 scratchpad 目录信息。
      *
@@ -39,6 +52,12 @@ public class CoordinatorPromptBuilder {
      * @param scratchpadDir  scratchpad 目录（可为 null，自动读取）
      */
     public String buildCoordinatorPrompt(String sessionId, Path scratchpadDir) {
+        return buildCoordinatorPrompt(sessionId, null, scratchpadDir);
+    }
+
+    private String buildCoordinatorPrompt(String sessionId,
+                                          Path projectRoot,
+                                          Path scratchpadDir) {
         Map<String, String> workerContext =
                 coordinatorService.getWorkerToolsContext(sessionId);
         String workerTools = workerContext.getOrDefault(
@@ -52,8 +71,26 @@ public class CoordinatorPromptBuilder {
         // MCP 客户端列表
         String mcpClients = buildMcpClientsSection();
 
+        String projectContext = projectRoot == null
+                ? ""
+                : buildProjectContext(projectRoot);
+
         return COORDINATOR_SYSTEM_PROMPT_TEMPLATE.formatted(
-                workerTools, scratchpad.toString(), mcpClients);
+                workerTools, projectContext, scratchpad.toString(), mcpClients);
+    }
+
+    private String buildProjectContext(Path projectRoot) {
+        return """
+                ## 当前 Project
+                主工作目录：`%s`
+
+                - 这是当前 Session 的 Project 根目录。
+                - 用户未明确指定输出位置时，将文件默认写入此目录。
+                - Scratchpad 只用于内部中间文件，不是 Project 根目录；它是 Project 外路径规则的明确例外。
+                - 不得根据服务端进程目录或 Scratchpad 推断 Project 路径。
+                - 除系统提供的 Scratchpad 外，只有用户明确要求时才使用 Project 外路径。
+                - Project 外操作仍受现有权限策略约束，可能被拒绝或要求确认。
+                """.formatted(projectRoot);
     }
 
     /**
@@ -176,6 +213,8 @@ public class CoordinatorPromptBuilder {
             ——尤其是研究、实现或验证类工作。
             
             ## Worker 能力
+            %s
+
             %s
             
             ## Scratchpad 目录

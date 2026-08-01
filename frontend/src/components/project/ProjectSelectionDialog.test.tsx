@@ -20,8 +20,9 @@ const project: Project = {
 interface DirectoryListingResponse {
     roots: string[];
     current: string;
-    parent: string | null;
+    parent?: string | null;
     directories: Array<{ name: string; path: string }>;
+    nativePickerAvailable?: boolean;
 }
 
 const directoryListing: DirectoryListingResponse = {
@@ -116,6 +117,40 @@ describe('ProjectSelectionDialog', () => {
         expect(confirmSelection).toHaveBeenCalledWith(project);
     });
 
+    it('accepts a root directory response that omits the null parent', async () => {
+        const rootProject: Project = {
+            ...project,
+            id: 'project-root',
+            name: 'workspace',
+            workspaceRoot: '/workspace',
+        };
+        vi.mocked(fetch).mockResolvedValueOnce(directoryResponse({
+            roots: ['/workspace'],
+            current: '/workspace',
+            directories: [{ name: 'demo', path: '/workspace/demo' }],
+        }) as Response);
+        const createProject = vi.fn(async () => rootProject);
+        useProjectStore.setState({
+            projects: [],
+            createProject,
+        });
+
+        render(<ProjectSelectionDialog />);
+
+        expect(await screen.findByRole('button', {
+            name: '打开目录 demo',
+        })).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {
+            name: '授权此文件夹',
+        }));
+
+        await waitFor(() => {
+            expect(createProject).toHaveBeenCalledWith(
+                'workspace', '/workspace');
+        });
+    });
+
     it('authorizes the browsed server directory before confirming it', async () => {
         const created: Project = {
             ...project,
@@ -192,6 +227,200 @@ describe('ProjectSelectionDialog', () => {
         expect(screen.getByRole('button', {
             name: '打开上一级目录',
         })).toBeInTheDocument();
+    });
+
+    it('can navigate above the initial local default directory', async () => {
+        const fetchMock = vi.mocked(fetch);
+        fetchMock.mockResolvedValueOnce(directoryResponse({
+            roots: ['/'],
+            current: '/workspace/repo',
+            parent: '/workspace',
+            directories: [],
+        }) as Response).mockResolvedValueOnce(directoryResponse({
+            roots: ['/'],
+            current: '/workspace',
+            parent: '/',
+            directories: [{
+                name: 'sibling',
+                path: '/workspace/sibling',
+            }],
+        }) as Response);
+
+        render(<ProjectSelectionDialog />);
+        fireEvent.click(await screen.findByRole('button', {
+            name: '打开上一级目录',
+        }));
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenLastCalledWith(
+                '/api/projects/directories?path=%2Fworkspace',
+            );
+        });
+        expect(await screen.findByRole('button', {
+            name: '打开目录 sibling',
+        })).toBeInTheDocument();
+    });
+
+    it('shows the native picker only when available and applies its selection', async () => {
+        const pickedProject: Project = {
+            ...project,
+            id: 'project-picked',
+            name: 'Picked',
+            workspaceRoot: '/workspace/picked',
+        };
+        const fetchMock = vi.mocked(fetch);
+        fetchMock.mockResolvedValueOnce(directoryResponse({
+            ...directoryListing,
+            nativePickerAvailable: true,
+        }) as Response).mockResolvedValueOnce(directoryResponse({
+            roots: ['/'],
+            current: '/workspace/picked',
+            parent: '/workspace',
+            directories: [],
+            nativePickerAvailable: true,
+        }) as Response);
+        useProjectStore.setState({
+            projects: [project, pickedProject],
+        });
+
+        render(<ProjectSelectionDialog />);
+
+        const picker = await screen.findByRole('button', {
+            name: '选择本机文件夹…',
+        });
+        fireEvent.click(picker);
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenLastCalledWith(
+                '/api/projects/directories/pick',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Zhikun-Native-Picker': '1',
+                    },
+                    body: '{}',
+                },
+            );
+        });
+        expect(await screen.findByDisplayValue(
+            '/workspace/picked')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('picked')).toBeInTheDocument();
+        expect(screen.getByRole('radio', {
+            name: /Picked/,
+        })).toBeChecked();
+        expect(screen.getByRole('button', {
+            name: '使用所选授权',
+        })).toBeEnabled();
+    });
+
+    it('does not show the native picker when the server omits capability', async () => {
+        render(<ProjectSelectionDialog />);
+
+        await screen.findByRole('button', {
+            name: '打开目录 demo',
+        });
+        expect(screen.queryByRole('button', {
+            name: '选择本机文件夹…',
+        })).not.toBeInTheDocument();
+    });
+
+    it('keeps the current folder when the native picker is cancelled', async () => {
+        const fetchMock = vi.mocked(fetch);
+        fetchMock.mockResolvedValueOnce(directoryResponse({
+            ...directoryListing,
+            nativePickerAvailable: true,
+        }) as Response).mockResolvedValueOnce({
+            ok: true,
+            status: 204,
+        } as Response);
+
+        render(<ProjectSelectionDialog />);
+
+        fireEvent.click(await screen.findByRole('button', {
+            name: '选择本机文件夹…',
+        }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', {
+                name: '选择本机文件夹…',
+            })).toBeEnabled();
+        });
+        expect(screen.getByDisplayValue('/workspace')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('workspace')).toBeInTheDocument();
+    });
+
+    it('renders native picker errors without changing the current folder', async () => {
+        vi.mocked(fetch).mockResolvedValueOnce(directoryResponse({
+            ...directoryListing,
+            nativePickerAvailable: true,
+        }) as Response).mockResolvedValueOnce({
+            ok: false,
+            status: 503,
+            json: async () => ({
+                message: '当前环境无法打开系统文件夹选择器',
+            }),
+        } as Response);
+
+        render(<ProjectSelectionDialog />);
+        fireEvent.click(await screen.findByRole('button', {
+            name: '选择本机文件夹…',
+        }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            '当前环境无法打开系统文件夹选择器');
+        expect(screen.getByDisplayValue('/workspace')).toBeInTheDocument();
+    });
+
+    it('ignores a duplicate click and a picker response from a closed dialog', async () => {
+        let resolvePicker!: (response: Response) => void;
+        const fetchMock = vi.mocked(fetch);
+        fetchMock.mockResolvedValueOnce(directoryResponse({
+            ...directoryListing,
+            nativePickerAvailable: true,
+        }) as Response).mockReturnValueOnce(new Promise<Response>(resolve => {
+            resolvePicker = resolve;
+        })).mockResolvedValueOnce(directoryResponse({
+            ...directoryListing,
+            current: '/workspace/reopened',
+            nativePickerAvailable: true,
+        }) as Response);
+
+        render(<ProjectSelectionDialog />);
+        fireEvent.click(await screen.findByRole('button', {
+            name: '选择本机文件夹…',
+        }));
+        const pendingButton = await screen.findByRole('button', {
+            name: '正在打开文件夹选择器…',
+        });
+        fireEvent.click(pendingButton);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        await act(async () => {
+            useProjectStore.setState({ isOpen: false });
+        });
+        await act(async () => {
+            useProjectStore.setState({ isOpen: true });
+        });
+        expect(await screen.findByText('/workspace/reopened', {
+            selector: 'span',
+        })).toBeInTheDocument();
+
+        await act(async () => {
+            resolvePicker(directoryResponse({
+                ...directoryListing,
+                current: '/workspace/late-picker',
+                nativePickerAvailable: true,
+            }) as Response);
+            await Promise.resolve();
+        });
+
+        expect(screen.getByText('/workspace/reopened', {
+            selector: 'span',
+        })).toBeInTheDocument();
+        expect(screen.queryByText('/workspace/late-picker', {
+            selector: 'span',
+        })).not.toBeInTheDocument();
     });
 
     it('clears an old Project selection after browsing another folder', async () => {

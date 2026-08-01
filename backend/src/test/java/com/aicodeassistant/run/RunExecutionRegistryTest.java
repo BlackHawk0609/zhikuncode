@@ -1,12 +1,14 @@
 package com.aicodeassistant.run;
 
 import com.aicodeassistant.engine.AbortContext;
+import com.aicodeassistant.engine.AbortReason;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +32,8 @@ class RunExecutionRegistryTest {
                 registry.claimInputs("run", 10);
         assertThat(applications).hasSize(1);
         assertThat(applications.getFirst().input().text()).isEqualTo("first");
-        applications.getFirst().completeApplied(System.currentTimeMillis());
+        applications.getFirst().applyIfAccepting(
+                System.currentTimeMillis(), () -> { });
         assertThat(registry.claimInputs("run", 10)).isEmpty();
     }
 
@@ -129,7 +132,8 @@ class RunExecutionRegistryTest {
             if (offered.get().accepted()) {
                 assertThat(decision.get().applications()).hasSize(1);
                 decision.get().applications().getFirst()
-                        .completeApplied(System.currentTimeMillis());
+                        .applyIfAccepting(
+                                System.currentTimeMillis(), () -> { });
             } else {
                 assertThat(decision.get().sealed()).isTrue();
                 assertThat(decision.get().applications()).isEmpty();
@@ -151,6 +155,92 @@ class RunExecutionRegistryTest {
         registry.unregister("run");
 
         assertThat(registry.isRegistered("run")).isFalse();
+    }
+
+    @Test
+    void abortBeforeApplicationRejectsWithoutApplyingMessage() {
+        RunExecutionRegistry registry = new RunExecutionRegistry();
+        AbortContext cancellation = new AbortContext();
+        registry.register("run", "session", cancellation);
+        String requestId = UUID.randomUUID().toString();
+        registry.offerInputForSession("session", requestId, "steer");
+        RunExecutionRegistry.InputApplication application =
+                registry.claimInputs("run", 1).getFirst();
+        AtomicBoolean messageApplied = new AtomicBoolean();
+
+        registry.abortRun("run", AbortReason.USER_INTERRUPT);
+        var receipt = application.applyIfAccepting(
+                System.currentTimeMillis(),
+                () -> messageApplied.set(true));
+
+        assertThat(receipt.state())
+                .isEqualTo(RunExecutionRegistry.InputState.REJECTED);
+        assertThat(receipt.rejectionCode())
+                .isEqualTo("RUN_NOT_ACCEPTING_INPUT");
+        assertThat(messageApplied).isFalse();
+    }
+
+    @Test
+    void applicationBeforeAbortRemainsApplied() {
+        RunExecutionRegistry registry = new RunExecutionRegistry();
+        registry.register("run", "session", new AbortContext());
+        String requestId = UUID.randomUUID().toString();
+        registry.offerInputForSession("session", requestId, "steer");
+        RunExecutionRegistry.InputApplication application =
+                registry.claimInputs("run", 1).getFirst();
+        AtomicBoolean messageApplied = new AtomicBoolean();
+
+        var receipt = application.applyIfAccepting(
+                System.currentTimeMillis(),
+                () -> messageApplied.set(true));
+        registry.abortRun("run", AbortReason.USER_INTERRUPT);
+
+        assertThat(receipt.state())
+                .isEqualTo(RunExecutionRegistry.InputState.APPLIED);
+        assertThat(messageApplied).isTrue();
+    }
+
+    @Test
+    void concurrentAbortAndApplicationHaveConsistentTerminalState()
+            throws Exception {
+        for (int iteration = 0; iteration < 100; iteration++) {
+            RunExecutionRegistry registry = new RunExecutionRegistry();
+            registry.register("run", "session", new AbortContext());
+            String requestId = UUID.randomUUID().toString();
+            registry.offerInputForSession("session", requestId, "steer");
+            RunExecutionRegistry.InputApplication application =
+                    registry.claimInputs("run", 1).getFirst();
+            AtomicBoolean messageApplied = new AtomicBoolean();
+            AtomicReference<RunExecutionRegistry.InputReceipt> receipt =
+                    new AtomicReference<>();
+            CountDownLatch start = new CountDownLatch(1);
+
+            Thread applyThread = Thread.ofVirtual().start(() -> {
+                await(start);
+                receipt.set(application.applyIfAccepting(
+                        System.currentTimeMillis(),
+                        () -> messageApplied.set(true)));
+            });
+            Thread abortThread = Thread.ofVirtual().start(() -> {
+                await(start);
+                registry.abortRun("run", AbortReason.USER_INTERRUPT);
+            });
+            start.countDown();
+            applyThread.join();
+            abortThread.join();
+
+            assertThat(receipt.get()).isNotNull();
+            if (receipt.get().state()
+                    == RunExecutionRegistry.InputState.APPLIED) {
+                assertThat(messageApplied).isTrue();
+            } else {
+                assertThat(receipt.get().state())
+                        .isEqualTo(RunExecutionRegistry.InputState.REJECTED);
+                assertThat(receipt.get().rejectionCode())
+                        .isEqualTo("RUN_NOT_ACCEPTING_INPUT");
+                assertThat(messageApplied).isFalse();
+            }
+        }
     }
 
     private static void await(CountDownLatch latch) {

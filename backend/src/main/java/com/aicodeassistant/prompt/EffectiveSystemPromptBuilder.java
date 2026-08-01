@@ -109,8 +109,9 @@ public class EffectiveSystemPromptBuilder {
         if (coordinatorService.isCoordinatorTopLevel(config.getAgentDefinition())) {
             String coordinatorPrompt = config.getCoordinatorPrompt();
             if (coordinatorPrompt == null && coordinatorPromptBuilder != null) {
-                coordinatorPrompt = coordinatorPromptBuilder.buildCoordinatorPrompt(
-                        config.getSessionId());
+                coordinatorPrompt = coordinatorPromptBuilder
+                        .buildCoordinatorPromptForProject(
+                                config.getSessionId(), cwd);
             }
             if (coordinatorPrompt != null) {
                 log.debug("Using coordinator system prompt");
