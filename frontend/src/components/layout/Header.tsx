@@ -13,6 +13,7 @@ import { useDialogStore } from '@/store/dialogStore';
 import { useConfigStore } from '@/store/configStore';
 import { useModelStore } from '@/store/modelStore';
 import { sendSetModel } from '@/api/stompClient';
+import { dispatchNewAuthorizedSessionRequest } from '@/services/authorizedSession';
 
 interface HeaderProps {
     onMenuClick?: () => void;
@@ -57,7 +58,7 @@ export function Header({ onMenuClick, showMenuButton = false }: HeaderProps) {
     }, [theme.mode, setTheme]);
 
     const handleNewSession = useCallback(() => {
-        window.location.reload();
+        dispatchNewAuthorizedSessionRequest();
     }, []);
 
     const formatCost = (cost: number) => {

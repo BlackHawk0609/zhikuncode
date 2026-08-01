@@ -57,6 +57,7 @@ public class FileSearchService {
         try (Stream<Path> paths = Files.walk(root, maxDepth)) {
             return paths
                     .filter(p -> !isIgnored(p, root))
+                    .filter(p -> !Files.isSymbolicLink(p))
                     .map(p -> {
                         try {
                             String relative = root.relativize(p).toString();

@@ -68,13 +68,13 @@ public class FileReadTool implements Tool {
     @Override
     public String prompt() {
         return """
-                Reads a file from the local filesystem. You can access any file directly by using this tool.
-                Assume this tool is able to read all files on the machine. If the User provides a path \
-                to a file assume that path is valid. It is okay to read a file that does not exist; an \
-                error will be returned.
+                Reads a file from the local filesystem. Ordinary files inside the current Project are \
+                available without repeated prompts. Paths outside the Project require explicit permission, \
+                and sensitive files require fresh permission for each operation. It is okay to request a \
+                file that does not exist; an error will be returned.
                 
                 Usage:
-                - The file_path parameter must be an absolute path, not a relative path
+                - file_path may be absolute or relative to the current Session workspace
                 - By default, it reads up to 2000 lines starting from the beginning of the file
                 - You can optionally specify a line offset and limit (especially handy for long files), \
                 but it's recommended to read the whole file by not providing these parameters
@@ -97,7 +97,8 @@ public class FileReadTool implements Tool {
         return Map.of(
                 "type", "object",
                 "properties", Map.of(
-                        "file_path", Map.of("type", "string", "description", "Absolute path to the file"),
+                        "file_path", Map.of("type", "string", "description",
+                                "Absolute path or path relative to the current Session workspace"),
                         "offset", Map.of("type", "integer", "description", "Starting line number (0-based)"),
                         "limit", Map.of("type", "integer", "description", "Number of lines to read")
                 ),
@@ -122,15 +123,15 @@ public class FileReadTool implements Tool {
 
     @Override
     public ToolResult call(ToolInput input, ToolUseContext context) {
-        Path resolved = pathSecurity.resolvePath(input.getString("file_path"), context.workingDirectory());
-        String filePath = resolved.toString();
-
         // 1. PathSecurityService 统一安全检查
-        PathCheckResult checkResult = pathSecurity.checkReadPermission(
+        var inspected = pathSecurity.inspectAuthorizedExecutionReadPermission(
                 input.getString("file_path"), context.workingDirectory());
+        PathCheckResult checkResult = inspected.permission();
         if (!checkResult.isAllowed()) {
             return ToolResult.permissionDenied("PATH_OUTSIDE_WORKSPACE", checkResult.message());
         }
+        Path resolved = inspected.target();
+        String filePath = resolved.toString();
         if (checkResult.needsConfirmation()) {
             log.warn("Reading sensitive file (allowed with warning): {}", filePath);
         }
@@ -143,7 +144,7 @@ public class FileReadTool implements Tool {
                 return ToolResult.validationError("FILE_NOT_FOUND", "Target file does not exist: " + filePath);
             }
 
-            // 2.5 符号链接逃逸防护 — 已禁用，不限制任何目录，由用户授权控制
+            // 2.5 读取分析与最终复检已将授权绑定到规范化目标。
             Path realPath = path.toRealPath();
 
             // 3. 检查文件大小

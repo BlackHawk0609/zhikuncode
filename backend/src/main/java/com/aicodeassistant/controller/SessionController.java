@@ -1,6 +1,7 @@
 package com.aicodeassistant.controller;
 
 import com.aicodeassistant.engine.CompactService;
+import com.aicodeassistant.exception.RequestValidationException;
 import com.aicodeassistant.exception.SessionNotFoundException;
 import com.aicodeassistant.llm.LlmProviderRegistry;
 import com.aicodeassistant.model.Message;
@@ -8,6 +9,7 @@ import com.aicodeassistant.model.SessionSummary;
 import com.aicodeassistant.session.SessionData;
 import com.aicodeassistant.session.SessionManager;
 import com.aicodeassistant.session.SessionPage;
+import com.aicodeassistant.service.ProjectWorkspaceService;
 import com.aicodeassistant.websocket.WebSocketSessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,17 +50,20 @@ public class SessionController {
     private final LlmProviderRegistry providerRegistry;
     private final SimpMessagingTemplate messaging;
     private final WebSocketSessionManager wsSessionManager;
+    private final ProjectWorkspaceService projectWorkspaces;
 
     public SessionController(SessionManager sessionManager,
                              CompactService compactService,
                              LlmProviderRegistry providerRegistry,
                              SimpMessagingTemplate messaging,
-                             WebSocketSessionManager wsSessionManager) {
+                             WebSocketSessionManager wsSessionManager,
+                             ProjectWorkspaceService projectWorkspaces) {
         this.sessionManager = sessionManager;
         this.compactService = compactService;
         this.providerRegistry = providerRegistry;
         this.messaging = messaging;
         this.wsSessionManager = wsSessionManager;
+        this.projectWorkspaces = projectWorkspaces;
     }
 
     /**
@@ -68,11 +73,18 @@ public class SessionController {
     public ResponseEntity<CreateSessionResponse> createSession(
             @RequestBody(required = false) CreateSessionRequest request) {
         // 当请求体为空时，使用默认值创建会话
-        String model = (request != null && request.model() != null)
+        String model = (request != null && request.model() != null
+                && !request.model().isBlank())
                 ? request.model() : providerRegistry.getDefaultModel();
-        String workingDir = (request != null && request.workingDirectory() != null)
-                ? request.workingDirectory()
-                : System.getProperty("user.dir");
+        if (request != null && request.workingDirectory() != null
+                && !request.workingDirectory().isBlank()) {
+            throw new RequestValidationException(
+                    "SESSION_WORKING_DIRECTORY_UNSUPPORTED",
+                    "Use projectId instead of workingDirectory");
+        }
+        String projectId = request == null ? null : request.projectId();
+        String workingDir = projectWorkspaces.resolveWorkspace(projectId)
+                .toString();
         String permissionMode = request != null ? request.permissionMode() : null;
 
         String sessionId = sessionManager.createSession(model, workingDir);
@@ -311,6 +323,7 @@ public class SessionController {
     // ═══ DTO Records ═══
 
     public record CreateSessionRequest(
+            String projectId,
             String workingDirectory,
             String model,
             String permissionMode,

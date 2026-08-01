@@ -10,6 +10,7 @@ import com.aicodeassistant.authorization.FrozenToolInputFactory;
 import com.aicodeassistant.authorization.ToolExecutionGateway;
 import com.aicodeassistant.authorization.ToolExecutionGateway.AdmissionException;
 import com.aicodeassistant.authorization.PreparedOperation;
+import com.aicodeassistant.authorization.ResourceRef;
 import com.aicodeassistant.model.*;
 import com.aicodeassistant.interaction.DurableInteractionService.InteractionOperationException;
 import com.aicodeassistant.permission.PermissionNotifier;
@@ -212,7 +213,8 @@ public class ToolExecutionPipeline {
 
             List<DeclaredOutput> declaredOutputs;
             try {
-                declaredOutputs = planOutputs(toolName, processedInput, context);
+                declaredOutputs = planOutputs(
+                        toolName, processedInput, context, authorized);
             } catch (Exception declarationError) {
                 log.warn("Artifact pre-declaration rejected: tool={}, error={}", toolName,
                         declarationError.getMessage());
@@ -238,8 +240,17 @@ public class ToolExecutionPipeline {
                 for (DeclaredOutput output : declaredOutputs) {
                     if ("deleted".equals(output.operation())) continue; // 已根据删除前字节完成封存。
                     try {
-                        artifactManifestService.sealFromFile(context.currentRunId(), output.path(),
-                                context.workingDirectory());
+                        if (output.authorizedExternal()) {
+                            artifactManifestService
+                                    .sealAuthorizedExternalFromFile(
+                                            context.currentRunId(),
+                                            output.path(),
+                                            context.workingDirectory());
+                        } else {
+                            artifactManifestService.sealFromFile(
+                                    context.currentRunId(), output.path(),
+                                    context.workingDirectory());
+                        }
                     } catch (Exception sealError) {
                         log.error("Artifact seal failed after file effect: tool={}, path={}",
                                 toolName, output.path(), sealError);
@@ -539,22 +550,49 @@ public class ToolExecutionPipeline {
         return null;
     }
 
-    private record DeclaredOutput(String path, String operation, String validator,
-                                  String deleteSealHash) {}
+    private record DeclaredOutput(
+            String path, String operation, String validator,
+            String deleteSealHash, boolean authorizedExternal) {}
 
     @SuppressWarnings("unchecked")
     private List<DeclaredOutput> planOutputs(String toolName, ToolInput input,
-                                             ToolUseContext context) throws Exception {
+                                             ToolUseContext context,
+                                             AuthorizedOperation authorized)
+            throws Exception {
         if (artifactManifestService == null || context.currentRunId() == null) return List.of();
         List<Map<String,Object>> declarations = new ArrayList<>();
         if (Set.of("Write", "Edit", "FileWrite", "FileEdit", "NotebookEdit").contains(toolName)) {
             String path = extractFilePathFromInput(input);
             if (path != null) {
-                Path target = Path.of(path);
-                if (!target.isAbsolute()) target = Path.of(context.workingDirectory()).resolve(target).normalize();
+                boolean authorizedExternal = false;
+                Path target;
+                if ("file-v1".equals(
+                        authorized.descriptor().analyzerId())) {
+                    ResourceRef resource = authorized.descriptor()
+                            .resources().stream()
+                            .filter(candidate -> "path".equals(
+                                    candidate.kind()))
+                            .findFirst()
+                            .orElseThrow(() ->
+                                    new IllegalArgumentException(
+                                            "FILE_OUTPUT_RESOURCE_MISSING"));
+                    authorizedExternal = resource.outsideWorkspace();
+                    target = authorizedExternal
+                            ? Path.of(resource.value())
+                            : authorized.subject().authorizationRoot()
+                                    .resolve(resource.value());
+                    path = target.toString();
+                } else {
+                    target = Path.of(path);
+                    if (!target.isAbsolute()) {
+                        target = Path.of(context.workingDirectory())
+                                .resolve(target).normalize();
+                    }
+                }
                 declarations.add(Map.of("path", path,
                         "operation", Files.exists(target) ? "modified" : "created",
-                        "requiredValidatorId", "sha256"));
+                        "requiredValidatorId", "sha256",
+                        "authorizedExternal", authorizedExternal));
             }
         } else if (("Bash".equals(toolName) || "Python".equals(toolName))
                 && input.getRawData() instanceof Map<?,?> raw
@@ -583,6 +621,8 @@ public class ToolExecutionPipeline {
             String operation=ArtifactManifestService.normalizeOperation(
                     String.valueOf(declaration.get("operation")));
             String validator=String.valueOf(declaration.get("requiredValidatorId"));
+            boolean authorizedExternal = Boolean.TRUE.equals(
+                    declaration.get("authorizedExternal"));
             String deleteSealHash = null;
             if ("deleted".equals(operation)) {
                 ArtifactManifestService.DeleteSeal seal = artifactManifestService.prepareDeleteSeal(
@@ -590,7 +630,8 @@ public class ToolExecutionPipeline {
                 path = seal.canonicalPath();
                 deleteSealHash = seal.sha256();
             }
-            result.add(new DeclaredOutput(path, operation, validator, deleteSealHash));
+            result.add(new DeclaredOutput(path, operation, validator,
+                    deleteSealHash, authorizedExternal));
         }
         return List.copyOf(result);
     }
@@ -599,9 +640,23 @@ public class ToolExecutionPipeline {
                                                     ToolUseContext context) {
         if (artifactManifestService == null) return;
         for (DeclaredOutput output : outputs) {
-            var entry = artifactManifestService.declareInCurrentTransaction(context.currentRunId(),
-                    context.sessionId(), context.toolUseId() == null ? toolName : context.toolUseId(),
-                    output.path(), output.operation(), output.validator(), context.workingDirectory());
+            var entry = output.authorizedExternal()
+                    ? artifactManifestService
+                            .declareAuthorizedExternalInCurrentTransaction(
+                                    context.currentRunId(),
+                                    context.sessionId(),
+                                    context.toolUseId() == null
+                                            ? toolName : context.toolUseId(),
+                                    output.path(), output.operation(),
+                                    output.validator(),
+                                    context.workingDirectory())
+                    : artifactManifestService.declareInCurrentTransaction(
+                            context.currentRunId(), context.sessionId(),
+                            context.toolUseId() == null
+                                    ? toolName : context.toolUseId(),
+                            output.path(), output.operation(),
+                            output.validator(),
+                            context.workingDirectory());
             if ("deleted".equals(entry.operation())) {
                 try {
                     artifactManifestService.sealDeleteInCurrentTransaction(context.currentRunId(),

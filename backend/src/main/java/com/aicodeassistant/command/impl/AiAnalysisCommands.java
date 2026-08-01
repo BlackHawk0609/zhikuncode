@@ -1,6 +1,7 @@
 package com.aicodeassistant.command.impl;
 
 import com.aicodeassistant.command.*;
+import com.aicodeassistant.service.GitService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,6 +9,12 @@ import java.util.List;
 
 @Configuration
 public class AiAnalysisCommands {
+
+    private final GitService gitService;
+
+    public AiAnalysisCommands(GitService gitService) {
+        this.gitService = gitService;
+    }
 
     @Bean
     public Command bugHunterCommand() {
@@ -32,6 +39,9 @@ public class AiAnalysisCommands {
             @Override public String getDescription() { return "智能审查当前 Git diff 或指定 PR"; }
             @Override
             public CommandResult execute(String args, CommandContext context) {
+                CommandResult denied = GitCommandGuard.requireRepositoryRoot(
+                        gitService, context);
+                if (denied != null) return denied;
                 String target = (args == null || args.isBlank()) ? "HEAD" : args;
                 return CommandResult.text("Review the git diff for '" + target
                     + "' and provide code quality feedback.");

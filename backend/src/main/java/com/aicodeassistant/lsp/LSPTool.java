@@ -1,6 +1,7 @@
 package com.aicodeassistant.lsp;
 
 import com.aicodeassistant.lsp.model.CallLocation;
+import com.aicodeassistant.security.PathSecurityService;
 import com.aicodeassistant.tool.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,10 +66,15 @@ public class LSPTool implements Tool {
 
     private final LSPServerManager serverManager;
     private final LspCallHierarchyService callHierarchyService;
+    private final PathSecurityService pathSecurity;
 
-    public LSPTool(LSPServerManager serverManager, LspCallHierarchyService callHierarchyService) {
+    public LSPTool(
+            LSPServerManager serverManager,
+            LspCallHierarchyService callHierarchyService,
+            PathSecurityService pathSecurity) {
         this.serverManager = serverManager;
         this.callHierarchyService = callHierarchyService;
+        this.pathSecurity = pathSecurity;
     }
 
     @Override
@@ -177,6 +183,14 @@ public class LSPTool implements Tool {
         if (filePath == null || filePath.isEmpty()) {
             return ToolResult.validationError("LSP_FILE_REQUIRED", "'filePath' is required for operation: " + operation);
         }
+        var inspected = pathSecurity.inspectAuthorizedExecutionReadPermission(
+                filePath, context.workingDirectory());
+        var pathCheck = inspected.permission();
+        if (!pathCheck.isAllowed()) {
+            return ToolResult.validationError(
+                    "LSP_PATH_DENIED", pathCheck.message());
+        }
+        filePath = inspected.target().toString();
 
         // 4. 文件大小检查
         File file = new File(filePath);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { AppLayout } from '@/components/layout';
 import { MessageList } from '@/components/message';
 import { JourneyVerifyPanel } from '@/components/verify/JourneyVerifyPanel';
@@ -7,14 +7,22 @@ import { DialogManager } from '@/components/DialogManager';
 import { useMessageStore } from '@/store/messageStore';
 import { useSessionStore } from '@/store/sessionStore';
 import { useConfigStore } from '@/store/configStore';
-import { sendToServer, isWsConnected, sendSlashCommand } from '@/api/stompClient';
-import { bindSessionAndWait, isSessionBound } from '@/api/dispatch';
+import { sendToServer, sendSlashCommand } from '@/api/stompClient';
 import { SkillDetailModal } from '@/components/skills/SkillDetailModal';
 import { MobileApprovalSheet } from '@/components/verify/MobileApprovalSheet';
 import type { SubmitEvent, Message, Command } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 import { useAPOSInitialization } from '@/hooks/useAPOSInitialization';
 import { useActivityStore } from '@/store/activityStore';
+import { ProjectSelectionDialog } from '@/components/project/ProjectSelectionDialog';
+import {
+  NEW_AUTHORIZED_SESSION_EVENT,
+  requestAuthorizedSession,
+} from '@/services/authorizedSession';
+import {
+  activateSessionCandidate,
+  getPendingSessionActivation,
+} from '@/services/sessionActivation';
 
 interface SkillItem {
   name: string;
@@ -24,8 +32,10 @@ interface SkillItem {
 
 function App() {
   const { messages, addMessage } = useMessageStore();
-  const { createSession, status } = useSessionStore();
+  const { status } = useSessionStore();
   const { loadConfig } = useConfigStore();
+  const sessionReadinessRef = useRef<Promise<string | null> | null>(null);
+  const newSessionRequestRef = useRef<Promise<string | null> | null>(null);
 
   // APOS 数据流转链路初始化
   useAPOSInitialization();
@@ -90,64 +100,66 @@ function App() {
     return [...builtinCommands, ...skillCommands];
   }, [builtinCommands, skills]);
 
+  const addSessionError = useCallback((content: string) => {
+    addMessage({
+      uuid: generateUUID(),
+      type: 'system',
+      content,
+      timestamp: Date.now(),
+      subtype: 'error',
+      errorCode: 'SESSION_PREPARE_ERROR',
+    } as Message);
+  }, [addMessage]);
+
+  const ensureSessionReady = useCallback((): Promise<string | null> => {
+    if (sessionReadinessRef.current) {
+      return sessionReadinessRef.current;
+    }
+    const operation = (async () => {
+      // A folder selection/new Session request is an explicit user intent.
+      // Wait for it instead of falling back to the still-committed old Session.
+      if (newSessionRequestRef.current) {
+        return newSessionRequestRef.current;
+      }
+      const pendingActivation = getPendingSessionActivation();
+      if (pendingActivation) {
+        const result = await pendingActivation;
+        return result.status === 'activated' ? result.sessionId : null;
+      }
+      let sessionId = useSessionStore.getState().sessionId;
+      if (!sessionId) {
+        sessionId = await requestAuthorizedSession();
+      }
+      if (!sessionId) return null;
+      const activation = await activateSessionCandidate(sessionId);
+      if (activation.status === 'activated') return sessionId;
+      if (activation.status === 'superseded') return null;
+      throw activation.error;
+    })();
+    const tracked = operation.finally(() => {
+      if (sessionReadinessRef.current === tracked) {
+        sessionReadinessRef.current = null;
+      }
+    });
+    sessionReadinessRef.current = tracked;
+    return tracked;
+  }, []);
+
   // 发送消息
   const handleSubmit = useCallback(async (event: SubmitEvent) => {
-    // 1. 创建会话（如果没有）
-    let currentSessionId = useSessionStore.getState().sessionId;
-    if (!currentSessionId) {
-      try {
-        const defaultModel = useConfigStore.getState().defaultModel ?? 'qwen3.7-max';
-        await createSession('.', defaultModel);
-        currentSessionId = useSessionStore.getState().sessionId;
-      } catch (error) {
-        console.error('[App] Failed to create session:', error);
-        addMessage({
-          uuid: generateUUID(),
-          type: 'system',
-          content: '连接服务器失败，请检查后端服务是否正常运行。',
-          timestamp: Date.now(),
-          subtype: 'error',
-          errorCode: 'CONNECTION_ERROR',
-        } as Message);
-        useSessionStore.getState().setStatus('idle');
-        return;
-      }
+    let currentSessionId: string | null;
+    try {
+      currentSessionId = await ensureSessionReady();
+    } catch (error) {
+      console.error('[App] Failed to prepare authorized session:', error);
+      addSessionError(error instanceof Error
+        ? `无法准备授权会话：${error.message}`
+        : '无法准备授权会话，请检查服务后重试。');
+      return false;
     }
+    if (!currentSessionId) return false;
 
-    // 2. 等待 WebSocket 连接就绪
-    if (!isWsConnected()) {
-      console.warn('[App] WebSocket not connected, waiting...');
-      await new Promise<void>((resolve) => {
-        const check = setInterval(() => {
-          if (isWsConnected()) { clearInterval(check); resolve(); }
-        }, 100);
-        // 最多等 3 秒
-        setTimeout(() => { clearInterval(check); resolve(); }, 3000);
-      });
-    }
-
-    // 3. 绑定 WS session — 仅首次绑定或会话切换时发送
-    //    bind-session 会触发 session_restored → clearMessages()，
-    //    因此必须在 addMessage 之前完成，且只执行一次。
-    //    WS 重连时 stompClient.ts onConnect 会调用 resetBoundSession() 重置状态。
-    if (currentSessionId && !isSessionBound(currentSessionId)) {
-      const restored = await bindSessionAndWait(currentSessionId, payload =>
-        sendToServer('/app/bind-session', payload));
-      if (!restored) {
-        useMessageStore.getState().addMessage({
-          uuid: generateUUID(),
-          type: 'system',
-          content: '会话绑定未获得服务端确认，已停止发送。请检查连接后重试。',
-          timestamp: Date.now(),
-          subtype: 'error',
-          errorCode: 'SESSION_BIND_TIMEOUT',
-        } as Message);
-        useSessionStore.getState().setStatus('idle');
-        return;
-      }
-    }
-
-    // 4. ★ 在 bind/restore 完成后再添加用户消息到 store（确保不被 clearMessages 清除）
+    // 在 bind/restore 完成后再添加用户消息，确保不被恢复流程清除。
     const contentBlocks: any[] = [];
     if (event.text) {
       contentBlocks.push({ type: 'text', text: event.text });
@@ -166,34 +178,56 @@ function App() {
     if (contentBlocks.length === 0) {
       contentBlocks.push({ type: 'text', text: '' });
     }
+    // 通过 STOMP 发送用户消息到后端。
+    const sent = sendToServer('/app/chat', {
+      text: event.text,
+      attachments: event.attachments || [],
+      references: [],
+    });
+    if (!sent) {
+      addSessionError('消息未发送，请检查 WebSocket 连接后重试。');
+      return false;
+    }
+
+    useSessionStore.getState().setStatus('streaming');
     addMessage({
       uuid: generateUUID(),
       type: 'user',
       content: contentBlocks,
       timestamp: Date.now(),
     });
-
-    // 5. 通过 STOMP 发送用户消息到后端
-    sendToServer('/app/chat', {
-      text: event.text,
-      attachments: event.attachments || [],
-      references: [],
-    });
-  }, [addMessage, createSession]);
+    return true;
+  }, [addMessage, addSessionError, ensureSessionReady]);
 
   // 处理命令
-  const handleSlashCommand = useCallback((command: string) => {
+  const handleSlashCommand = useCallback(async (command: string) => {
     const raw = command.startsWith('/') ? command.slice(1) : command;
     // 技能命令：/skill <name> → 打开详情弹窗
     if (raw.startsWith('skill ')) {
       const skillName = raw.slice(6).trim();
       if (skillName) {
         setSelectedSkill(skillName);
-        return;
+        return true;
       }
     }
 
-    // 添加系统消息到 UI
+    try {
+      const sessionId = await ensureSessionReady();
+      if (!sessionId) return false;
+    } catch (error) {
+      addSessionError(error instanceof Error
+        ? `无法执行命令：${error.message}`
+        : '无法执行命令，请检查服务后重试。');
+      return false;
+    }
+
+    const parts = raw.split(/\s+/);
+    if (!sendSlashCommand(parts[0], parts.slice(1).join(' '))) {
+      addSessionError('命令未发送，请检查 WebSocket 连接后重试。');
+      return false;
+    }
+
+    // 服务端已受理后再添加系统消息到 UI。
     addMessage({
       uuid: generateUUID(),
       type: 'system',
@@ -202,17 +236,67 @@ function App() {
       subtype: 'command',
     } as Message);
 
-    // 其他 slash 命令通过 STOMP 发送
-    const parts = raw.split(/\s+/);
-    sendSlashCommand(parts[0], parts.slice(1).join(' '));
-  }, [addMessage]);
+    return true;
+  }, [addMessage, addSessionError, ensureSessionReady]);
 
   // 执行技能
-  const executeSkill = useCallback((skillName: string, userInput: string) => {
+  const executeSkill = useCallback(async (skillName: string, userInput: string) => {
+    try {
+      const sessionId = await ensureSessionReady();
+      if (!sessionId) return;
+    } catch (error) {
+      addSessionError(error instanceof Error
+        ? `无法执行技能：${error.message}`
+        : '无法执行技能，请检查服务后重试。');
+      return;
+    }
     const args = userInput ? `${skillName} ${userInput}` : skillName;
-    sendSlashCommand('skill', args);
+    if (!sendSlashCommand('skill', args)) {
+      addSessionError('技能命令未发送，请检查 WebSocket 连接后重试。');
+      return;
+    }
     setSelectedSkill(null);
-  }, []);
+  }, [addSessionError, ensureSessionReady]);
+
+  const startNewAuthorizedSession = useCallback(
+    (): Promise<string | null> => {
+      if (newSessionRequestRef.current) {
+        return newSessionRequestRef.current;
+      }
+      const operation = (async () => {
+        try {
+          const newSessionId = await requestAuthorizedSession();
+          if (!newSessionId) return null;
+          const activation = await activateSessionCandidate(newSessionId);
+          if (activation.status === 'superseded') return null;
+          if (activation.status === 'failed') throw activation.error;
+          window.dispatchEvent(new Event('session-list-updated'));
+          return activation.sessionId;
+        } catch (error) {
+          console.error('[App] Failed to create authorized session:', error);
+          addSessionError(error instanceof Error
+            ? `新建授权会话失败：${error.message}`
+            : '新建授权会话失败，请重试。');
+          return null;
+        }
+      })();
+      const tracked = operation.finally(() => {
+        if (newSessionRequestRef.current === tracked) {
+          newSessionRequestRef.current = null;
+        }
+      });
+      newSessionRequestRef.current = tracked;
+      return tracked;
+    }, [addSessionError]);
+
+  useEffect(() => {
+    const handler = () => { void startNewAuthorizedSession(); };
+    window.addEventListener(NEW_AUTHORIZED_SESSION_EVENT, handler);
+    return () => window.removeEventListener(
+      NEW_AUTHORIZED_SESSION_EVENT,
+      handler,
+    );
+  }, [startNewAuthorizedSession]);
 
   // 中断请求
   const handleInterrupt = useCallback(() => {
@@ -276,6 +360,7 @@ function App() {
 
       {/* Global Dialogs */}
       <DialogManager />
+      <ProjectSelectionDialog />
     </>
   );
 }

@@ -32,7 +32,8 @@ class NotebookEditToolGoldenTest {
     private ObjectMapper mapper;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
+        tempDir = tempDir.toRealPath();
         tool = new NotebookEditTool();
         mapper = new ObjectMapper();
     }

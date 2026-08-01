@@ -48,11 +48,22 @@ class FileReadToolUnitTest {
         MockitoAnnotations.openMocks(this);
 
         // Mock PathSecurityService — 默认允许所有路径操作
-        when(pathSecurityService.checkReadPermission(anyString(), anyString()))
-                .thenReturn(PathCheckResult.allowed());
+        when(pathSecurityService.inspectAuthorizedExecutionReadPermission(anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    String filePath = inv.getArgument(0);
+                    String workDir = inv.getArgument(1);
+                    Path path = Path.of(filePath);
+                    Path target = (path.isAbsolute()
+                            ? path : Path.of(workDir).resolve(path))
+                            .toAbsolutePath().normalize();
+                    return new PathSecurityService.AuthorizedPathCheck(
+                            target, PathCheckResult.allowed());
+                });
         // 设备文件路径返回 denied，对齐 PathSecurityService 真实行为
-        when(pathSecurityService.checkReadPermission(org.mockito.ArgumentMatchers.eq("/dev/zero"), anyString()))
-                .thenReturn(PathCheckResult.denied("Cannot read device file: /dev/zero"));
+        when(pathSecurityService.inspectAuthorizedExecutionReadPermission(org.mockito.ArgumentMatchers.eq("/dev/zero"), anyString()))
+                .thenReturn(new PathSecurityService.AuthorizedPathCheck(
+                        Path.of("/dev/zero"), PathCheckResult.denied(
+                                "Cannot read device file: /dev/zero")));
         // 注意：模拟真实的路径解析逻辑——绝对路径直接返回，相对路径基于 workingDirectory 解析，
         // 并尝试 toRealPath() 解析符号链接（与 PathSecurityService 真实行为一致）。
         when(pathSecurityService.resolvePath(anyString(), anyString()))

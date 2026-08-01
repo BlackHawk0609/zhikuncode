@@ -341,8 +341,8 @@ export function sendSetPermissionMode(mode: string): void {
 }
 
 /** #6 Slash 命令 → /app/command */
-export function sendSlashCommand(command: string, args: string): void {
-    send('/app/command', { command, args });
+export function sendSlashCommand(command: string, args: string): boolean {
+    return sendToServer('/app/command', { command, args });
 }
 
 /** #7 MCP 操作 → /app/mcp */
@@ -367,20 +367,25 @@ export function sendPing(): void {
  * 返回 boolean 表示是否发送成功
  */
 export function sendToServer(destination: string, body: unknown): boolean {
-    if (!stompClient?.active) {
+    if (!stompClient?.connected) {
         console.warn('[WS] sendToServer: not connected');
         return false;
     }
-    stompClient.publish({
-        destination,
-        body: JSON.stringify(body),
-    });
-    return true;
+    try {
+        stompClient.publish({
+            destination,
+            body: JSON.stringify(body),
+        });
+        return true;
+    } catch (error) {
+        console.error('[WS] sendToServer: publish failed', error);
+        return false;
+    }
 }
 
 /**
  * isWsConnected — 兼容原 useWebSocket.ts 的连接状态检查
  */
 export function isWsConnected(): boolean {
-    return stompClient?.active ?? false;
+    return stompClient?.connected ?? false;
 }

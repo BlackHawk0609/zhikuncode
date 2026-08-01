@@ -2,14 +2,17 @@ package com.aicodeassistant.coordinator;
 
 import com.aicodeassistant.config.FeatureFlagService;
 import com.aicodeassistant.model.dto.AbortRequest;
+import com.aicodeassistant.security.SystemScratchpadPathPolicy;
 import com.aicodeassistant.service.AnomalyEventRepository;
 import com.aicodeassistant.websocket.WebSocketSessionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +32,10 @@ class SwarmControllerTest {
     private AnomalyEventRepository anomalyEventRepository;
     private WebSocketSessionManager webSocketSessionManager;
     private SwarmController controller;
+    private Path scratchpadRoot;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -39,7 +46,15 @@ class SwarmControllerTest {
         when(featureFlags.isEnabled("ENABLE_AGENT_SWARMS")).thenReturn(true);
         when(swarmService.createSwarm(any(), any()))
                 .thenAnswer(inv -> new SwarmState("swarm-test", ((SwarmConfig) inv.getArgument(0)).teamName()));
-        controller = new SwarmController(swarmService, featureFlags, anomalyEventRepository, webSocketSessionManager);
+        SystemScratchpadPathPolicy scratchpadPaths =
+                new SystemScratchpadPathPolicy(tempDir.resolve("system-scratchpad"));
+        scratchpadRoot = scratchpadPaths.systemRoot();
+        controller = new SwarmController(
+                swarmService,
+                featureFlags,
+                anomalyEventRepository,
+                webSocketSessionManager,
+                scratchpadPaths);
     }
 
     @Test
@@ -90,7 +105,10 @@ class SwarmControllerTest {
         );
         ResponseEntity<?> resp = controller.createSwarm(req);
         assertEquals(HttpStatus.OK, resp.getStatusCode());
-        verify(swarmService, times(1)).createSwarm(any(), any());
+        verify(swarmService, times(1)).createSwarm(
+                argThat(config -> ((SwarmConfig) config).scratchpadDir()
+                        .equals(scratchpadRoot.resolve("team-alpha_01").toAbsolutePath())),
+                eq("sec-ok"));
     }
 
     @Test

@@ -59,8 +59,17 @@ class FileEditToolFuzzyMatchTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        when(pathSecurityService.checkWritePermission(anyString(), anyString()))
-                .thenReturn(PathCheckResult.allowed());
+        when(pathSecurityService.inspectAuthorizedExecutionWritePermission(anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    String filePath = inv.getArgument(0);
+                    String workDir = inv.getArgument(1);
+                    Path path = Path.of(filePath);
+                    Path target = path.isAbsolute()
+                            ? path : Path.of(workDir).resolve(path);
+                    return new PathSecurityService.AuthorizedPathCheck(
+                            target.toAbsolutePath().normalize(),
+                            PathCheckResult.allowed());
+                });
         when(pathSecurityService.checkReadPermission(anyString(), anyString()))
                 .thenReturn(PathCheckResult.allowed());
         when(pathSecurityService.resolvePath(anyString(), anyString()))

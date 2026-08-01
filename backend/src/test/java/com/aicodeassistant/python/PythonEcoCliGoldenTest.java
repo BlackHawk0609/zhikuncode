@@ -315,12 +315,13 @@ class PythonEcoCliGoldenTest {
                     "model", "qwen-turbo",
                     "permissionMode", "DONT_ASK",
                     "maxTurns", 10,
-                    "workingDirectory", "/tmp"
+                    "projectId", "project-123"
             );
             String json = MAPPER.writeValueAsString(body);
             assertNotNull(json);
             assertTrue(json.contains("explain this code"));
             assertTrue(json.contains("DONT_ASK"));
+            assertFalse(json.contains("workingDirectory"));
         }
 
         @Test
@@ -480,11 +481,11 @@ class PythonEcoCliGoldenTest {
         void sessionResume() throws Exception {
             var body = Map.of(
                     "prompt", "follow up question",
-                    "sessionId", "abc-123",
-                    "workingDirectory", "/tmp"
+                    "sessionId", "abc-123"
             );
             String json = MAPPER.writeValueAsString(body);
             assertTrue(json.contains("abc-123"));
+            assertFalse(json.contains("workingDirectory"));
         }
     }
 

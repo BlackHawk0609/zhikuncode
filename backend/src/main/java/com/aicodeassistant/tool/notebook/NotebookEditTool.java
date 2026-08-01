@@ -116,7 +116,8 @@ public class NotebookEditTool implements Tool {
         String command = input.getString("command");
 
         try {
-            Path path = managedPaths.resolveProspective(Path.of(notebookPath), context.workingDirectory());
+            Path path = managedPaths.resolveAuthorizedExecutionProspective(
+                    Path.of(notebookPath), context.workingDirectory());
             if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path))
                 return ToolResult.validationError("NOTEBOOK_NOT_REGULAR_FILE", "Notebook is not a regular file: " + notebookPath);
             if (Files.size(path) > MAX_NOTEBOOK_BYTES)
@@ -141,7 +142,7 @@ public class NotebookEditTool implements Tool {
 
                 byte[] outputBytes = objectMapper.writerWithDefaultPrettyPrinter()
                         .writeValueAsBytes(notebook);
-            AtomicFileWriter.WriteResult write = atomicFileWriter.write(path, outputBytes,
+            AtomicFileWriter.WriteResult write = atomicFileWriter.writeAuthorized(path, outputBytes,
                     context.sessionId(), AtomicFileWriter.ExpectedOldState.sha256(expectedHash),
                     context.workingDirectory());
             if (!write.success()) return ToolResult.failed(ToolResult.ToolFailureType.INTERNAL,

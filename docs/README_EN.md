@@ -530,6 +530,17 @@ Schema/Tool validation
 - Grants cannot override protected paths, symlink escape checks, sensitive environment rules, or dynamic pre-execution changes.
 - The SQLite Interaction CAS terminal state is the sole authority for user decisions.
 
+### Folder Selection and Persistent Authorization
+
+A new Web session must first select an authorized directory. The directory browser exposes only server-side roots allowed by configuration and their descendants. In Docker, the host `WORKSPACE_PATH` is mounted as `/app/workspace`; a browser cannot turn a client-local path into a remote server path.
+
+- A Project is a global, persistent, revocable trust scope and default relative-path root, not a general operating-system sandbox. Dedicated file tools resolve relative paths from the Session's canonical workspace and separately authorize and recheck external paths.
+- In DEFAULT mode, ordinary file operations inside the Project do not prompt repeatedly. Ordinary requests outside it enter the normal authorization flow and may be remembered when policy permits; sensitive files and high-risk operations still require per-operation approval.
+- Revoking a Project disables persistent automatic authorization for subsequent ordinary writes. Existing Sessions retain the original directory as their default relative-path root; safe reads still follow Session policy, while other controlled operations return to the normal authorization flow.
+- Session, Query, and file-search APIs use `projectId` or `sessionId`; arbitrary client-provided `workingDirectory` values are rejected.
+- Ordinary directories and Git subdirectories may both be authorized. Built-in repository context and Git slash commands are available only when the selected directory is itself the Git worktree root. Bash is not a directory sandbox, but it always follows its separate command-authorization flow and is never auto-approved merely by selecting a Project.
+- Remote or reverse-proxied deployments should set `ZHIKUN_WORKSPACE_ALLOWED_ROOTS`. Without allowed roots, directory selection is disabled by default. Only a directly connected local desktop server should set `ZHIKUN_LOCAL_PICKER_ENABLED=true`, and requests must still come from loopback. Do not enable it behind a reverse proxy.
+
 ### Authorization Scopes and Multi-Agent Inheritance
 
 | Scope | Lifetime | Sub-Agent behavior |
@@ -545,10 +556,10 @@ Sub-agents match parent grants through an authorization subject composed of root
 
 | Mode | Behavior |
 |------|----------|
-| DEFAULT | Controlled operations without a reusable grant request user confirmation |
+| DEFAULT | Ordinary edits inside an authorized Project are auto-allowed; other controlled operations without a reusable grant request confirmation |
 | PLAN | Only safe workspace reads are allowed; other effects are denied |
 | ACCEPT_EDITS | Non-high-risk in-workspace file edits are auto-allowed; other controlled operations still require confirmation |
-| DONT_ASK | Creates no interaction; safe reads may run and operations requiring confirmation are denied |
+| DONT_ASK | Creates no interaction; safe reads, existing grants, and ordinary file operations inside an authorized Project may run; other operations requiring confirmation are denied |
 
 ### Protected Paths
 
@@ -899,7 +910,7 @@ Create memory files in your project root — the AI will automatically read and 
 - Local database port: 5432
 ```
 
-> Project memory files are loaded by traversing up to 5 parent directories, with a 100KB per-file limit. `zhikun.md` is committed for team sharing; `zhikun.local.md` is for personal local configuration.
+> Project memory loads `zhikun.md` and `zhikun.local.md` only from the selected Project root and never searches parent directories; each file is limited to 100KB. `zhikun.md` is committed for team sharing; `zhikun.local.md` is for personal local configuration.
 
 ### Safety Protections
 
@@ -1248,6 +1259,11 @@ Environment variables are managed via the `.env` file. Copy `.env.example` and m
 | `SPRING_PROFILES_ACTIVE` | — | production | Spring profile |
 | `JAVA_OPTS` | — | -Xms256m -Xmx1024m | JVM options |
 | `WORKSPACE_PATH` | — | ./workspace | Working directory mounted into the container |
+| `ZHIKUN_DEFAULT_WORKSPACE` | — | Server startup directory | Server-owned fallback for non-Web clients without a Project; it does not grant automatic ordinary edits |
+| `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` | — | Empty | Server roots available for registration and browsing, comma-separated; required for remote registration |
+| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false | Enables default-root selection only for a directly connected local desktop server; keep disabled behind proxies and in production, and configure allowed roots instead |
+| `ZHIKUN_GLOBAL_DB_PATH` | — | `~/.config/ai-code-assistant/global.db` | Database file path for Project authorizations and global configuration |
+| `ZHIKUNCODE_DATABASE_PROJECT_ROOT` | — | Project workspace | Root for the Session database; Docker Compose pins it to `/app/data` |
 | `ALLOW_PRIVATE_NETWORK` | — | true (Docker) | Allow private network IPs to bypass auth in Docker |
 | `LOG_DIR` | — | /app/log | Container log directory |
 | `MCP_REGISTRY_PATH` | — | Auto-configured | MCP capability registry file path |
@@ -1334,11 +1350,31 @@ Open `http://localhost:8080` and you're ready to go.
 <details>
 <summary><b>Q3: Where is data stored? Is it secure?</b></summary>
 
-**All data stays local** — nothing is sent to any third-party server:
+**Application state and databases stay local.** Prompts, relevant code context, and other model inputs are sent to your configured LLM provider:
 
 - **Session data** — SQLite database stored in Docker Volume `zhikun-data`
 - **Project code** — Your local project directory is mounted via Docker Volume
 - **API Key** — Stored only in your `.env` file and the running container's environment variables
+
+> **First upgrade:** Compose now persists the Session database and global configuration database in `zhikun-data` at `/app/data/.ai-code-assistant` and `/app/data/global.db`. To retain existing data, stop the old container and back up `/app/.ai-code-assistant` and `/app/.config/ai-code-assistant/global.db` before recreating it. Do not run `docker compose down -v` at any point.
+>
+> ```bash
+> docker compose stop zhikuncode
+> docker cp zhikuncode:/app/.ai-code-assistant ./ai-code-assistant.backup
+> docker cp zhikuncode:/app/.config/ai-code-assistant/global.db ./global.db.backup
+> docker compose down
+> docker compose create --build zhikuncode
+> docker cp ./ai-code-assistant.backup \
+>   zhikuncode:/app/data/.ai-code-assistant
+> docker cp ./global.db.backup \
+>   zhikuncode:/app/data/global.db
+> docker compose run --rm --user root --entrypoint chown \
+>   zhikuncode -R zhikun:zhikun \
+>   /app/data/.ai-code-assistant /app/data/global.db
+> docker compose start zhikuncode
+> ```
+>
+> `docker compose create` creates but does not start the new container. Complete the restore and `chown` before its first `start`. If an old path does not exist, skip its corresponding `docker cp` and restore target. Keep the local backups until Sessions, configuration, and authorized Projects have been verified.
 
 ZhikunCode does not run any telemetry. Your API Key connects directly to your configured LLM provider with no proxies or intermediary servers.
 

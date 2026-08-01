@@ -6,20 +6,27 @@ import com.aicodeassistant.config.database.V017_RebuildArtifactV2Schema;
 import com.aicodeassistant.run.RunControlService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class ArtifactManifestServiceV2Test {
     @TempDir Path temp;
     private SqliteConfig sqlite;
+
+    @BeforeEach void canonicalizeWorkspace() throws Exception {
+        temp = temp.toRealPath();
+    }
 
     @AfterEach void close() { if (sqlite != null) sqlite.destroy(); }
 
@@ -75,6 +82,41 @@ class ArtifactManifestServiceV2Test {
         assertThat(verified.validatorResultJson()).contains("deletion_snapshot", "preDeleteSha256");
     }
 
+    @Test
+    void externalArtifactsRequireExplicitAdmittedPathAndCanBeSealed()
+            throws Exception {
+        Fixture fixture = fixture();
+        Path workspace = Files.createDirectory(
+                temp.resolve("artifact-workspace")).toRealPath();
+        Path outside = Files.writeString(
+                temp.resolve("artifact-outside.txt"), "complete")
+                .toRealPath();
+
+        assertThatThrownBy(() -> fixture.service.declare(
+                "r4", "s1", "tool-strict", outside.toString(),
+                "created", "sha256", workspace.toString()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ARTIFACT_PATH_INVALID");
+
+        java.util.concurrent.atomic.AtomicReference<ArtifactEntry> declared =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        fixture.transaction.executeWithoutResult(ignored ->
+                declared.set(fixture.service
+                        .declareAuthorizedExternalInCurrentTransaction(
+                                "r4", "s1", "tool-authorized",
+                                outside.toString(), "created", "sha256",
+                                workspace.toString())));
+        ArtifactEntry sealed = fixture.service
+                .sealAuthorizedExternalFromFile(
+                        "r4", outside.toString(), workspace.toString());
+
+        assertThat(declared.get().filePath())
+                .isEqualTo(outside.toString());
+        assertThat(sealed.state()).isEqualTo("sealed");
+        assertThat(fixture.service.verify(sealed.manifestId()).status())
+                .isEqualTo("verified");
+    }
+
     private Fixture fixture() {
         DatabaseResolver resolver=new DatabaseResolver("",temp.resolve("db").toString());
         sqlite=new SqliteConfig(resolver);
@@ -86,13 +128,18 @@ class ArtifactManifestServiceV2Test {
         jdbc.execute("CREATE TABLE artifact_entries(artifact_id TEXT PRIMARY KEY)");
         new V017_RebuildArtifactV2Schema(jdbc).execute();
         jdbc.update("INSERT INTO sessions(id) VALUES('s1')");
-        jdbc.update("INSERT INTO run_envelopes(id) VALUES('r1'),('r2'),('r3')");
+        jdbc.update("INSERT INTO run_envelopes(id) VALUES('r1'),('r2'),('r3'),('r4')");
+        DataSourceTransactionManager transactionManager =
+                new DataSourceTransactionManager(ds);
         ArtifactManifestService service=new ArtifactManifestService(jdbc,sqlite,resolver,
-                new DataSourceTransactionManager(ds),new ObjectMapper(),mock(RunControlService.class),
+                transactionManager,new ObjectMapper(),mock(RunControlService.class),
                 new com.aicodeassistant.security.ManagedWorkspacePathResolver(),
                 new com.aicodeassistant.security.ManagedPathLockManager());
-        return new Fixture(service);
+        return new Fixture(service,
+                new TransactionTemplate(transactionManager));
     }
 
-    private record Fixture(ArtifactManifestService service) {}
+    private record Fixture(
+            ArtifactManifestService service,
+            TransactionTemplate transaction) {}
 }

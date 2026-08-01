@@ -1,8 +1,10 @@
 package com.aicodeassistant.websocket;
 
 import com.aicodeassistant.context.ProjectContextService;
+import com.aicodeassistant.exception.WorkspaceException;
 import com.aicodeassistant.service.ActivityRepository;
 import com.aicodeassistant.service.CostTrackerService;
+import com.aicodeassistant.service.ProjectWorkspaceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicodeassistant.engine.AbortReason;
 import com.aicodeassistant.engine.ElicitationService;
@@ -92,6 +94,7 @@ public class WebSocketController implements PermissionNotifier {
     private final McpClientManager mcpClientManager;           // P1 MCP操作
     private final FileHistoryService fileHistoryService;       // P1 文件回退
     private final ProjectContextService projectContextService;  // F5 项目上下文
+    private final ProjectWorkspaceService projectWorkspaces;
     private final PermissionModeManager permissionModeManager;    // P1-03 权限模式
     private final CostTrackerService costTrackerService;                                          // F2 费用追踪
     private final ActivityRepository activityRepository;                                            // Activity 持久化
@@ -122,6 +125,7 @@ public class WebSocketController implements PermissionNotifier {
                                 McpClientManager mcpClientManager,
                                 FileHistoryService fileHistoryService,
                                 ProjectContextService projectContextService,
+                                ProjectWorkspaceService projectWorkspaces,
                                 PermissionModeManager permissionModeManager,
                                 CostTrackerService costTrackerService,
                                 ActivityRepository activityRepository,
@@ -146,6 +150,7 @@ public class WebSocketController implements PermissionNotifier {
         this.mcpClientManager = mcpClientManager;
         this.fileHistoryService = fileHistoryService;
         this.projectContextService = projectContextService;
+        this.projectWorkspaces = projectWorkspaces;
         this.permissionModeManager = permissionModeManager;
         this.costTrackerService = costTrackerService;
         this.activityRepository = activityRepository;
@@ -678,7 +683,7 @@ public class WebSocketController implements PermissionNotifier {
                               List<ContentBlock.ImageBlock> images,
                               String modelOverride) {
         // 0. 异步预加载项目上下文
-        Path workingDir = Path.of(System.getProperty("user.dir"));
+        Path workingDir = requireSessionWorkingDirectory(sessionId);
         projectContextService.ensureContext(workingDir);
 
         // 1. 组装全量工具池
@@ -706,7 +711,7 @@ public class WebSocketController implements PermissionNotifier {
      */
     private void executePromptCommand(String sessionId, String promptText,
                                       Set<String> allowedToolNames, String modelOverride) {
-        Path workingDir = Path.of(System.getProperty("user.dir"));
+        Path workingDir = requireSessionWorkingDirectory(sessionId);
         projectContextService.ensureContext(workingDir);
 
         // 工具池组装：按 allowedToolNames 过滤
@@ -744,7 +749,7 @@ public class WebSocketController implements PermissionNotifier {
                                       List<ContentBlock.ImageBlock> images,
                                       List<Tool> tools, List<Map<String, Object>> toolDefs,
                                       String model) {
-        Path workingDir = Path.of(System.getProperty("user.dir"));
+        Path workingDir = requireSessionWorkingDirectory(sessionId);
 
         // 构建系统提示
         SystemPromptConfig promptConfig = SystemPromptConfig.defaults()
@@ -1227,7 +1232,9 @@ public class WebSocketController implements PermissionNotifier {
         try {
             var cmd = commandRegistry.getCommand(payload.command());
             CommandContext ctx = CommandContext.of(
-                    sessionId, ".", null, null);
+                    sessionId,
+                    requireSessionWorkingDirectory(sessionId).toString(),
+                    null, null);
             CommandResult cmdResult = cmd.execute(payload.args(), ctx);
             if (cmdResult.isSuccess()) {
                 switch (cmdResult.type()) {
@@ -1483,6 +1490,22 @@ public class WebSocketController implements PermissionNotifier {
                 return;
             }
             try {
+                projectWorkspaces.requireCurrentBinding(
+                        dataOpt.get().workingDir());
+            } catch (WorkspaceException workspaceFailure) {
+                pushBindError(principal.getName(),
+                        workspaceFailure.getCode(), bindRequestId,
+                        bindingEpoch);
+                return;
+            } catch (RuntimeException validationFailure) {
+                log.warn("WS bind workspace validation failed: sessionId={}",
+                        sessionId, validationFailure);
+                pushBindError(principal.getName(),
+                        "BIND_RECOVERY_FAILED", bindRequestId,
+                        bindingEpoch);
+                return;
+            }
+            try {
                 wsSessionManager.bindSession(principal.getName(), transportId, sessionId, bindingEpoch);
             } catch (IllegalStateException stale) {
                 pushBindError(principal.getName(), stale.getMessage(), bindRequestId, bindingEpoch);
@@ -1607,6 +1630,14 @@ public class WebSocketController implements PermissionNotifier {
         if (principal == null) return null;
         String principalName = principal.getName();
         return wsSessionManager.getSessionForPrincipal(principalName);
+    }
+
+    private Path requireSessionWorkingDirectory(String sessionId) {
+        SessionData session = sessionManager.loadSession(sessionId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Session is no longer available"));
+        return projectWorkspaces.requireCurrentBinding(
+                session.workingDir());
     }
 
     // ───── Activity STOMP 端点 ─────

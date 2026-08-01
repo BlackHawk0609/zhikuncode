@@ -1,17 +1,26 @@
 package com.aicodeassistant.websocket;
 
 import com.aicodeassistant.engine.QueryEngine;
+import com.aicodeassistant.exception.WorkspaceException;
 import com.aicodeassistant.llm.LlmProviderRegistry;
 import com.aicodeassistant.model.Usage;
 import com.aicodeassistant.prompt.EffectiveSystemPromptBuilder;
+import com.aicodeassistant.service.ProjectWorkspaceService;
+import com.aicodeassistant.session.SessionData;
+import com.aicodeassistant.session.SessionManager;
 import com.aicodeassistant.tool.ToolRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -45,7 +54,7 @@ class WebSocketStompIntegrationTest {
         controller = new WebSocketController(messaging, sessionManager,
                 queryEngine, toolRegistry, providerRegistry, systemPromptBuilder,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     private void bind(String principal, String session) {
@@ -237,6 +246,59 @@ class WebSocketStompIntegrationTest {
         assertThat(sessionManager.getPrincipalForSession("unknown")).isNull();
         assertThat(sessionManager.getSessionForPrincipal("unknown")).isNull();
         assertThat(sessionManager.isSessionOnline("unknown")).isFalse();
+    }
+
+    @Test
+    void invalidWorkspaceRejectsBindBeforeReplacingCurrentSession() {
+        bind("principal-A", "session-old");
+        SessionManager persistedSessions = mock(SessionManager.class);
+        ProjectWorkspaceService projectWorkspaces =
+                mock(ProjectWorkspaceService.class);
+        SessionData target = new SessionData(
+                "session-new", "model", "/saved/workspace", "title",
+                "idle", List.of(), Map.of(), null, 0, null,
+                Instant.now(), Instant.now());
+        when(persistedSessions.loadSession("session-new"))
+                .thenReturn(Optional.of(target));
+        when(projectWorkspaces.requireCurrentBinding(
+                "/saved/workspace"))
+                .thenThrow(new WorkspaceException(
+                        HttpStatus.CONFLICT, "WORKSPACE_REBOUND",
+                        "Workspace path changed"));
+        WebSocketController bindController = new WebSocketController(
+                messaging, sessionManager, mock(QueryEngine.class),
+                mock(ToolRegistry.class), mock(LlmProviderRegistry.class),
+                mock(EffectiveSystemPromptBuilder.class), null,
+                persistedSessions, null, null, null, null, null,
+                projectWorkspaces, null, null, null, null, null, null,
+                null, null, null, null, null);
+        SimpMessageHeaderAccessor headers =
+                SimpMessageHeaderAccessor.create();
+        headers.setSessionId("principal-A");
+
+        bindController.handleBindSession(Map.of(
+                        "sessionId", "session-new",
+                        "protocolVersion", 3,
+                        "bindRequestId", "bind-2",
+                        "bindingEpoch", 2),
+                () -> "principal-A", headers);
+
+        assertThat(sessionManager.getSessionForPrincipal("principal-A"))
+                .isEqualTo("session-old");
+        verify(messaging).convertAndSendToUser(
+                eq("principal-A"), eq("/queue/messages"),
+                argThat(message -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> payload =
+                            (Map<String, Object>) message;
+                    return "protocol_error".equals(payload.get("type"))
+                            && "WORKSPACE_REBOUND".equals(
+                                    payload.get("code"))
+                            && "bind-2".equals(
+                                    payload.get("bindRequestId"))
+                            && Long.valueOf(2).equals(
+                                    payload.get("bindingEpoch"));
+                }));
     }
 
     // ═══════════════ 9. sendMessageComplete 推送 ═══════════════

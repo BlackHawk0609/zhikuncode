@@ -3,10 +3,12 @@ package com.aicodeassistant.coordinator;
 import com.aicodeassistant.config.FeatureFlagService;
 import com.aicodeassistant.model.dto.AbortRequest;
 import com.aicodeassistant.model.dto.AbortResponse;
+import com.aicodeassistant.security.SystemScratchpadPathPolicy;
 import com.aicodeassistant.service.AnomalyEventRepository;
 import com.aicodeassistant.websocket.WebSocketSessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,18 +34,31 @@ public class SwarmController {
     private final FeatureFlagService featureFlags;
     private final AnomalyEventRepository anomalyEventRepository;
     private final WebSocketSessionManager webSocketSessionManager;
+    private final SystemScratchpadPathPolicy scratchpadPaths;
 
     /** teamName 白名单：字母/数字/下划线/中划线，长度 1-64；禁止路径分隔符与 .. 防止 scratchpad 路径穿越。 */
     private static final Pattern TEAM_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 
+    @Autowired
     public SwarmController(SwarmService swarmService,
                             FeatureFlagService featureFlags,
                             AnomalyEventRepository anomalyEventRepository,
-                            WebSocketSessionManager webSocketSessionManager) {
+                            WebSocketSessionManager webSocketSessionManager,
+                            SystemScratchpadPathPolicy scratchpadPaths) {
         this.swarmService = swarmService;
         this.featureFlags = featureFlags;
         this.anomalyEventRepository = anomalyEventRepository;
         this.webSocketSessionManager = webSocketSessionManager;
+        this.scratchpadPaths = scratchpadPaths;
+    }
+
+    /** Backwards-compatible constructor for direct unit construction. */
+    public SwarmController(SwarmService swarmService,
+                           FeatureFlagService featureFlags,
+                           AnomalyEventRepository anomalyEventRepository,
+                           WebSocketSessionManager webSocketSessionManager) {
+        this(swarmService, featureFlags, anomalyEventRepository,
+                webSocketSessionManager, SystemScratchpadPathPolicy.defaultPolicy());
     }
 
     /**
@@ -70,7 +85,7 @@ public class SwarmController {
                 : SwarmConfig.DEFAULT_MAX_WORKERS;
         String sessionId = (String) request.getOrDefault("sessionId", "default");
 
-        Path scratchpadDir = Path.of(System.getProperty("user.dir"), ".zhikun", "scratchpad", teamName);
+        Path scratchpadDir = scratchpadPaths.resolveChild(teamName);
         SwarmConfig config = SwarmConfig.withWorkers(teamName, maxWorkers, scratchpadDir);
 
         SwarmState state = swarmService.createSwarm(config, sessionId);

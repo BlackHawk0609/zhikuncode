@@ -52,8 +52,8 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 interface PromptInputProps {
-    onSubmit: (event: SubmitEvent) => void;
-    onSlashCommand: (command: string) => void;
+    onSubmit: (event: SubmitEvent) => Promise<boolean>;
+    onSlashCommand: (command: string) => Promise<boolean>;
     onInterrupt: () => void;
     disabled: boolean;
     isLoading: boolean;
@@ -77,8 +77,10 @@ const PromptInput: React.FC<PromptInputProps> = ({
     const [showFileComplete, setShowFileComplete] = useState(false);
     const [fileQuery, setFileQuery] = useState('');
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const historyRef = useRef<string[]>([]);
+    const submissionRef = useRef(false);
 
     // 图片上传按钮始终可用：后端的智能视觉路由会处理模型适配，
     // 前端不再基于 supportsImages 进行前置禁用，仅保留通用数量上限。
@@ -110,32 +112,74 @@ const PromptInput: React.FC<PromptInputProps> = ({
         return () => window.removeEventListener('keydown', handler);
     }, []);
 
-    const handleSubmit = useCallback(() => {
+    const submitSlashCommand = useCallback(async (
+        command: string,
+        clearDraft = true,
+    ) => {
+        if (submissionRef.current) return false;
+        submissionRef.current = true;
+        setIsSubmitting(true);
+        try {
+            const accepted = await onSlashCommand(command);
+            if (!accepted) return false;
+            if (clearDraft) setInput('');
+            setShowCommands(false);
+            setShowGlobalPalette(false);
+            return true;
+        } catch {
+            return false;
+        } finally {
+            submissionRef.current = false;
+            setIsSubmitting(false);
+        }
+    }, [onSlashCommand]);
+
+    const handleSubmit = useCallback(async () => {
         const trimmed = input.trim();
-        if (!trimmed && attachments.length === 0) return;
+        if ((!trimmed && attachments.length === 0)
+                || submissionRef.current) return;
 
         if (trimmed.startsWith('/')) {
-            onSlashCommand(trimmed);
-            setInput('');
-            setShowCommands(false);
+            await submitSlashCommand(trimmed);
             return;
         }
         if (useSessionStore.getState().status === 'streaming') {
             sendToServer('/app/interrupt', { isSubmitInterrupt: true });
         }
-        historyRef.current.push(trimmed);
-        setHistoryIndex(-1);
         const submitAttachments: Attachment[] = attachments.map(a => ({
             type: a.type.startsWith('image/') ? 'image' as const : 'file' as const,
             name: a.name,
             base64Data: a.base64Content ?? '',
             mediaType: a.type,
         }));
-        onSubmit({ text: trimmed, attachments: submitAttachments, references: new Map(), isFastMode: false });
-        attachments.forEach(a => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
-        setInput('');
-        setAttachments([]);
-    }, [input, attachments, onSubmit, onSlashCommand]);
+        submissionRef.current = true;
+        setIsSubmitting(true);
+        try {
+            const sent = await onSubmit({
+                text: trimmed,
+                attachments: submitAttachments,
+                references: new Map(),
+                isFastMode: false,
+            });
+            if (!sent) return;
+
+            historyRef.current.push(trimmed);
+            setHistoryIndex(-1);
+            attachments.forEach(a => {
+                if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+            });
+            setInput('');
+            setAttachments([]);
+        } finally {
+            submissionRef.current = false;
+            setIsSubmitting(false);
+        }
+    }, [
+        input,
+        attachments,
+        onSubmit,
+        submitSlashCommand,
+    ]);
 
     // Keyboard event handling
     const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -154,7 +198,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
         // Enter (no Shift) → submit
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
             e.preventDefault();
-            if (input.trim()) handleSubmit();
+            if (input.trim()) void handleSubmit();
             return;
         }
 
@@ -342,9 +386,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
                     commands={commands}
                     filter={input.slice(1)}
                     onSelect={(cmd) => {
-                        onSlashCommand('/' + cmd);
-                        setInput('');
-                        setShowCommands(false);
+                        void submitSlashCommand('/' + cmd);
                     }}
                     onClose={() => setShowCommands(false)}
                 />
@@ -356,8 +398,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
                     commands={commands}
                     filter=""
                     onSelect={(cmd) => {
-                        onSlashCommand('/' + cmd);
-                        setShowGlobalPalette(false);
+                        void submitSlashCommand('/' + cmd, false);
                     }}
                     onClose={() => setShowGlobalPalette(false)}
                     isGlobal
@@ -463,7 +504,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
                             ? 'AI is thinking... (Ctrl+C to interrupt)'
                             : `Type a message... (/ for commands, ${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl+'}K for palette)`
                     }
-                    disabled={disabled}
+                    disabled={disabled || isSubmitting}
                     aria-label="输入消息"
                     aria-multiline="true"
                     className="flex-1 resize-none rounded-lg border border-gray-700 bg-gray-900
@@ -478,11 +519,17 @@ const PromptInput: React.FC<PromptInputProps> = ({
                 <FileUpload
                     onFiles={handleFiles}
                     accept="image/*"
+                    disabled={disabled || isSubmitting}
                     title={`上传图片（不支持图片的模型将由视觉模型自动处理，上限 ${maxImages} 张）`}
                 />
                 <button
-                    onClick={isLoading ? onInterrupt : handleSubmit}
-                    disabled={disabled || (!isLoading && !input.trim() && attachments.length === 0)}
+                    onClick={isLoading
+                        ? onInterrupt
+                        : () => { void handleSubmit(); }}
+                    disabled={disabled || isSubmitting
+                        || (!isLoading && !input.trim()
+                            && attachments.length === 0)}
+                    aria-label={isLoading ? '中断生成' : '发送消息'}
                     className={`shrink-0 p-2.5 rounded-lg text-white transition-colors
                         ${isLoading
                             ? 'bg-red-500 hover:bg-red-600'

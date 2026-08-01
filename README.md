@@ -531,6 +531,17 @@ Schema/Tool 校验
 - Grant 不能覆盖保护路径、符号链接逃逸、敏感环境变量和执行前动态变化。
 - 用户决策以 SQLite 中的 Interaction CAS 终态为唯一权威。
 
+### 文件夹选择与持久授权
+
+Web 新会话必须先选择一个已授权目录。目录浏览只展示服务端配置允许的根目录及其子目录；Docker 中宿主机的 `WORKSPACE_PATH` 对应容器内的 `/app/workspace`。浏览器不能把客户端本地路径直接当作远程服务端路径。
+
+- Project 是一个全局、持久、可撤销的信任范围和默认相对路径根，并不是通用的操作系统文件沙箱；专用文件工具以 Session 的规范化工作目录解析相对路径，范围外路径另行授权并复检。
+- DEFAULT 模式下，Project 内的普通文件操作免于重复确认；Project 外的普通请求进入常规授权流程，并可在策略允许时记住授权；敏感文件和高风险操作仍需逐次批准。
+- 撤销 Project 会停止后续普通写入的持久自动授权。已有 Session 仍以原目录作为默认相对路径根；安全读取仍按 Session 策略执行，其他受控操作重新进入正常授权流程。
+- Session、Query 和文件搜索使用 `projectId` 或 `sessionId`；客户端提交任意 `workingDirectory` 会被拒绝。
+- 普通目录和 Git 子目录都可授权；只有所选目录本身就是 Git worktree 根目录时，才提供内置仓库上下文和 Git slash 命令。Bash 不是目录沙箱，但始终走独立的命令授权，不会因 Project 选择而自动获准。
+- 远程或反向代理部署应设置 `ZHIKUN_WORKSPACE_ALLOWED_ROOTS`。未配置允许根时目录选择默认关闭；仅直连本机桌面部署可显式设置 `ZHIKUN_LOCAL_PICKER_ENABLED=true`，并且请求仍必须来自 loopback。不要在反向代理后开启该选项。
+
 ### 授权范围与多 Agent 继承
 
 | 范围 | 生命周期 | 子 Agent 行为 |
@@ -546,10 +557,10 @@ Schema/Tool 校验
 
 | 模式 | 实际行为 |
 |------|----------|
-| DEFAULT | 无可复用 Grant 的受控操作请求用户确认 |
+| DEFAULT | 已授权 Project 内的普通文件编辑自动允许；其他无可复用 Grant 的受控操作请求用户确认 |
 | PLAN | 只允许安全工作区读取，其他 Effect 拒绝 |
 | ACCEPT_EDITS | 自动允许工作区内非高风险文件编辑，其他受控操作仍需确认 |
-| DONT_ASK | 不创建交互；安全读取可执行，需要交互的操作直接拒绝 |
+| DONT_ASK | 不创建交互；安全读取、已有 Grant 和已授权 Project 内普通文件操作可执行，其他需要交互的操作直接拒绝 |
 
 ### 受保护路径
 
@@ -900,7 +911,7 @@ AI 在交互过程中通过内置的 MemoryTool 自动记录和检索记忆：
 - 本地数据库端口: 5432
 ```
 
-> 项目记忆文件向上遍历 5 层目录加载，单文件上限 100KB。`zhikun.md` 随代码库提交用于团队共享，`zhikun.local.md` 用于个人本地配置。
+> 项目记忆仅从所选 Project 根目录加载 `zhikun.md` 和 `zhikun.local.md`，不向父目录搜索；单文件上限 100KB。`zhikun.md` 随代码库提交用于团队共享，`zhikun.local.md` 用于个人本地配置。
 
 ### 安全保护
 
@@ -1249,6 +1260,11 @@ ZhikunCode 内置 11 项可视化能力，让 AI 编程过程中的数据和状�
 | `SPRING_PROFILES_ACTIVE` | — | production | Spring 配置文件 |
 | `JAVA_OPTS` | — | -Xms256m -Xmx1024m | JVM 参数 |
 | `WORKSPACE_PATH` | — | ./workspace | 挂载到容器的工作目录 |
+| `ZHIKUN_DEFAULT_WORKSPACE` | — | 服务端启动目录 | 非 Web 客户端未指定 Project 时的服务端兜底目录，不自动授予普通编辑权限 |
+| `ZHIKUN_WORKSPACE_ALLOWED_ROOTS` | — | 空 | 允许登记和浏览的服务端根目录，多个目录用逗号分隔；远程登记时必须配置 |
+| `ZHIKUN_LOCAL_PICKER_ENABLED` | — | false | 仅供直连本机桌面服务启用默认目录选择；反向代理和生产部署应保持关闭并配置 allowed roots |
+| `ZHIKUN_GLOBAL_DB_PATH` | — | `~/.config/ai-code-assistant/global.db` | Project 授权和全局配置数据库文件路径 |
+| `ZHIKUNCODE_DATABASE_PROJECT_ROOT` | — | Project 工作目录 | Session 数据库根目录；Docker Compose 固定为 `/app/data` |
 | `ALLOW_PRIVATE_NETWORK` | — | true（Docker） | Docker 环境下允许私有网段免认证访问 |
 | `LOG_DIR` | — | /app/log | 容器内日志目录 |
 | `MCP_REGISTRY_PATH` | — | 自动配置 | MCP 能力注册表文件路径 |
@@ -1335,11 +1351,31 @@ docker compose up -d  # 启动
 <details>
 <summary><b>Q3：数据存在哪里？安全吗？</b></summary>
 
-**所有数据存在本地**，不会发送到任何第三方服务器：
+**应用状态和数据库保存在本地**；提示词、相关代码上下文和其他模型输入会发送给你配置的 LLM 服务商：
 
 - **会话数据** — SQLite 数据库，存储在 Docker Volume `zhikun-data` 中
 - **项目代码** — 通过 Volume 挂载你本地的项目目录
 - **API Key** — 只存在你的 `.env` 文件和运行中的容器环境变量中
+
+> **首次升级：** Compose 现在把 Session 数据库和全局配置数据库分别持久化到 `zhikun-data` 中的 `/app/data/.ai-code-assistant` 和 `/app/data/global.db`。已有部署如需保留旧容器内的数据，请先停止并备份 `/app/.ai-code-assistant` 和 `/app/.config/ai-code-assistant/global.db`，再按以下步骤恢复；全程不要使用 `docker compose down -v`。
+>
+> ```bash
+> docker compose stop zhikuncode
+> docker cp zhikuncode:/app/.ai-code-assistant ./ai-code-assistant.backup
+> docker cp zhikuncode:/app/.config/ai-code-assistant/global.db ./global.db.backup
+> docker compose down
+> docker compose create --build zhikuncode
+> docker cp ./ai-code-assistant.backup \
+>   zhikuncode:/app/data/.ai-code-assistant
+> docker cp ./global.db.backup \
+>   zhikuncode:/app/data/global.db
+> docker compose run --rm --user root --entrypoint chown \
+>   zhikuncode -R zhikun:zhikun \
+>   /app/data/.ai-code-assistant /app/data/global.db
+> docker compose start zhikuncode
+> ```
+>
+> `docker compose create` 只创建、不启动新容器；必须在首次 `start` 前完成恢复和 `chown`。旧路径不存在时可跳过对应的 `docker cp` 和恢复目标。确认 Session、配置和已授权 Project 正常后再删除本地备份。
 
 ZhikunCode 不运行任何遥测服务。API Key 直连你配置的 LLM 服务商，中间不经过任何代理或中转服务器。
 

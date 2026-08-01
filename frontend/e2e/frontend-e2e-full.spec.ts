@@ -11,6 +11,32 @@ async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`), fullPage: true });
 }
 
+function parseStompFrame(raw: string) {
+  const frame = raw.endsWith('\0') ? raw.slice(0, -1) : raw;
+  const separator = frame.indexOf('\n\n');
+  const head = separator >= 0 ? frame.slice(0, separator) : frame;
+  const body = separator >= 0 ? frame.slice(separator + 2) : '';
+  const [command, ...headerLines] = head.split('\n');
+  const headers = Object.fromEntries(headerLines.map(line => {
+    const colon = line.indexOf(':');
+    return colon >= 0
+      ? [line.slice(0, colon), line.slice(colon + 1)]
+      : [line, ''];
+  }));
+  return { command, headers, body };
+}
+
+function stompFrame(
+  command: string,
+  headers: Record<string, string>,
+  body = '',
+) {
+  const headerBlock = Object.entries(headers)
+    .map(([name, value]) => `${name}:${value}`)
+    .join('\n');
+  return `${command}\n${headerBlock}\n\n${body}\0`;
+}
+
 test.describe('前端 E2E 与 UI 功能测试 (Task 13)', () => {
 
   // ─── TC-FE-01: 页面加载与布局 ───
@@ -54,35 +80,154 @@ test.describe('前端 E2E 与 UI 功能测试 (Task 13)', () => {
 
   // ─── TC-FE-02: 会话创建交互 ───
   test('TC-FE-02: 会话创建交互', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    const browserErrors: string[] = [];
+    page.on('pageerror', error => browserErrors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') browserErrors.push(message.text());
+    });
+    const project = {
+      id: 'project-e2e',
+      name: 'E2E Project',
+      workspaceRoot: '/workspace/e2e',
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+    let sessionCreateBody: Record<string, unknown> | null = null;
+    const clientFrames: Array<ReturnType<typeof parseStompFrame>> = [];
+    let subscriptionId = 'sub-0';
 
-    // 找到 "新建会话" 按钮 (title="新建会话")
-    const newSessionBtn = page.locator('button[title="新建会话"]');
-    const btnExists = await newSessionBtn.isVisible().catch(() => false);
+    await page.route(url => url.pathname.startsWith('/api/'), async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === '/api/projects/directories') {
+        await route.fulfill({ json: {
+          roots: ['/workspace'],
+          current: project.workspaceRoot,
+          parent: '/workspace',
+          directories: [],
+        }});
+      } else if (url.pathname === '/api/projects') {
+        await route.fulfill({ json: [project] });
+      } else if (url.pathname === '/api/sessions'
+          && request.method() === 'POST') {
+        sessionCreateBody = request.postDataJSON();
+        await route.fulfill({ status: 201, json: {
+          sessionId: 'session-e2e',
+          projectId: project.id,
+        }});
+      } else if (url.pathname === '/api/sessions') {
+        await route.fulfill({ json: {
+          sessions: [], hasMore: false, nextCursor: null,
+        }});
+      } else if (url.pathname === '/api/skills') {
+        await route.fulfill({ json: [] });
+      } else if (url.pathname === '/api/config') {
+        await route.fulfill({ json: { defaultModel: 'test-model' } });
+      } else {
+        await route.fulfill({ status: 404, json: { error: 'not mocked' } });
+      }
+    });
+    await page.route('**/ws/info**', route => route.fulfill({ json: {
+      websocket: true,
+      cookie_needed: false,
+      origins: ['*:*'],
+      entropy: 123456,
+    }}));
+    await page.routeWebSocket(/\/ws\/[^/]+\/[^/]+\/websocket$/, ws => {
+      const sendSockJs = (frame: string) => {
+        ws.send(`a${JSON.stringify([frame])}`);
+      };
+      ws.onMessage(message => {
+        const frames = JSON.parse(String(message)) as string[];
+        for (const raw of frames) {
+          if (raw === '\n') continue;
+          const frame = parseStompFrame(raw);
+          clientFrames.push(frame);
+          if (frame.command === 'CONNECT') {
+            sendSockJs(stompFrame('CONNECTED', {
+              version: '1.2',
+              'heart-beat': '0,0',
+            }));
+          } else if (frame.command === 'SUBSCRIBE') {
+            subscriptionId = frame.headers.id ?? subscriptionId;
+          } else if (frame.command === 'SEND'
+              && frame.headers.destination === '/app/bind-session') {
+            const bind = JSON.parse(frame.body) as {
+              sessionId: string;
+              bindRequestId: string;
+              bindingEpoch: number;
+            };
+            const restored = JSON.stringify({
+              type: 'session_restored',
+              ts: Date.now(),
+              protocolVersion: 3,
+              bindRequestId: bind.bindRequestId,
+              bindingEpoch: bind.bindingEpoch,
+              messages: [],
+              activities: [],
+              totalActivityCount: 0,
+              hasMore: false,
+              metadata: {
+                sessionId: bind.sessionId,
+                model: 'test-model',
+                status: 'idle',
+              },
+            });
+            sendSockJs(stompFrame('MESSAGE', {
+              subscription: subscriptionId,
+              'message-id': 'restore-1',
+              destination: '/user/queue/messages',
+              'content-type': 'application/json',
+              'content-length': String(Buffer.byteLength(restored)),
+            }, restored));
+          }
+        }
+      });
+      ws.send('o');
+    });
 
-    await screenshot(page, 'fe-02-before-new-session');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const newSessionButton = page.locator('button[title="新建会话"]');
+    await expect(newSessionButton,
+      `Application failed to render: ${browserErrors.join(' | ')}`,
+    ).toBeVisible();
+    await newSessionButton.click();
+    await expect(page.getByText('选择文件夹授权')).toBeVisible();
+    await page.getByText(project.name, { exact: true }).click();
+    await page.getByRole('button', { name: '使用所选授权' }).click();
 
-    if (btnExists) {
-      // 点击新建会话（会触发 page reload）
-      // 监听 navigation
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}),
-        newSessionBtn.click(),
-      ]);
-      await page.waitForTimeout(3000);
-      await screenshot(page, 'fe-02-after-new-session');
-      console.log('[TC-FE-02] New session button clicked, page reloaded');
-    } else {
-      // 尝试通过侧边栏创建
-      console.log('[TC-FE-02] New session button not found in header, checking sidebar');
-      await screenshot(page, 'fe-02-no-new-session-btn');
-    }
+    await expect.poll(() => sessionCreateBody).toEqual({
+      projectId: project.id,
+      model: 'test-model',
+    });
+    await expect.poll(() => clientFrames.find(frame =>
+      frame.command === 'SEND'
+      && frame.headers.destination === '/app/bind-session'),
+    ).toBeTruthy();
+    const bindFrame = clientFrames.find(frame =>
+      frame.command === 'SEND'
+      && frame.headers.destination === '/app/bind-session');
+    const bindPayload = JSON.parse(bindFrame!.body);
+    expect(bindPayload).toMatchObject({
+      sessionId: 'session-e2e',
+      protocolVersion: 3,
+      bindingEpoch: 1,
+    });
+    expect(bindPayload.bindRequestId).toEqual(expect.any(String));
 
-    // 验证页面重新加载后正常
     const input = page.locator('textarea[aria-label="输入消息"]');
-    await expect(input).toBeVisible();
-    console.log('[TC-FE-02] Session creation verified - input visible after reload');
+    await input.fill('E2E main-chain message');
+    await input.press('Enter');
+    await expect.poll(() => clientFrames.find(frame =>
+      frame.command === 'SEND'
+      && frame.headers.destination === '/app/chat'),
+    ).toBeTruthy();
+    const chatFrame = clientFrames.find(frame =>
+      frame.command === 'SEND'
+      && frame.headers.destination === '/app/chat');
+    expect(JSON.parse(chatFrame!.body)).toMatchObject({
+      text: 'E2E main-chain message',
+    });
+    await screenshot(page, 'fe-02-project-session-bind-send');
   });
 
   // ─── TC-FE-03: 消息提交与流式渲染 ───

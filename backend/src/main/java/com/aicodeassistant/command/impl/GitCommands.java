@@ -1,6 +1,7 @@
 package com.aicodeassistant.command.impl;
 
 import com.aicodeassistant.command.*;
+import com.aicodeassistant.service.GitService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,12 @@ import java.util.Set;
 @Configuration
 public class GitCommands {
 
+    private final GitService gitService;
+
+    public GitCommands(GitService gitService) {
+        this.gitService = gitService;
+    }
+
     @Bean
     Command commitPushPrCommand() {
         return new PromptCommand() {
@@ -25,6 +32,9 @@ public class GitCommands {
             @Override public Set<String> getAllowedTools() { return Set.of("Bash", "Read"); }
             @Override
             public CommandResult execute(String args, CommandContext context) {
+                CommandResult denied = GitCommandGuard.requireRepositoryRoot(
+                        gitService, context);
+                if (denied != null) return denied;
                 String prompt = "Please commit current changes, push to remote, and create a Pull Request. " +
                         "Generate an appropriate commit message and PR description. " +
                         (args.isBlank() ? "" : "PR details: " + args);
@@ -47,6 +57,9 @@ public class GitCommands {
                             "  /branch create <name> — 创建新分支\n" +
                             "  /branch switch <name> — 切换分支");
                 }
+                CommandResult denied = GitCommandGuard.requireRepositoryRoot(
+                        gitService, context);
+                if (denied != null) return denied;
                 // P1: 实际 git 分支操作
                 return CommandResult.text("Branch operation: " + args);
             }

@@ -1,6 +1,7 @@
 package com.aicodeassistant.tool.impl;
 
 import com.aicodeassistant.lsp.LspService;
+import com.aicodeassistant.security.PathSecurityService;
 import com.aicodeassistant.tool.*;
 import org.springframework.stereotype.Component;
 
@@ -11,8 +12,14 @@ import java.util.Map;
 public class LspTool implements Tool {
 
     private final LspService lspService;
+    private final PathSecurityService pathSecurity;
 
-    public LspTool(LspService lspService) { this.lspService = lspService; }
+    public LspTool(
+            LspService lspService,
+            PathSecurityService pathSecurity) {
+        this.lspService = lspService;
+        this.pathSecurity = pathSecurity;
+    }
 
     @Override public String getName() { return "LSP"; }
     @Override public String getDescription() {
@@ -41,6 +48,16 @@ public class LspTool implements Tool {
     public ToolResult call(ToolInput input, ToolUseContext context) {
         String action = input.getString("action");
         String filePath = input.getString("file_path", null);
+        if (filePath != null) {
+            var inspected = pathSecurity.inspectAuthorizedExecutionReadPermission(
+                    filePath, context.workingDirectory());
+            var pathCheck = inspected.permission();
+            if (!pathCheck.isAllowed()) {
+                return ToolResult.validationError(
+                        "LSP_PATH_DENIED", pathCheck.message());
+            }
+            filePath = inspected.target().toString();
+        }
         try {
             return switch (action) {
                 case "definition" -> ToolResult.success(formatLocation(

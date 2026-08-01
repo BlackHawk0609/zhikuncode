@@ -1,5 +1,6 @@
 package com.aicodeassistant.lsp;
 
+import com.aicodeassistant.security.PathSecurityService;
 import com.aicodeassistant.tool.ToolInput;
 import com.aicodeassistant.tool.ToolResult;
 import com.aicodeassistant.tool.ToolUseContext;
@@ -7,7 +8,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -196,14 +199,27 @@ class LSPGoldenTest {
     @DisplayName("4. LSPTool")
     class ToolTests {
 
+        @TempDir
+        Path workspace;
+
         private LSPServerManager manager;
         private LSPTool tool;
+        private Path typescriptFile;
+        private Path unsupportedFile;
 
         @BeforeEach
-        void setUp() {
+        void setUp() throws Exception {
+            workspace = workspace.toRealPath();
+            typescriptFile = Files.writeString(
+                    workspace.resolve("app.ts"), "const value = 1;\n");
+            unsupportedFile = Files.writeString(
+                    workspace.resolve("main.rs"), "fn main() {}\n");
             manager = new LSPServerManager();
             manager.registerAndStart(LSPServerConfig.typescript());
-            tool = new LSPTool(manager, new LspCallHierarchyService(manager));
+            tool = new LSPTool(
+                    manager,
+                    new LspCallHierarchyService(manager),
+                    new PathSecurityService());
         }
 
         @Test
@@ -240,8 +256,8 @@ class LSPGoldenTest {
         void goToDefNoPosition() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "goToDefinition",
-                            "filePath", "/src/app.ts")),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString())),
+                    context());
             assertTrue(result.isError());
             assertTrue(result.content().contains("line"));
         }
@@ -251,8 +267,8 @@ class LSPGoldenTest {
         void goToDefSuccess() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "goToDefinition",
-                            "filePath", "/src/app.ts", "line", 10, "character", 5)),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString(), "line", 10, "character", 5)),
+                    context());
             assertFalse(result.isError());
             assertTrue(result.content().contains("goToDefinition"));
         }
@@ -262,8 +278,8 @@ class LSPGoldenTest {
         void findReferences() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "findReferences",
-                            "filePath", "/src/app.ts", "line", 5, "character", 3)),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString(), "line", 5, "character", 3)),
+                    context());
             assertFalse(result.isError());
         }
 
@@ -272,8 +288,8 @@ class LSPGoldenTest {
         void hover() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "hover",
-                            "filePath", "/src/app.ts", "line", 1, "character", 1)),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString(), "line", 1, "character", 1)),
+                    context());
             assertFalse(result.isError());
         }
 
@@ -282,8 +298,8 @@ class LSPGoldenTest {
         void documentSymbol() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "documentSymbol",
-                            "filePath", "/src/app.ts")),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString())),
+                    context());
             assertFalse(result.isError());
         }
 
@@ -313,8 +329,8 @@ class LSPGoldenTest {
         void noServerForFile() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "goToDefinition",
-                            "filePath", "/src/main.rs", "line", 1, "character", 1)),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", unsupportedFile.toString(), "line", 1, "character", 1)),
+                    context());
             assertTrue(result.isError());
             assertTrue(result.content().contains("No LSP server available"));
         }
@@ -324,9 +340,13 @@ class LSPGoldenTest {
         void incomingCalls() {
             ToolResult result = tool.call(
                     ToolInput.from(Map.of("operation", "incomingCalls",
-                            "filePath", "/src/app.ts", "line", 5, "character", 10)),
-                    ToolUseContext.of("/tmp", "s1"));
+                            "filePath", typescriptFile.toString(), "line", 5, "character", 10)),
+                    context());
             assertFalse(result.isError());
+        }
+
+        private ToolUseContext context() {
+            return ToolUseContext.of(workspace.toString(), "s1");
         }
     }
 }

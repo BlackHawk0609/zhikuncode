@@ -125,23 +125,26 @@ public class FileEditTool implements Tool {
 
     @Override
     public ToolResult call(ToolInput input, ToolUseContext context) {
-        Path resolved = pathSecurity.resolvePath(input.getString("file_path"), context.workingDirectory());
-        String filePath = resolved.toString();
         String oldString = input.getString("old_string");
         String newString = input.getString("new_string");
         boolean replaceAll = input.getBoolean("replace_all", false);
 
         // 0. PathSecurityService 统一写入安全检查
-        PathCheckResult checkResult = pathSecurity.checkWritePermission(
+        var inspected = pathSecurity.inspectAuthorizedExecutionWritePermission(
                 input.getString("file_path"), context.workingDirectory());
+        PathCheckResult checkResult = inspected.permission();
         if (!checkResult.isAllowed()) {
             return ToolResult.validationError("FILE_WRITE_PATH_DENIED", checkResult.message());
         }
+        Path resolved = inspected.target();
+        String filePath = resolved.toString();
         if (checkResult.needsConfirmation()) {
             log.warn("Writing to sensitive path (allowed with warning): {}", filePath);
         }
 
         try {
+            boolean outsideAuthorized = !resolved.startsWith(
+                    Path.of(context.workingDirectory()).toRealPath());
             // 1. 基础验证
             if (oldString.equals(newString)) {
                 return ToolResult.validationError("FILE_EDIT_NO_CHANGE", "old_string and new_string are identical. No changes to make.");
@@ -161,7 +164,7 @@ public class FileEditTool implements Tool {
             // 2. 文件不存在 + old_string 为空 = 创建新文件
             if (!Files.exists(path)) {
                 if (oldString.isEmpty()) {
-                    WriteResult createResult = atomicFileWriter.write(path,
+                    WriteResult createResult = atomicFileWriter.writeAuthorized(path,
                             newString.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                             context.sessionId(), AtomicFileWriter.ExpectedOldState.absent(),
                             context.workingDirectory());
@@ -235,7 +238,7 @@ public class FileEditTool implements Tool {
 
             // 8. 原子写入（替代 Files.writeString）
             String expectedOldHash = fileVersionTracker.computeHash(fileContent);
-            WriteResult writeResult = atomicFileWriter.write(path,
+            WriteResult writeResult = atomicFileWriter.writeAuthorized(path,
                     newContent.getBytes(java.nio.charset.StandardCharsets.UTF_8), context.sessionId(),
                     AtomicFileWriter.ExpectedOldState.sha256(expectedOldHash),
                     context.workingDirectory());
@@ -246,8 +249,13 @@ public class FileEditTool implements Tool {
             String diffText = "";
             String postCommitError = "";
             try {
-                history = fileHistoryService.trackAppliedEdit(filePath, fileContent, context.sessionId(),
-                        context.toolUseId(), "edit");
+                history = outsideAuthorized
+                        ? new FileHistoryService.HistoryRecordResult(
+                                false, "OUTSIDE_AUTHORIZED_RESOURCE")
+                        : fileHistoryService.trackAppliedEdit(
+                                filePath, fileContent,
+                                context.sessionId(),
+                                context.toolUseId(), "edit");
                 if (history == null) history = new FileHistoryService.HistoryRecordResult(false, "HISTORY_RESULT_UNAVAILABLE");
                 sessionManager.getFileStateCache(context.sessionId()).markModified(filePath);
                 List<String> originalLines = Arrays.asList(fileContent.split("\n", -1));

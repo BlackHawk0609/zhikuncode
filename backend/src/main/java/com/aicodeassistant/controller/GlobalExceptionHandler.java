@@ -1,6 +1,8 @@
 package com.aicodeassistant.controller;
 
 import com.aicodeassistant.exception.ResourceNotFoundException;
+import com.aicodeassistant.exception.RequestValidationException;
+import com.aicodeassistant.exception.WorkspaceException;
 import com.aicodeassistant.llm.LlmApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(404).body(errorBody(ex.getCode(), ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(WorkspaceException.class)
+    public ResponseEntity<Map<String, Object>> handleWorkspace(
+            WorkspaceException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(errorBody(ex.getCode(), ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(RequestValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleRequestValidation(
+            RequestValidationException ex) {
+        return ResponseEntity.badRequest()
+                .body(errorBody(ex.getCode(), ex.getMessage(), null));
     }
 
     /**

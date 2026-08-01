@@ -61,12 +61,29 @@ public class ArtifactManifestService {
     public ArtifactEntry declareInCurrentTransaction(String runId, String sessionId, String toolUseId,
                                  String path, String operation, String validatorId,
                                  String workspaceRoot) {
+        return declareInCurrentTransaction(runId, sessionId, toolUseId,
+                path, operation, validatorId, workspaceRoot, false);
+    }
+
+    /** Called only from an admitted file-v1 operation whose resource is external. */
+    public ArtifactEntry declareAuthorizedExternalInCurrentTransaction(
+            String runId, String sessionId, String toolUseId,
+            String path, String operation, String validatorId,
+            String workspaceRoot) {
+        return declareInCurrentTransaction(runId, sessionId, toolUseId,
+                path, operation, validatorId, workspaceRoot, true);
+    }
+
+    private ArtifactEntry declareInCurrentTransaction(
+            String runId, String sessionId, String toolUseId,
+            String path, String operation, String validatorId,
+            String workspaceRoot, boolean allowExternal) {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("ARTIFACT_DECLARATION_REQUIRES_TRANSACTION");
         }
         if (runId==null||sessionId==null||toolUseId==null)
             throw new IllegalArgumentException("ARTIFACT_DECLARATION_INCOMPLETE");
-        Path canonical=canonical(path, workspaceRoot); Instant now=Instant.now();
+        Path canonical=canonical(path, workspaceRoot, allowExternal); Instant now=Instant.now();
         String normalizedOperation=normalizeOperation(operation);
         String manifestId = declareBody(runId, sessionId, toolUseId, canonical,
                 normalizedOperation, validatorId, workspaceRoot, now);
@@ -153,7 +170,19 @@ public class ArtifactManifestService {
     }
 
     public ArtifactEntry sealFromFile(String runId, String path, String workspaceRoot) throws Exception {
-        Path canonical=canonical(path,workspaceRoot);
+        return sealFromFile(runId, path, workspaceRoot, false);
+    }
+
+    /** Seals an external output previously admitted and declared by file-v1. */
+    public ArtifactEntry sealAuthorizedExternalFromFile(
+            String runId, String path, String workspaceRoot) throws Exception {
+        return sealFromFile(runId, path, workspaceRoot, true);
+    }
+
+    private ArtifactEntry sealFromFile(
+            String runId, String path, String workspaceRoot,
+            boolean allowExternal) throws Exception {
+        Path canonical=canonical(path,workspaceRoot,allowExternal);
         return pathLocks.withLock(canonical,()->{
             if(!Files.isRegularFile(canonical,LinkOption.NOFOLLOW_LINKS)||Files.isSymbolicLink(canonical))
                 throw new IllegalArgumentException("ARTIFACT_OUTPUT_NOT_REGULAR_FILE");
@@ -169,7 +198,7 @@ public class ArtifactManifestService {
         for(ArtifactEntry entry:entries){
             String state="failed",actual=null,failure=null; Long size=null; String validator=null;
             try{
-                Path path=canonical(entry.filePath(),manifest.workspaceRoot());
+                Path path=canonicalDeclaredEntry(entry.filePath(),manifest.workspaceRoot());
                 Update update=pathLocks.withLock(path,()->verifyEntry(entry,path,now));
                 state=update.state(); actual=update.actual(); size=update.size(); validator=update.validator(); failure=update.failure();
             }catch(Exception e){failure="VERIFICATION_ERROR"; validator=safeJson(Map.of("error",String.valueOf(e.getMessage())));}
@@ -226,7 +255,14 @@ public class ArtifactManifestService {
         try(InputStream in=Files.newInputStream(path)){byte[] b=new byte[8192];for(int n;(n=in.read(b))!=-1;)d.update(b,0,n);}return HexFormat.of().formatHex(d.digest());}
     private ArtifactManifest mapManifest(Map<String,Object> r){String id=String.valueOf(r.get("manifest_id"));return new ArtifactManifest(id,String.valueOf(r.get("run_id")),String.valueOf(r.get("session_id")),String.valueOf(r.get("workspace_root")),String.valueOf(r.get("state")),Instant.parse(String.valueOf(r.get("created_at"))),Instant.parse(String.valueOf(r.get("updated_at"))),loadEntries(id));}
     private List<ArtifactEntry> loadEntries(String id){return jdbc.query("SELECT * FROM artifact_entries WHERE manifest_id=? ORDER BY created_at",(rs,n)->new ArtifactEntry(rs.getString("artifact_id"),rs.getString("manifest_id"),rs.getString("tool_use_id"),rs.getString("canonical_path"),rs.getString("operation"),rs.getString("state"),rs.getString("sealed_hash"),rs.getString("actual_hash"),rs.getObject("file_size")==null?null:rs.getLong("file_size"),rs.getString("required_validator_id"),rs.getString("validator_result_json"),rs.getString("failure_code"),Instant.parse(rs.getString("created_at")),Instant.parse(rs.getString("updated_at"))),id);}
-    private Path canonical(String raw,String workspaceRoot){try{return managedPaths.resolveProspective(Path.of(raw),workspaceRoot);}catch(IOException|IllegalArgumentException e){throw new IllegalArgumentException("ARTIFACT_PATH_INVALID",e);}}
+    private Path canonical(String raw,String workspaceRoot){return canonical(raw,workspaceRoot,false);}
+    private Path canonical(String raw,String workspaceRoot,boolean allowExternal){try{return allowExternal?managedPaths.resolveAuthorizedExecutionProspective(Path.of(raw),workspaceRoot):managedPaths.resolveProspective(Path.of(raw),workspaceRoot);}catch(IOException|IllegalArgumentException e){throw new IllegalArgumentException("ARTIFACT_PATH_INVALID",e);}}
+    private Path canonicalDeclaredEntry(String raw,String workspaceRoot){
+        Path workspace=root(workspaceRoot);
+        Path candidate=Path.of(raw);
+        Path absolute=(candidate.isAbsolute()?candidate:workspace.resolve(candidate)).toAbsolutePath().normalize();
+        return canonical(raw,workspaceRoot,!absolute.startsWith(workspace));
+    }
     private Path root(String workspaceRoot){try{return Path.of(workspaceRoot).toRealPath();}catch(IOException|RuntimeException e){throw new IllegalArgumentException("ARTIFACT_WORKSPACE_ROOT_INVALID",e);}}
     /** 将工具声明的操作别名收敛为产物清单使用的稳定值。 */
     public static String normalizeOperation(String operation) {

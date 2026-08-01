@@ -1,6 +1,7 @@
 package com.aicodeassistant.tool.impl;
 
 import com.aicodeassistant.history.FileHistoryService;
+import com.aicodeassistant.security.ManagedWorkspacePathResolver;
 import com.aicodeassistant.session.SessionManager;
 import com.aicodeassistant.tool.*;
 import com.aicodeassistant.tool.impl.AtomicFileWriter.WriteResult;
@@ -33,13 +34,16 @@ public class FileWriteTool implements Tool {
     private final SessionManager sessionManager;
     private final FileVersionTracker fileVersionTracker;
     private final AtomicFileWriter atomicFileWriter;
+    private final ManagedWorkspacePathResolver managedPaths;
 
     public FileWriteTool(FileHistoryService fileHistoryService, SessionManager sessionManager,
-                         FileVersionTracker fileVersionTracker, AtomicFileWriter atomicFileWriter) {
+                         FileVersionTracker fileVersionTracker, AtomicFileWriter atomicFileWriter,
+                         ManagedWorkspacePathResolver managedPaths) {
         this.fileHistoryService = fileHistoryService;
         this.sessionManager = sessionManager;
         this.fileVersionTracker = fileVersionTracker;
         this.atomicFileWriter = atomicFileWriter;
+        this.managedPaths = managedPaths;
     }
 
     @Override
@@ -100,11 +104,23 @@ public class FileWriteTool implements Tool {
 
     @Override
     public ToolResult call(ToolInput input, ToolUseContext context) {
-        String filePath = resolvePath(input.getString("file_path"), context.workingDirectory());
+        final Path path;
+        try {
+            path = managedPaths.resolveAuthorizedExecutionProspective(
+                    Path.of(input.getString("file_path")),
+                    context.workingDirectory());
+        } catch (IOException | IllegalArgumentException unsafePath) {
+            return ToolResult.validationError(
+                    "FILE_WRITE_PATH_DENIED",
+                    "File path is outside the workspace boundary: "
+                            + unsafePath.getMessage());
+        }
+        String filePath = path.toString();
         String content = input.getString("content");
-        Path path = Path.of(filePath);
 
         try {
+            boolean outsideAuthorized = !path.startsWith(
+                    Path.of(context.workingDirectory()).toRealPath());
             String expectedOldHash = null;
             // AtomicFileWriter performs the security check before creating any
             // parent directory, so an unauthorized write has no filesystem side effect.
@@ -140,7 +156,7 @@ public class FileWriteTool implements Tool {
             AtomicFileWriter.ExpectedOldState expectedState = isCreate
                     ? AtomicFileWriter.ExpectedOldState.absent()
                     : AtomicFileWriter.ExpectedOldState.sha256(expectedOldHash);
-            WriteResult writeResult = atomicFileWriter.write(path,
+            WriteResult writeResult = atomicFileWriter.writeAuthorized(path,
                     content.getBytes(StandardCharsets.UTF_8), context.sessionId(),
                     expectedState, context.workingDirectory());
             if (!writeResult.success()) {
@@ -151,8 +167,12 @@ public class FileWriteTool implements Tool {
             FileHistoryService.HistoryRecordResult history;
             String postCommitError = "";
             try {
-                history = isCreate
-                        ? new FileHistoryService.HistoryRecordResult(false, "HISTORY_SNAPSHOT_NOT_APPLICABLE")
+                history = outsideAuthorized
+                        ? new FileHistoryService.HistoryRecordResult(
+                                false, "OUTSIDE_AUTHORIZED_RESOURCE")
+                        : isCreate
+                        ? new FileHistoryService.HistoryRecordResult(
+                                false, "HISTORY_SNAPSHOT_NOT_APPLICABLE")
                         : fileHistoryService.trackAppliedEdit(filePath, originalContent,
                             context.sessionId(), context.toolUseId(), "write");
                 if (history == null) history = new FileHistoryService.HistoryRecordResult(false, "HISTORY_RESULT_UNAVAILABLE");
@@ -190,9 +210,4 @@ public class FileWriteTool implements Tool {
                 effect, null, Map.of("sealedHash", result.newHash() == null ? "" : result.newHash()));
     }
 
-    private String resolvePath(String filePath, String workingDirectory) {
-        Path path = Path.of(filePath);
-        if (path.isAbsolute()) return path.toString();
-        return Path.of(workingDirectory).resolve(filePath).normalize().toString();
-    }
 }

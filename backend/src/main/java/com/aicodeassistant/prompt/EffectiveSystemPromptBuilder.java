@@ -126,7 +126,9 @@ public class EffectiveSystemPromptBuilder {
             if (config.isProactive()) {
                 // proactive: 追加到默认提示
                 log.debug("Using proactive agent system prompt (appended to default)");
-                String defaultPrompt = systemPromptBuilder.buildDefaultSystemPrompt(tools, model);
+                String defaultPrompt = systemPromptBuilder
+                        .buildDefaultSystemPrompt(
+                                tools, model, cwd, config.getSessionId());
                 return defaultPrompt + "\n\n" + agentPrompt;
             } else {
                 // 非 proactive: 替换默认提示
@@ -143,6 +145,7 @@ public class EffectiveSystemPromptBuilder {
 
         // 优先级 4: Default
         log.debug("Using default system prompt");
-        return systemPromptBuilder.buildDefaultSystemPrompt(tools, model);
+        return systemPromptBuilder.buildDefaultSystemPrompt(
+                tools, model, cwd, config.getSessionId());
     }
 }

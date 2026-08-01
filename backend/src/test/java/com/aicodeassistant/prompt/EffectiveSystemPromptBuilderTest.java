@@ -35,7 +35,8 @@ class EffectiveSystemPromptBuilderTest {
                 systemPromptBuilder, featureFlags, null, coordinatorService);
 
         // 默认 mock 行为
-        when(systemPromptBuilder.buildDefaultSystemPrompt(anyList(), anyString()))
+        when(systemPromptBuilder.buildDefaultSystemPrompt(
+                anyList(), anyString(), nullable(Path.class), nullable(String.class)))
                 .thenReturn("DEFAULT_SYSTEM_PROMPT");
         when(featureFlags.isEnabled(anyString())).thenReturn(false);
         when(coordinatorService.isCoordinatorMode()).thenReturn(false);
@@ -182,6 +183,7 @@ class EffectiveSystemPromptBuilderTest {
 
         SystemPromptConfig config = SystemPromptConfig.defaults()
                 .withAgent(agentDef, true) // proactive
+                .withSessionId("session-agent")
                 .withCustom("CUSTOM_PROMPT");
 
         List<Tool> tools = List.of();
@@ -193,6 +195,8 @@ class EffectiveSystemPromptBuilderTest {
         // Then - proactive 时 Agent 提示追加到默认提示
         assertTrue(result.contains("DEFAULT_SYSTEM_PROMPT"));
         assertTrue(result.contains("AGENT_SPECIFIC_PROMPT"));
+        verify(systemPromptBuilder).buildDefaultSystemPrompt(
+                tools, model, Path.of("."), "session-agent");
     }
 
     @Test
@@ -263,7 +267,8 @@ class EffectiveSystemPromptBuilderTest {
     @Test
     void testPriority4_DefaultSystemPrompt() {
         // Given
-        SystemPromptConfig config = SystemPromptConfig.defaults();
+        SystemPromptConfig config = SystemPromptConfig.defaults()
+                .withSessionId("session-1");
 
         List<Tool> tools = List.of();
         String model = "gpt-4o";
@@ -273,7 +278,8 @@ class EffectiveSystemPromptBuilderTest {
 
         // Then
         assertEquals("DEFAULT_SYSTEM_PROMPT", result);
-        verify(systemPromptBuilder).buildDefaultSystemPrompt(tools, model);
+        verify(systemPromptBuilder).buildDefaultSystemPrompt(
+                tools, model, Path.of("."), "session-1");
     }
 
     @Test

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSessionStore } from '@/store/sessionStore';
 
 interface FileResult {
     path: string;
@@ -25,25 +26,60 @@ export const FileAutoComplete: React.FC<FileAutoCompleteProps> = ({
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [loading, setLoading] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+    const sessionId = useSessionStore(s => s.sessionId);
 
     // 防抖搜索
     useEffect(() => {
-        if (!query) { setResults([]); return; }
+        if (!query || !sessionId) {
+            setResults([]);
+            return;
+        }
         clearTimeout(debounceRef.current);
+        const controller = new AbortController();
+        let active = true;
         debounceRef.current = setTimeout(async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/files/search?query=${encodeURIComponent(query)}&limit=15`);
-                const data: FileResult[] = await res.json();
-                setResults(data);
+                const params = new URLSearchParams({
+                    query,
+                    limit: '15',
+                    sessionId,
+                });
+                const res = await fetch(
+                    `/api/files/search?${params}`,
+                    { signal: controller.signal },
+                );
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                const data = await res.json() as unknown;
+                if (!Array.isArray(data)
+                        || !data.every(item =>
+                            item !== null
+                            && typeof item === 'object'
+                            && typeof item.path === 'string'
+                            && typeof item.name === 'string'
+                            && (item.type === 'file'
+                                || item.type === 'directory')
+                            && typeof item.score === 'number')) {
+                    throw new Error(
+                        'Invalid file search response');
+                }
+                if (!active) return;
+                setResults(data as FileResult[]);
                 setSelectedIndex(0);
             } catch {
-                setResults([]);
+                if (active) setResults([]);
+            } finally {
+                if (active) setLoading(false);
             }
-            setLoading(false);
         }, 150);
-        return () => clearTimeout(debounceRef.current);
-    }, [query]);
+        return () => {
+            active = false;
+            clearTimeout(debounceRef.current);
+            controller.abort();
+        };
+    }, [query, sessionId]);
 
     // 键盘导航
     useEffect(() => {

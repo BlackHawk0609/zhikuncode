@@ -1,10 +1,12 @@
 package com.aicodeassistant.coordinator;
 
 import com.aicodeassistant.config.FeatureFlagService;
+import com.aicodeassistant.security.SystemScratchpadPathPolicy;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +40,7 @@ public class CoordinatorService {
     private final FeatureFlagService featureFlags;
     private final ToolRegistry toolRegistry;
     private final CoordinatorWorkflowEngine workflowEngine;
+    private final SystemScratchpadPathPolicy scratchpadPaths;
 
     /**
      * 运行时环境变量存储 — 替代 System.getenv()/System.setProperty()。
@@ -59,12 +62,23 @@ public class CoordinatorService {
             "Agent", "TaskStop", "SendMessage", "SyntheticOutput"
     );
 
+    @Autowired
     public CoordinatorService(FeatureFlagService featureFlags,
                               @Lazy ToolRegistry toolRegistry,
-                              @Lazy CoordinatorWorkflowEngine workflowEngine) {
+                              @Lazy CoordinatorWorkflowEngine workflowEngine,
+                              SystemScratchpadPathPolicy scratchpadPaths) {
         this.featureFlags = featureFlags;
         this.toolRegistry = toolRegistry;
         this.workflowEngine = workflowEngine;
+        this.scratchpadPaths = scratchpadPaths;
+    }
+
+    /** Backwards-compatible constructor for direct unit construction. */
+    public CoordinatorService(FeatureFlagService featureFlags,
+                              ToolRegistry toolRegistry,
+                              CoordinatorWorkflowEngine workflowEngine) {
+        this(featureFlags, toolRegistry, workflowEngine,
+                SystemScratchpadPathPolicy.defaultPolicy());
     }
 
     // ============ 模式检测 ============
@@ -242,13 +256,16 @@ public class CoordinatorService {
         if (sessionId != null && !safeSessionId.equals(sessionId)) {
             log.warn("getScratchpadDir: rejected unsafe sessionId (path traversal prevention), falling back to 'default'");
         }
-        Path dir = Path.of(System.getProperty("user.dir"), ".zhikun", "scratchpad", safeSessionId);
+        Path dir = scratchpadPaths.resolveChild(safeSessionId);
         try {
             Files.createDirectories(dir);
+            if (!scratchpadPaths.contains(dir)) {
+                throw new SecurityException("Scratchpad root changed while creating " + dir);
+            }
+            return dir.toRealPath();
         } catch (Exception e) {
-            log.warn("Failed to create scratchpad dir: {}", dir, e);
+            throw new IllegalStateException("Failed to create scratchpad dir: " + dir, e);
         }
-        return dir;
     }
 
     // ============ 辅助方法 ============

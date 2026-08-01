@@ -6,6 +6,7 @@ import com.aicodeassistant.plugin.ReloadPluginsCommand;
 import com.aicodeassistant.model.Usage;
 import com.aicodeassistant.session.SessionData;
 import com.aicodeassistant.session.SessionManager;
+import com.aicodeassistant.service.GitService;
 import com.aicodeassistant.state.AppState;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,7 +47,9 @@ class EnhancedCommandsGoldenTest {
     @BeforeEach
     void setUp() {
         // 收集所有 @Bean 方法产生的命令 + 已有 @Component 命令
-        GitCommands git = new GitCommands();
+        GitService gitService = mock(GitService.class);
+        when(gitService.isGitRepositoryRoot(any())).thenReturn(true);
+        GitCommands git = new GitCommands(gitService);
         SessionCommands session = new SessionCommands();
         ConfigModeCommands config = new ConfigModeCommands();
         ExtensionCommands ext = new ExtensionCommands();

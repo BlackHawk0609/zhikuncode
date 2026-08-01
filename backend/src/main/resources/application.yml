@@ -16,6 +16,19 @@ spring:
       write-dates-as-timestamps: false
     default-property-inclusion: non_null
 
+zhikuncode:
+  database:
+    global-path: ${ZHIKUN_GLOBAL_DB_PATH:}
+  workspace:
+    allowed-roots: ${ZHIKUN_WORKSPACE_ALLOWED_ROOTS:}
+    # Direct local-desktop mode only. Keep disabled behind proxies and in production.
+    local-picker-enabled: ${ZHIKUN_LOCAL_PICKER_ENABLED:false}
+    # Server-owned fallback; Query and Session APIs cannot override it with a raw path.
+    default-root: ${ZHIKUN_DEFAULT_WORKSPACE:${app.working-dir:${user.dir}}}
+  scratchpad:
+    # Server-owned shared root used by coordinator and swarm runs.
+    system-root: ${app.working-dir:${user.dir}}/.zhikun/scratchpad
+
 # Python 服务配置
 python:
   service:

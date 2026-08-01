@@ -2,11 +2,13 @@ package com.aicodeassistant.security;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -25,6 +27,18 @@ public class PathSecurityService {
 
     private static final Logger log = LoggerFactory.getLogger(PathSecurityService.class);
 
+    private final SystemScratchpadPathPolicy systemScratchpads;
+
+    /** Standalone/test compatibility; Spring uses the injected constructor. */
+    public PathSecurityService() {
+        this(SystemScratchpadPathPolicy.defaultPolicy());
+    }
+
+    @Autowired
+    public PathSecurityService(SystemScratchpadPathPolicy systemScratchpads) {
+        this.systemScratchpads = Objects.requireNonNull(systemScratchpads);
+    }
+
     // ===== Layer 1: 硬编码设备路径阻止 =====
     private static final Set<String> BLOCKED_DEVICE_PATHS = Set.of(
         "/dev/zero", "/dev/random", "/dev/urandom", "/dev/full",
@@ -40,7 +54,7 @@ public class PathSecurityService {
         ".bashrc", ".bash_profile", ".bash_login", ".bash_logout",
         ".zshrc", ".zprofile", ".zshenv", ".zlogin",
         ".profile", ".login", ".ripgreprc",
-        ".env", ".env.local",
+        ".env", ".env.local", ".env.production",
         ".mcp.json", ".zhikun.json",
         ".npmrc", ".yarnrc",
         "id_rsa", "id_ed25519", "id_ecdsa",
@@ -52,18 +66,44 @@ public class PathSecurityService {
 
     // ===== Layer 2: 危险目录黑名单 =====
     private static final Set<String> DANGEROUS_DIRECTORIES = Set.of(
-        ".git", ".vscode", ".idea", ".zhikun",
+        ".git", ".vscode", ".idea", ".zhikun", ".ai-code-assistant",
         ".ssh", ".gnupg", ".aws",
         ".config", ".local",
         ".kube", ".docker",
         "node_modules"
     );
 
+    /**
+     * Direct reads below these directories expose credentials or repository
+     * control state and therefore always require a fresh approval. Keep this
+     * narrower than {@link #DANGEROUS_DIRECTORIES}: dependency and IDE folders
+     * are excluded from broad searches, but are not secrets by themselves.
+     */
+    private static final Set<String> SENSITIVE_READ_DIRECTORIES = Set.of(
+        ".git", ".ssh", ".gnupg", ".aws", ".kube", ".docker",
+        ".ai-code-assistant"
+    );
+
+    /** Direct writes to control/credential directories always require approval. */
+    private static final Set<String> SENSITIVE_WRITE_DIRECTORIES = Set.of(
+        ".git", ".vscode", ".idea", ".zhikun",
+        ".ai-code-assistant", ".ssh", ".gnupg", ".aws",
+        ".config", ".kube", ".docker"
+    );
+
+    /** Recursive traversal of these system roots is never a bounded file read. */
+    private static final Set<String> BLOCKED_RECURSIVE_ROOTS = Set.of(
+        "/", "/etc", "/private/etc", "/root", "/proc", "/sys", "/dev"
+    );
+
     // ===== Layer 2.5: 系统关键目录 — 写入需确认（不硬拒绝） =====
     private static final List<String> SYSTEM_CRITICAL_DIRS = List.of(
-        "/etc", "/usr", "/bin", "/sbin", "/boot", "/var",
+        "/etc", "/private/etc", "/usr", "/bin", "/sbin", "/boot",
+        "/var", "/private/var",
         "/lib", "/lib64", "/opt", "/root",
-        "/sys", "/proc", "/System", "/Applications"
+        "/sys", "/proc", "/System", "/Applications",
+        "C:/Windows", "C:/Program Files", "C:/Program Files (x86)",
+        "C:/ProgramData"
     );
 
     // ===== Layer 4: 危险删除目标路径 =====
@@ -86,8 +126,69 @@ public class PathSecurityService {
      * 验证读取路径安全性
      */
     public PathCheckResult checkReadPermission(String filePath, String workingDirectory) {
+        return checkReadPermission(filePath, workingDirectory, false);
+    }
+
+    /**
+     * File tools call this only after entering the authorization gateway. An
+     * ordinary external path may proceed to the interaction/grant policy, while
+     * device paths and sensitive paths retain their hard/high-risk treatment.
+     */
+    public PathCheckResult checkAuthorizedReadPermission(
+            String filePath, String workingDirectory) {
+        return checkReadPermission(filePath, workingDirectory, true);
+    }
+
+    /**
+     * Execution-time check for the canonical path bound by the authorization
+     * gateway. Unlike the classification method above, this rejects any path
+     * that now resolves to a different target.
+     */
+    public PathCheckResult checkAuthorizedExecutionReadPermission(
+            String filePath, String workingDirectory) {
+        return inspectAuthorizedExecutionReadPermission(
+                filePath, workingDirectory).permission();
+    }
+
+    /** Returns the exact canonical target inspected by the execution check. */
+    public AuthorizedPathCheck inspectAuthorizedExecutionReadPermission(
+            String filePath, String workingDirectory) {
+        AuthorizedPathCheck target = inspectAuthorizedTarget(
+                filePath, workingDirectory);
+        if (!target.permission().isAllowed()) return target;
+        return new AuthorizedPathCheck(
+                target.target(),
+                checkReadPermission(target.target(), filePath,
+                        workingDirectory, true));
+    }
+
+    private PathCheckResult checkReadPermission(
+            String filePath, String workingDirectory,
+            boolean allowExternal) {
+        if (isUncPath(filePath)) {
+            return PathCheckResult.denied(
+                    "UNC path access denied (NTLM credential leak prevention): "
+                            + filePath);
+        }
         Path resolved = resolvePath(filePath, workingDirectory);
+        return checkReadPermission(
+                resolved, filePath, workingDirectory,
+                allowExternal);
+    }
+
+    private PathCheckResult checkReadPermission(
+            Path resolved, String filePath,
+            String workingDirectory,
+            boolean allowExternal) {
         String resolvedStr = resolved.toString();
+        Path lexicalPath;
+        try {
+            lexicalPath = absoluteNormalizedPath(
+                    filePath, workingDirectory);
+        } catch (RuntimeException invalidPath) {
+            return PathCheckResult.denied(
+                    "Invalid path: " + filePath);
+        }
 
         // 1. 设备文件检查 — Layer 1
         if (BLOCKED_DEVICE_PATHS.contains(resolvedStr)) {
@@ -101,36 +202,147 @@ public class PathSecurityService {
             return PathCheckResult.denied("Cannot read process special file: " + resolved);
         }
 
-        // 2.5 UNC 路径防护 — Layer 6
-        if (filePath.startsWith("//") || filePath.startsWith("\\\\")) {
-            return PathCheckResult.denied("UNC path access denied (NTLM credential leak prevention): " + filePath);
+        if ((resolvedStr.equals("/proc")
+                || resolvedStr.startsWith("/proc/"))
+                && !SAFE_PROC_PATHS.contains(resolvedStr)) {
+            return PathCheckResult.denied(
+                    "Cannot read process special path: " + resolved);
+        }
+        if (resolvedStr.equals("/sys")
+                || resolvedStr.startsWith("/sys/")
+                || resolvedStr.equals("/dev")
+                || resolvedStr.startsWith("/dev/")) {
+            return PathCheckResult.denied(
+                    "Cannot read device or kernel path: " + resolved);
         }
 
         // 3. 项目边界检查
+        Path savedProjectRoot;
         Path projectRoot;
         try {
-            projectRoot = Path.of(workingDirectory).toRealPath();
-        } catch (IOException e) {
-            projectRoot = Path.of(workingDirectory).toAbsolutePath().normalize();
+            savedProjectRoot = Path.of(workingDirectory)
+                    .toAbsolutePath().normalize();
+            projectRoot = savedProjectRoot.toRealPath();
+        } catch (IOException | RuntimeException unavailable) {
+            return PathCheckResult.denied(
+                    "Access denied: project boundary is unavailable");
         }
-        if (!resolved.startsWith(projectRoot)) {
-            if (!isAllowedExternalPath(resolved)) {
-                return PathCheckResult.denied(
-                    "Access denied: path '" + filePath + "' is outside project boundary. " +
-                    "Allowed: " + projectRoot);
-            }
+        if (!projectRoot.equals(savedProjectRoot)) {
+            return PathCheckResult.denied(
+                    "Access denied: project boundary has changed");
+        }
+        boolean outsideProject = !resolved.startsWith(projectRoot);
+        if (!allowExternal && outsideProject) {
+            return PathCheckResult.denied(
+                "Access denied: path '" + filePath + "' is outside project boundary. " +
+                "Allowed: " + projectRoot);
         }
 
         // 4. 危险文件警告 — Layer 2
-        if (resolved.getFileName() != null) {
-            String fileName = resolved.getFileName().toString().toLowerCase();
-            if (DANGEROUS_FILES.contains(fileName)) {
-                return PathCheckResult.needsConfirmation(
-                    "Reading sensitive file: " + fileName);
-            }
+        String sensitiveFileName = protectedFileName(
+                resolved, lexicalPath);
+        if (sensitiveFileName != null) {
+            return PathCheckResult.needsConfirmation(
+                "Reading sensitive file: " + sensitiveFileName);
+        }
+
+        String sensitiveReadDirectory = matchingSensitiveDirectory(
+                resolved, projectRoot, outsideProject,
+                SENSITIVE_READ_DIRECTORIES);
+        if (sensitiveReadDirectory == null
+                && !lexicalPath.equals(resolved)) {
+            sensitiveReadDirectory = matchingSensitiveDirectory(
+                    lexicalPath, projectRoot,
+                    !lexicalPath.startsWith(projectRoot),
+                    SENSITIVE_READ_DIRECTORIES);
+        }
+        if (sensitiveReadDirectory != null) {
+            return PathCheckResult.needsConfirmation(
+                "Reading from sensitive directory: "
+                        + sensitiveReadDirectory);
+        }
+
+        if (isSensitiveSystemOrUserPath(resolved)) {
+            return PathCheckResult.needsConfirmation(
+                    "Reading sensitive path: " + resolved);
         }
 
         return PathCheckResult.allowed();
+    }
+
+    /**
+     * Checks the root of a recursive read operation such as Glob or Grep.
+     * Protected descendants of an ordinary Project root are excluded by the
+     * tools themselves; only choosing a protected directory (or a path inside
+     * one) as the search root upgrades the operation to explicit confirmation.
+     */
+    public PathCheckResult checkRecursiveReadRootPermission(
+            String rootPath, String workingDirectory) {
+        return checkRecursiveReadRootPermission(
+                rootPath, workingDirectory, false);
+    }
+
+    /** Authorization-gateway variant of recursive-root inspection. */
+    public PathCheckResult checkAuthorizedRecursiveReadRootPermission(
+            String rootPath, String workingDirectory) {
+        return checkRecursiveReadRootPermission(
+                rootPath, workingDirectory, true);
+    }
+
+    /** Execution-time recursive-read check for a gateway-bound canonical root. */
+    public PathCheckResult checkAuthorizedExecutionRecursiveReadRootPermission(
+            String rootPath, String workingDirectory) {
+        return inspectAuthorizedExecutionRecursiveReadRootPermission(
+                rootPath, workingDirectory).permission();
+    }
+
+    /** Returns the exact canonical root inspected by the execution check. */
+    public AuthorizedPathCheck inspectAuthorizedExecutionRecursiveReadRootPermission(
+            String rootPath, String workingDirectory) {
+        AuthorizedPathCheck target = inspectAuthorizedTarget(
+                rootPath, workingDirectory);
+        if (!target.permission().isAllowed()) return target;
+        return new AuthorizedPathCheck(
+                target.target(),
+                checkRecursiveReadRootPermission(
+                        target.target(), rootPath,
+                        workingDirectory, true));
+    }
+
+    private PathCheckResult checkRecursiveReadRootPermission(
+            String rootPath, String workingDirectory,
+            boolean allowExternal) {
+        if (isUncPath(rootPath)) {
+            return checkReadPermission(
+                    rootPath, workingDirectory, allowExternal);
+        }
+        return checkRecursiveReadRootPermission(
+                resolvePath(rootPath, workingDirectory), rootPath,
+                workingDirectory, allowExternal);
+    }
+
+    private PathCheckResult checkRecursiveReadRootPermission(
+            Path resolved, String rootPath,
+            String workingDirectory,
+            boolean allowExternal) {
+        PathCheckResult readCheck = checkReadPermission(
+                resolved, rootPath, workingDirectory,
+                allowExternal);
+        if (!readCheck.isAllowed() || readCheck.needsConfirmation()) {
+            return readCheck;
+        }
+
+        String resolvedPath = resolved.toString();
+        if (resolved.getParent() == null
+                || isBlockedRecursiveRoot(resolvedPath)
+                || resolvedPath.startsWith("/proc/")
+                || resolvedPath.startsWith("/sys/")
+                || resolvedPath.startsWith("/dev/")) {
+            return PathCheckResult.denied(
+                    "Recursive access to system root is denied: "
+                            + resolved);
+        }
+        return readCheck;
     }
 
     // ==================== 写入权限检查 ====================
@@ -139,28 +351,85 @@ public class PathSecurityService {
      * 验证写入路径安全性 — 比读取更严格。
      */
     public PathCheckResult checkWritePermission(String filePath, String workingDirectory) {
-        PathCheckResult readCheck = checkReadPermission(filePath, workingDirectory);
+        return checkWritePermission(filePath, workingDirectory, false);
+    }
+
+    /** Authorization-gateway variant for a file write. */
+    public PathCheckResult checkAuthorizedWritePermission(
+            String filePath, String workingDirectory) {
+        return checkWritePermission(filePath, workingDirectory, true);
+    }
+
+    /** Execution-time write check for a gateway-bound canonical target. */
+    public PathCheckResult checkAuthorizedExecutionWritePermission(
+            String filePath, String workingDirectory) {
+        return inspectAuthorizedExecutionWritePermission(
+                filePath, workingDirectory).permission();
+    }
+
+    /** Returns the exact canonical target inspected by the execution check. */
+    public AuthorizedPathCheck inspectAuthorizedExecutionWritePermission(
+            String filePath, String workingDirectory) {
+        AuthorizedPathCheck target = inspectAuthorizedTarget(
+                filePath, workingDirectory);
+        if (!target.permission().isAllowed()) return target;
+        return new AuthorizedPathCheck(
+                target.target(),
+                checkWritePermission(target.target(), filePath,
+                        workingDirectory, true));
+    }
+
+    private PathCheckResult checkWritePermission(
+            String filePath, String workingDirectory,
+            boolean allowExternal) {
+        if (isUncPath(filePath)) {
+            return checkReadPermission(
+                    filePath, workingDirectory, allowExternal);
+        }
+        Path resolved = resolvePath(filePath, workingDirectory);
+        return checkWritePermission(
+                resolved, filePath, workingDirectory,
+                allowExternal);
+    }
+
+    private PathCheckResult checkWritePermission(
+            Path resolved, String filePath,
+            String workingDirectory,
+            boolean allowExternal) {
+        PathCheckResult readCheck = checkReadPermission(
+                resolved, filePath, workingDirectory,
+                allowExternal);
         if (!readCheck.isAllowed() && !readCheck.needsConfirmation()) {
             return readCheck;
         }
 
-        Path resolved = resolvePath(filePath, workingDirectory);
-
         // 5. 危险目录写入检查 — Layer 2
-        for (String dangerDir : DANGEROUS_DIRECTORIES) {
-            if (containsPathComponent(resolved, dangerDir)) {
-                return PathCheckResult.needsConfirmation(
-                    "Writing to protected directory: " + dangerDir);
-            }
+        Path projectRoot = Path.of(workingDirectory)
+                .toAbsolutePath().normalize();
+        boolean outsideProject = !resolved.startsWith(projectRoot);
+        String sensitiveWriteDirectory = matchingSensitiveDirectory(
+                resolved, projectRoot, outsideProject,
+                SENSITIVE_WRITE_DIRECTORIES);
+        Path lexicalPath = absoluteNormalizedPath(
+                filePath, workingDirectory);
+        if (sensitiveWriteDirectory == null
+                && !lexicalPath.equals(resolved)) {
+            sensitiveWriteDirectory = matchingSensitiveDirectory(
+                    lexicalPath, projectRoot,
+                    !lexicalPath.startsWith(projectRoot),
+                    SENSITIVE_WRITE_DIRECTORIES);
+        }
+        if (sensitiveWriteDirectory != null) {
+            return PathCheckResult.needsConfirmation(
+                    "Writing to protected directory: "
+                            + sensitiveWriteDirectory);
         }
 
         // 5.5 系统关键目录写入检查 — Layer 2.5
         String resolvedStr = resolved.toString();
-        for (String sysDir : SYSTEM_CRITICAL_DIRS) {
-            if (resolvedStr.equals(sysDir) || resolvedStr.startsWith(sysDir + "/")) {
-                return PathCheckResult.needsConfirmation(
-                    "Writing to system critical directory: " + sysDir);
-            }
+        if (isSystemCriticalPath(resolvedStr)) {
+            return PathCheckResult.needsConfirmation(
+                    "Writing to system critical directory: " + resolved);
         }
 
         // 5.6 符号链接写入检查 — Layer 3
@@ -171,7 +440,9 @@ public class PathSecurityService {
                 if (BLOCKED_DEVICE_PATHS.contains(realStr)) {
                     return PathCheckResult.denied("Symlink targets device file: " + filePath + " -> " + realPath);
                 }
-                if (realPath.getFileName() != null && DANGEROUS_FILES.contains(realPath.getFileName().toString())) {
+                if (realPath.getFileName() != null
+                        && isProtectedFileName(
+                                realPath.getFileName().toString())) {
                     return PathCheckResult.needsConfirmation("Symlink targets sensitive file: " + filePath + " -> " + realPath);
                 }
             }
@@ -241,33 +512,258 @@ public class PathSecurityService {
      * 解析路径
      */
     public Path resolvePath(String filePath, String workingDirectory) {
-        Path path = Path.of(filePath);
-        Path resolved;
-        if (path.isAbsolute()) {
-            resolved = path;
-        } else {
-            resolved = Path.of(workingDirectory).resolve(filePath);
+        if (isUncPath(filePath)) {
+            throw new IllegalArgumentException(
+                    "UNC path access denied (NTLM credential leak prevention): "
+                            + filePath);
         }
-        resolved = resolved.toAbsolutePath().normalize();
+        Path resolved = absoluteNormalizedPath(filePath, workingDirectory);
 
         try {
             resolved = resolved.toRealPath();
         } catch (IOException e) {
-            // 文件不存在时 toRealPath 会失败，使用 normalize 结果
+            // Resolve an existing ancestor so a prospective target below a
+            // directory symlink is classified by its actual destination.
+            resolved = resolveThroughExistingAncestor(resolved);
         }
         return resolved;
     }
 
-    private boolean isAllowedExternalPath(Path path) {
-        // 不限制项目边界 — 允许访问任意路径（设备文件和危险文件黑名单仍然生效）
-        return true;
+    private Path absoluteNormalizedPath(
+            String filePath, String workingDirectory) {
+        Path path = Path.of(filePath);
+        return (path.isAbsolute()
+                ? path
+                : Path.of(workingDirectory).resolve(path))
+                .toAbsolutePath().normalize();
     }
 
-    private boolean containsPathComponent(Path path, String component) {
-        for (Path part : path) {
-            if (part.toString().equalsIgnoreCase(component)) return true;
+    private AuthorizedPathCheck inspectAuthorizedTarget(
+            String filePath, String workingDirectory) {
+        if (isUncPath(filePath)) {
+            return new AuthorizedPathCheck(
+                    null, PathCheckResult.denied(
+                            "UNC path access denied (NTLM credential leak prevention): "
+                                    + filePath));
+        }
+        Path authorizedTarget = absoluteNormalizedPath(
+                filePath, workingDirectory);
+        Path currentTarget = resolvePath(filePath, workingDirectory);
+        if (!currentTarget.equals(authorizedTarget)) {
+            return new AuthorizedPathCheck(
+                    authorizedTarget, PathCheckResult.denied(
+                            "Authorized file target changed before execution: "
+                                    + authorizedTarget + " -> "
+                                    + currentTarget));
+        }
+        return new AuthorizedPathCheck(
+                currentTarget, PathCheckResult.allowed());
+    }
+
+    private Path resolveThroughExistingAncestor(Path candidate) {
+        Path existing = candidate;
+        List<Path> missing = new ArrayList<>();
+        while (existing != null
+                && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            Path name = existing.getFileName();
+            if (name != null) missing.add(name);
+            existing = existing.getParent();
+        }
+        if (existing == null) return candidate;
+        try {
+            Path resolved = existing.toRealPath();
+            for (int index = missing.size() - 1; index >= 0; index--) {
+                resolved = resolved.resolve(missing.get(index));
+            }
+            return resolved.toAbsolutePath().normalize();
+        } catch (IOException unresolved) {
+            return candidate;
+        }
+    }
+
+    static boolean isSystemCriticalPath(String path) {
+        String normalizedPath = normalizePolicyPath(path);
+        // macOS maps /var to /private/var, but its per-user temporary and
+        // cache trees are ordinary user storage rather than system state.
+        if (normalizedPath.startsWith("/private/var/folders/")) {
+            return false;
+        }
+        for (String directory : SYSTEM_CRITICAL_DIRS) {
+            if (isSameOrDescendant(
+                    normalizedPath, normalizePolicyPath(directory))) {
+                return true;
+            }
         }
         return false;
+    }
+
+    static boolean isBlockedRecursiveRoot(String path) {
+        String normalizedPath = normalizePolicyPath(path);
+        for (String root : BLOCKED_RECURSIVE_ROOTS) {
+            if (pathsEqual(
+                    normalizedPath, normalizePolicyPath(root))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSameOrDescendant(
+            String path, String directory) {
+        if (pathsEqual(path, directory)) return true;
+        String prefix = directory.endsWith("/")
+                ? directory : directory + "/";
+        return isWindowsDrivePath(path) || isWindowsDrivePath(directory)
+                ? path.toLowerCase(Locale.ROOT).startsWith(
+                        prefix.toLowerCase(Locale.ROOT))
+                : path.startsWith(prefix);
+    }
+
+    private static boolean pathsEqual(String first, String second) {
+        return isWindowsDrivePath(first) || isWindowsDrivePath(second)
+                ? first.equalsIgnoreCase(second)
+                : first.equals(second);
+    }
+
+    private static boolean isWindowsDrivePath(String path) {
+        return path.length() >= 3
+                && Character.isLetter(path.charAt(0))
+                && path.charAt(1) == ':'
+                && path.charAt(2) == '/';
+    }
+
+    private static String normalizePolicyPath(String path) {
+        if (path == null) return "";
+        String normalized = path.replace('\\', '/');
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String matchingSensitiveDirectory(
+            Path resolved, Path projectRoot,
+            boolean outsideProject, Set<String> sensitiveDirectories) {
+        Path pathToInspect = resolved;
+        if (!outsideProject) {
+            String rootName = projectRoot.getFileName() == null
+                    ? "" : projectRoot.getFileName().toString();
+            for (String directory : sensitiveDirectories) {
+                if (!rootName.equalsIgnoreCase(directory)) {
+                    continue;
+                }
+                if (directory.equalsIgnoreCase(".zhikun")
+                        && isRelaxedScratchpadMarker(
+                                resolved, projectRoot, false)) {
+                    continue;
+                }
+                return directory;
+            }
+            pathToInspect = projectRoot.relativize(resolved);
+        }
+        for (String directory : sensitiveDirectories) {
+            if (containsUnrelaxedSensitiveComponent(
+                    pathToInspect, resolved, projectRoot,
+                    outsideProject, directory)) {
+                return directory;
+            }
+        }
+        return null;
+    }
+
+    private boolean containsUnrelaxedSensitiveComponent(
+            Path pathToInspect, Path resolved, Path projectRoot,
+            boolean outsideProject, String sensitiveDirectory) {
+        Path current = pathToInspect.isAbsolute()
+                ? pathToInspect.getRoot() : projectRoot;
+        for (Path component : pathToInspect) {
+            current = current.resolve(component);
+            if (!component.toString().equalsIgnoreCase(
+                    sensitiveDirectory)) {
+                continue;
+            }
+            if (sensitiveDirectory.equalsIgnoreCase(".zhikun")
+                    && isRelaxedScratchpadMarker(
+                            resolved, current, outsideProject)) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Only the exact {@code .zhikun/scratchpad} marker is relaxed. Other
+     * protected descendants (for example {@code .ssh}) are still inspected.
+     */
+    private boolean isRelaxedScratchpadMarker(
+            Path resolved, Path marker, boolean outsideProject) {
+        Path scratchpadRoot = marker.resolve("scratchpad");
+        if (!outsideProject && resolved.startsWith(scratchpadRoot)) {
+            return true;
+        }
+        if (!systemScratchpads.contains(resolved)) {
+            return false;
+        }
+        Path configuredRoot = systemScratchpads.systemRoot();
+        return configuredRoot.startsWith(
+                resolveThroughExistingAncestor(scratchpadRoot));
+    }
+
+    private boolean isSensitiveSystemOrUserPath(Path path) {
+        String resolved = path.toString();
+        String systemPath = resolved.startsWith("/private/etc/")
+                ? resolved.substring("/private".length()) : resolved;
+        if (SENSITIVE_SYSTEM_FILES.contains(systemPath)
+                || systemPath.startsWith("/etc/sudoers.d/")) {
+            return true;
+        }
+        String home = System.getProperty("user.home", "/root");
+        for (String userPath : SENSITIVE_USER_PATHS) {
+            String expanded = userPath.replace("~", home);
+            if (expanded.endsWith("/")) {
+                if (resolved.startsWith(expanded)) return true;
+            } else if (resolved.equals(expanded)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Exact basenames that recursive content readers must skip. */
+    public Set<String> protectedFileNames() {
+        return DANGEROUS_FILES;
+    }
+
+    /** Basename globs that recursive process-backed readers must exclude. */
+    public Set<String> protectedFileGlobs() {
+        Set<String> patterns = new TreeSet<>(DANGEROUS_FILES);
+        patterns.add(".env*");
+        return Collections.unmodifiableSet(patterns);
+    }
+
+    /** Case-insensitive exact/prefix policy shared by direct and recursive reads. */
+    public boolean isProtectedFileName(String fileName) {
+        if (fileName == null) return false;
+        String normalized = fileName.toLowerCase(Locale.ROOT);
+        return DANGEROUS_FILES.contains(normalized)
+                || normalized.startsWith(".env");
+    }
+
+    private String protectedFileName(Path canonical, Path lexical) {
+        for (Path candidate : List.of(canonical, lexical)) {
+            if (candidate.getFileName() == null) continue;
+            String fileName = candidate.getFileName().toString();
+            if (isProtectedFileName(fileName)) {
+                return fileName.toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
+    }
+
+    /** Exact directory names that recursive content readers must skip. */
+    public Set<String> protectedDirectoryNames() {
+        return DANGEROUS_DIRECTORIES;
     }
 
     // ==================== 私有工具方法 ====================
@@ -288,6 +784,12 @@ public class PathSecurityService {
 
     private boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
+    }
+
+    private boolean isUncPath(String path) {
+        return path != null
+                && (path.startsWith("//")
+                || path.startsWith("\\\\"));
     }
 
     // ==================== Layer 8: 敏感系统文件读取检测 ====================
@@ -394,6 +896,10 @@ public class PathSecurityService {
         }
         return null;
     }
+
+    /** Execution check plus the exact target inspected by that check. */
+    public record AuthorizedPathCheck(
+            Path target, PathCheckResult permission) { }
 
     /** 路径检查结果 */
     public record PathCheckResult(boolean isAllowed, boolean needsConfirmation, String message) {

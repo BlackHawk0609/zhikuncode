@@ -6,13 +6,17 @@ import com.aicodeassistant.model.PermissionMode;
 import com.aicodeassistant.model.PermissionScope;
 import com.aicodeassistant.permission.PermissionModeManager;
 import com.aicodeassistant.run.RunControlService;
+import com.aicodeassistant.security.SystemScratchpadPathPolicy;
+import com.aicodeassistant.service.ProjectWorkspaceService;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.ToolInput;
 import com.aicodeassistant.tool.ToolUseContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,12 +33,28 @@ public final class AuthorizationService {
     private final PermissionModeManager modes;
     private final RunControlService runs;
     private final ObjectMapper json;
+    private final ProjectWorkspaceService projectWorkspaces;
+    private final SystemScratchpadPathPolicy systemScratchpadPaths;
 
+    @Autowired
     public AuthorizationService(AuthorizationSubjectResolver subjects, OperationAnalyzerRegistry analyzers,
             PermissionGrantRepository grants, DurableInteractionService interactions,
-            PermissionModeManager modes, RunControlService runs, ObjectMapper json) {
+            PermissionModeManager modes, RunControlService runs, ObjectMapper json,
+            ProjectWorkspaceService projectWorkspaces,
+            SystemScratchpadPathPolicy systemScratchpadPaths) {
         this.subjects = subjects; this.analyzers = analyzers; this.grants = grants;
         this.interactions = interactions; this.modes = modes; this.runs = runs; this.json = json;
+        this.projectWorkspaces = projectWorkspaces;
+        this.systemScratchpadPaths = systemScratchpadPaths;
+    }
+
+    /** 保留给不经过 Spring 的既有嵌入式调用与单元测试。 */
+    public AuthorizationService(AuthorizationSubjectResolver subjects, OperationAnalyzerRegistry analyzers,
+            PermissionGrantRepository grants, DurableInteractionService interactions,
+            PermissionModeManager modes, RunControlService runs, ObjectMapper json,
+            ProjectWorkspaceService projectWorkspaces) {
+        this(subjects, analyzers, grants, interactions, modes, runs, json,
+                projectWorkspaces, SystemScratchpadPathPolicy.defaultPolicy());
     }
 
     public AuthorizedOperation authorize(Tool tool, FrozenToolInput frozen, ToolInput executionInput,
@@ -65,14 +85,36 @@ public final class AuthorizationService {
         AuthorizationSubject subject = prepared.subject();
         OperationDescriptor operation = prepared.descriptor();
         String executionAttemptId = prepared.executionAttemptId();
+        ToolInput boundExecutionInput = analyzers.bindExecutionInput(
+                tool, operation, executionInput, subject);
+        if (boundExecutionInput != null) {
+            executionInput = boundExecutionInput;
+        }
 
         if (operation.effects().equals(List.of(EffectClass.SAFE_INTERNAL))) {
             return new AuthorizedOperation(subject, operation, executionInput,
                     AuthorizationDiagnostic.Source.POLICY, "BUILTIN_SAFE", null, null,
                     null, executionAttemptId);
         }
+        PermissionMode mode = modes.getMode(subject.rootSessionId());
         // HIGH 风险操作每次必须弹窗确认，不可被记住，跳过所有 Grant 匹配
         if (operation.risk() == RiskClass.HIGH) {
+            if (mode == PermissionMode.PLAN) {
+                recordDenial(context, subject, operation, executionAttemptId,
+                        AuthorizationDiagnostic.Source.POLICY,
+                        AuthorizationDiagnostic.EvaluationStage.INITIAL,
+                        "PLAN_MODE_EFFECT_DENIED");
+                throw new AuthorizationException("PLAN_MODE_EFFECT_DENIED",
+                        "Plan mode does not permit this operation");
+            }
+            if (mode == PermissionMode.DONT_ASK) {
+                recordDenial(context, subject, operation, executionAttemptId,
+                        AuthorizationDiagnostic.Source.POLICY,
+                        AuthorizationDiagnostic.EvaluationStage.INITIAL,
+                        "INTERACTION_DISABLED");
+                throw new AuthorizationException("PERMISSION_INTERACTION_REQUIRED",
+                        "The operation needs explicit permission, but this session is non-interactive");
+            }
             return interact(tool, frozen, executionInput, context, subject, operation, executionAttemptId);
         }
         PermissionGrantRepository.Match match = grants.findMatch(subject, operation);
@@ -82,7 +124,16 @@ public final class AuthorizationService {
                     null, executionAttemptId);
         }
 
-        PermissionMode mode = modes.getMode(subject.rootSessionId());
+        boolean scratchpadRead = operation.effects().equals(
+                List.of(EffectClass.READ_RESOURCE));
+        if (scratchpadRead
+                && isTrustedSystemScratchpadFileOperation(
+                        subject, operation)) {
+            return new AuthorizedOperation(subject, operation, executionInput,
+                    AuthorizationDiagnostic.Source.POLICY,
+                    "SYSTEM_SCRATCHPAD_SCOPE", null, null,
+                    null, executionAttemptId);
+        }
         // SAFE 读操作在所有模式下自动放行，不弹窗（读操作已统一为 SAFE 级别）
         boolean safeRead = "file-v1".equals(operation.analyzerId())
                 && operation.risk() == RiskClass.SAFE
@@ -98,6 +149,24 @@ public final class AuthorizationService {
                     "PLAN_MODE_EFFECT_DENIED");
             throw new AuthorizationException("PLAN_MODE_EFFECT_DENIED",
                     "Plan mode does not permit this operation");
+        }
+        if (!scratchpadRead
+                && isTrustedSystemScratchpadFileOperation(
+                        subject, operation)) {
+            return new AuthorizedOperation(subject, operation, executionInput,
+                    AuthorizationDiagnostic.Source.POLICY,
+                    "SYSTEM_SCRATCHPAD_SCOPE", null, null,
+                    null, executionAttemptId);
+        }
+        // A persisted Project selection is an existing, bounded file-scope
+        // authorization. DONT_ASK disables new interactions; it does not revoke
+        // an already selected Project (just as it does not bypass an existing
+        // matching grant above).
+        if (isTrustedProjectFileWrite(subject, operation)) {
+            return new AuthorizedOperation(subject, operation, executionInput,
+                    AuthorizationDiagnostic.Source.POLICY,
+                    "PROJECT_FILE_SCOPE", null, null,
+                    null, executionAttemptId);
         }
         if (mode == PermissionMode.DONT_ASK) {
             recordDenial(context, subject, operation, executionAttemptId,
@@ -115,6 +184,75 @@ public final class AuthorizationService {
                     null, executionAttemptId);
         }
         return interact(tool, frozen, executionInput, context, subject, operation, executionAttemptId);
+    }
+
+    private boolean isTrustedProjectFileWrite(
+            AuthorizationSubject subject,
+            OperationDescriptor operation) {
+        return "file-v1".equals(operation.analyzerId())
+                && operation.risk() == RiskClass.GUARDED
+                && operation.effects().equals(
+                        List.of(EffectClass.WRITE_RESOURCE))
+                && !operation.resources().isEmpty()
+                && operation.resources().stream()
+                        .noneMatch(ResourceRef::outsideWorkspace)
+                && projectWorkspaces.isTrustedFileScope(
+                        subject.authorizationRoot());
+    }
+
+    private boolean isTrustedSystemScratchpadFileOperation(
+            AuthorizationSubject subject,
+            OperationDescriptor operation) {
+        if (!"file-v1".equals(operation.analyzerId())
+                || operation.risk() == RiskClass.HIGH
+                || !isOrdinaryScratchpadFileOperation(operation)
+                || operation.resources().isEmpty()) {
+            return false;
+        }
+        for (ResourceRef resource : operation.resources()) {
+            if (!"path".equals(resource.kind())
+                    || resource.value() == null
+                    || resource.value().isBlank()) {
+                return false;
+            }
+            try {
+                Path value = Path.of(resource.value());
+                Path target = (value.isAbsolute()
+                        ? value
+                        : subject.authorizationRoot().resolve(value))
+                        .toAbsolutePath().normalize();
+                if (!systemScratchpadPaths.contains(target)) {
+                    return false;
+                }
+            } catch (RuntimeException invalidPath) {
+                return false;
+            }
+        }
+        return projectWorkspaces.isTrustedFileScope(
+                subject.authorizationRoot());
+    }
+
+    private static boolean isOrdinaryScratchpadFileOperation(
+            OperationDescriptor operation) {
+        if (operation.toolName() == null
+                || operation.action() == null) {
+            return false;
+        }
+        return switch (operation.toolName()) {
+            case "Read" -> operation.action().equals(
+                            TypedFileOperation.READ_FILE.name())
+                    && operation.effects().equals(
+                            List.of(EffectClass.READ_RESOURCE));
+            case "Write" -> operation.action().equals(
+                            TypedFileOperation.REPLACE_FILE.name())
+                    && operation.effects().equals(
+                            List.of(EffectClass.WRITE_RESOURCE));
+            case "Edit", "NotebookEdit" -> operation.action().equals(
+                            TypedFileOperation.PATCH_FILE.name())
+                    && operation.effects().equals(
+                            List.of(EffectClass.WRITE_RESOURCE));
+            default -> false;
+        };
     }
 
     public void finalDynamicRecheck(Tool tool, AuthorizedOperation authorized, ToolUseContext context) {
@@ -141,6 +279,26 @@ public final class AuthorizationService {
                 throw new AuthorizationException("AUTHORIZATION_FINAL_RECHECK_DENIED",
                         "The one-time permission decision is no longer valid", stale);
             }
+        } else if (authorized.source()
+                == AuthorizationDiagnostic.Source.POLICY
+                && "PROJECT_FILE_SCOPE".equals(
+                        authorized.reasonCode())
+                && !isTrustedProjectFileWrite(
+                        authorized.subject(),
+                        authorized.descriptor())) {
+            throw new AuthorizationException(
+                    "AUTHORIZATION_FINAL_RECHECK_DENIED",
+                    "The Project file authorization is no longer valid");
+        } else if (authorized.source()
+                == AuthorizationDiagnostic.Source.POLICY
+                && "SYSTEM_SCRATCHPAD_SCOPE".equals(
+                        authorized.reasonCode())
+                && !isTrustedSystemScratchpadFileOperation(
+                        authorized.subject(),
+                        authorized.descriptor())) {
+            throw new AuthorizationException(
+                    "AUTHORIZATION_FINAL_RECHECK_DENIED",
+                    "The system scratchpad authorization is no longer valid");
         }
     }
 

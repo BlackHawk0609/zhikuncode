@@ -38,6 +38,7 @@ let lastSeqTs = 0;
 interface PendingBind {
     sessionId: string;
     bindingEpoch: number;
+    restoreAccepted: boolean;
     resolve: (restored: boolean) => void;
     timer: ReturnType<typeof setTimeout>;
     queued: Array<ServerMessage & { ts?: number }>;
@@ -46,6 +47,7 @@ const pendingBinds = new Map<string, PendingBind>();
 let activeRecoveryId: string | null = null;
 let nextBindingEpoch = 0;
 let boundBindingEpoch = 0;
+let boundBindRequestId: string | null = null;
 
 /** 恢复状态下仍需立即处理的关键消息类型（时间敏感，不可延迟或丢弃） */
 const RECOVERY_BYPASS_TYPES: ReadonlySet<string> = new Set([
@@ -153,6 +155,7 @@ export function isSessionBound(sessionId: string): boolean {
 export function resetBoundSession(): void {
     boundSessionId = null;
     boundBindingEpoch = 0;
+    boundBindRequestId = null;
 }
 
 /**
@@ -164,17 +167,41 @@ export function resetBoundSession(): void {
  */
 export function bindSessionAndWait(
     sessionId: string,
-    publish: (payload: { sessionId: string; protocolVersion: number; bindRequestId: string; bindingEpoch: number }) => void,
+    publish: (payload: { sessionId: string; protocolVersion: number; bindRequestId: string; bindingEpoch: number }) => void | boolean,
     timeoutMs = 5000,
 ): Promise<boolean> {
     if (activeRecoveryId) finishBind(activeRecoveryId, false, false);
     const bindRequestId = crypto.randomUUID();
     const bindingEpoch = ++nextBindingEpoch;
     return new Promise(resolve => {
-        const timer = setTimeout(() => finishBind(bindRequestId, false, false), timeoutMs);
-        pendingBinds.set(bindRequestId, { sessionId, bindingEpoch, resolve, timer, queued: [] });
+        const timer = setTimeout(() => {
+            const pending = pendingBinds.get(bindRequestId);
+            const restored = pending?.restoreAccepted === true;
+            finishBind(bindRequestId, restored, restored);
+        }, timeoutMs);
+        pendingBinds.set(bindRequestId, {
+            sessionId,
+            bindingEpoch,
+            restoreAccepted: false,
+            resolve,
+            timer,
+            queued: [],
+        });
         activeRecoveryId = bindRequestId;
-        publish({ sessionId, protocolVersion: 3, bindRequestId, bindingEpoch });
+        try {
+            const published = publish({
+                sessionId,
+                protocolVersion: 3,
+                bindRequestId,
+                bindingEpoch,
+            });
+            if (published === false) {
+                finishBind(bindRequestId, false, false);
+            }
+        } catch (error) {
+            console.error('[WS] Failed to publish Session bind:', error);
+            finishBind(bindRequestId, false, false);
+        }
     });
 }
 
@@ -237,9 +264,14 @@ export function resetSequence(): void {
 
 const handlers: Record<string, (data: any) => void> = {
     'protocol_error': (d: { code: string; supportedVersion: number; bindRequestId?: string; bindingEpoch?: number }) => {
-        const failedSessionId = d.bindRequestId
-            ? pendingBinds.get(d.bindRequestId)?.sessionId
+        const pending = d.bindRequestId
+            ? pendingBinds.get(d.bindRequestId)
             : undefined;
+        // Ignore a late failure from a timed-out or superseded bind. Its
+        // generation is no longer authoritative and must not disturb the
+        // current Session or surface a misleading notification.
+        if (d.bindRequestId && !pending) return;
+        const failedSessionId = pending?.sessionId;
         if (d.bindRequestId) finishBind(d.bindRequestId, false, false);
         const didClearSession = d.code === 'SESSION_NOT_FOUND'
                 && failedSessionId
@@ -745,10 +777,18 @@ function handleSessionRestore(data: {
     const pending = pendingBinds.get(data.bindRequestId);
     if (!pending || pending.sessionId !== data.metadata.sessionId
             || pending.bindingEpoch !== data.bindingEpoch) return;
+    // From this point the bind is confirmed. If interaction recovery exceeds
+    // the outer timeout, queued frames must be replayed rather than discarded.
+    pending.restoreAccepted = true;
     // 1. 重置序列号
     resetSequence();
 
-    // 2. 清除旧状态 → 加载完整消息历史
+    // 2. 这个 matching restore 是 Session 投影的唯一提交点。
+    // 先同步清除旧 Session 的交互投影，避免旧权限/提问对话框泄漏到新 Session。
+    usePermissionStore.getState().clearPermissions();
+    useAppUiStore.setState({ elicitationDialog: null });
+
+    // 3. 清除旧状态 → 加载完整消息历史
     useMessageStore.getState().clearMessages();
     data.messages.forEach(msg => useMessageStore.getState().addMessage(msg));
     useMessageStore.getState().replaceActiveToolCalls(data.activeToolCalls ?? []);
@@ -760,14 +800,15 @@ function handleSessionRestore(data: {
         );
     }
 
-    // 3. 恢复会话元数据
+    // 4. 恢复会话元数据
     useSessionStore.getState().resumeSession(data.metadata.sessionId);
     useSessionStore.getState().setModel(data.metadata.model);
     // session_restored 是服务端 bind-session 的确认；只有收到它才记为已绑定。
     markSessionBound(data.metadata.sessionId);
     boundBindingEpoch = data.bindingEpoch;
+    boundBindRequestId = data.bindRequestId;
 
-    // 4. 恢复状态
+    // 5. 恢复状态
     if (data.metadata.status === 'interrupted' || data.runSnapshot?.status === 'INTERRUPTED') {
         useSessionStore.getState().setStatus('idle');
         useNotificationStore.getState().addNotification({
@@ -793,10 +834,10 @@ function handleSessionRestore(data: {
         });
     }
 
-    // 5. 更新连接状态
+    // 6. 更新连接状态
     useBridgeStore.getState().updateBridgeStatus({ status: 'connected', url: '' });
 
-    // 6. 恢复 Activity 数据（从后端持久化存储，最多 50 条最近记录）
+    // 7. 恢复 Activity 数据（从后端持久化存储，最多 50 条最近记录）
     if (data.activities && data.activities.length > 0) {
         const activityStore = useActivityStore.getState();
         activityStore.clearAll();
@@ -817,22 +858,72 @@ function handleSessionRestore(data: {
     }
 
     // 快照已包含 snapshotEventSeq；bind 后收到的帧由恢复门暂存，完成投影后再依次重放。
-    void recoverPendingInteractions(data.metadata.sessionId)
-        .catch((error) => useNotificationStore.getState().addNotification({
-            key: 'run-event-recovery-failed', level: 'warning',
-            message: `运行状态补齐失败：${error instanceof Error ? error.message : String(error)}`,
-            timeout: 8000,
-        }))
+    const authority: BindRecoveryAuthority = {
+        sessionId: data.metadata.sessionId,
+        bindRequestId: data.bindRequestId,
+        bindingEpoch: data.bindingEpoch,
+    };
+    void recoverPendingInteractionsForBind(authority)
+        .catch((error) => {
+            if (!isAuthoritativeBindRecovery(authority)) return;
+            useNotificationStore.getState().addNotification({
+                key: 'run-event-recovery-failed', level: 'warning',
+                message: `运行状态补齐失败：${error instanceof Error ? error.message : String(error)}`,
+                timeout: 8000,
+            });
+        })
         .finally(() => finishBind(data.bindRequestId, true, true));
 }
 
-export async function recoverPendingInteractions(sessionId: string): Promise<void> {
+interface BindRecoveryAuthority {
+    sessionId: string;
+    bindRequestId: string;
+    bindingEpoch: number;
+}
+
+function isAuthoritativeBindRecovery(authority: BindRecoveryAuthority): boolean {
+    return authority.bindingEpoch === nextBindingEpoch
+        && authority.bindingEpoch === boundBindingEpoch
+        && authority.bindRequestId === boundBindRequestId
+        && authority.sessionId === boundSessionId
+        && authority.sessionId === useSessionStore.getState().sessionId;
+}
+
+async function fetchPendingInteractions(sessionId: string): Promise<InteractionView[]> {
     const response = await fetch(`/api/interactions/pending?sessionId=${encodeURIComponent(sessionId)}`, {
         headers: { 'X-Session-Id': sessionId },
     });
     if (!response.ok) throw new Error(`INTERACTION_RECOVERY_${response.status}`);
-    const pending = await response.json() as InteractionView[];
+    return await response.json() as InteractionView[];
+}
+
+function applyPendingInteractions(pending: InteractionView[]): void {
     for (const interaction of pending) {
         handleInteractionCreated(interaction);
     }
+}
+
+async function recoverPendingInteractionsForBind(authority: BindRecoveryAuthority): Promise<void> {
+    const pending = await fetchPendingInteractions(authority.sessionId);
+    if (!isAuthoritativeBindRecovery(authority)) return;
+    applyPendingInteractions(pending);
+}
+
+/**
+ * Refreshes pending interactions for callers already operating on a Session
+ * (for example DialogManager after a decision conflict). Bind-time recovery
+ * uses the generation-guarded private variant above.
+ */
+export async function recoverPendingInteractions(sessionId: string): Promise<void> {
+    if (boundBindRequestId === null || boundBindingEpoch === 0
+            || boundSessionId !== sessionId
+            || useSessionStore.getState().sessionId !== sessionId) return;
+    const authority: BindRecoveryAuthority = {
+        sessionId,
+        bindRequestId: boundBindRequestId,
+        bindingEpoch: boundBindingEpoch,
+    };
+    const pending = await fetchPendingInteractions(sessionId);
+    if (!isAuthoritativeBindRecovery(authority)) return;
+    applyPendingInteractions(pending);
 }

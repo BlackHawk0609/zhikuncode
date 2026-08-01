@@ -6,6 +6,7 @@ import com.aicodeassistant.engine.QueryEngine;
 import com.aicodeassistant.engine.QueryLoopState;
 import com.aicodeassistant.engine.QueryMessageHandler;
 import com.aicodeassistant.engine.TokenCounter;
+import com.aicodeassistant.exception.RequestValidationException;
 import com.aicodeassistant.exception.SessionNotFoundException;
 import com.aicodeassistant.llm.LlmProviderRegistry;
 import com.aicodeassistant.llm.ModelCapabilities;
@@ -18,6 +19,7 @@ import com.aicodeassistant.permission.PermissionModeManager;
 import com.aicodeassistant.model.Usage;
 import com.aicodeassistant.prompt.EffectiveSystemPromptBuilder;
 import com.aicodeassistant.prompt.SystemPromptConfig;
+import com.aicodeassistant.service.ProjectWorkspaceService;
 import com.aicodeassistant.session.SessionData;
 import com.aicodeassistant.session.SessionManager;
 import com.aicodeassistant.tool.Tool;
@@ -69,6 +71,7 @@ public class QueryController {
     private final EffectiveSystemPromptBuilder systemPromptBuilder;
     private final PermissionModeManager permissionModeManager;
     private final ModelRegistry modelRegistry;
+    private final ProjectWorkspaceService projectWorkspaces;
 
     public QueryController(QueryEngine queryEngine,
                            ToolRegistry toolRegistry,
@@ -78,7 +81,8 @@ public class QueryController {
                            ObjectMapper objectMapper,
                            EffectiveSystemPromptBuilder systemPromptBuilder,
                            PermissionModeManager permissionModeManager,
-                           ModelRegistry modelRegistry) {
+                           ModelRegistry modelRegistry,
+                           ProjectWorkspaceService projectWorkspaces) {
         this.queryEngine = queryEngine;
         this.toolRegistry = toolRegistry;
         this.sessionManager = sessionManager;
@@ -88,6 +92,7 @@ public class QueryController {
         this.systemPromptBuilder = systemPromptBuilder;
         this.permissionModeManager = permissionModeManager;
         this.modelRegistry = modelRegistry;
+        this.projectWorkspaces = projectWorkspaces;
     }
 
     // ════════════════════════════════════════════
@@ -104,7 +109,8 @@ public class QueryController {
     @PostMapping
     public ResponseEntity<QueryResponse> query(@RequestBody QueryRequest request) {
         // 1. 创建或复用会话
-        String sessionId = resolveSessionId(request);
+        SessionData session = resolveSession(request);
+        String sessionId = session.sessionId();
 
         // 无界面的 REST 调用没有持久交互传输，默认必须拒绝需要询问的操作，不能静默绕过授权。
         PermissionMode effectiveMode = request.permissionMode() != null
@@ -123,7 +129,8 @@ public class QueryController {
                 .withAppend(request.appendSystemPrompt())
                 .withSessionId(sessionId);
         String systemPrompt = systemPromptBuilder.buildEffectiveSystemPrompt(
-                promptConfig, tools, request.model(), Path.of(System.getProperty("user.dir")));
+                promptConfig, tools, request.model(),
+                Path.of(session.workingDir()));
 
         // 4. 组装用户消息
         String userMessage = buildUserMessage(request.prompt(), request.context());
@@ -144,15 +151,10 @@ public class QueryController {
         );
 
         // 6. 初始化循环状态 — 如果是已有会话，加载历史消息
-        List<Message> historyMessages = new ArrayList<>();
-        if (request.sessionId() != null) {
-            sessionManager.loadSession(request.sessionId()).ifPresent(session ->
-                historyMessages.addAll(session.messages())
-            );
-        }
-        String effectiveWorkDir = resolveWorkingDirectory(request.workingDirectory());
+        List<Message> historyMessages =
+                new ArrayList<>(session.messages());
         ToolUseContext toolCtx = ToolUseContext.of(
-                effectiveWorkDir, sessionId);
+                session.workingDir(), sessionId);
         QueryLoopState state = new QueryLoopState(historyMessages, toolCtx);
         // 添加用户消息
         state.addMessage(new Message.UserMessage(
@@ -223,7 +225,8 @@ public class QueryController {
         // 在 Virtual Thread 中执行
         Thread.ofVirtual().name("zhiku-query-stream").start(() -> {
             try {
-                String sessionId = resolveSessionId(request);
+                SessionData session = resolveSession(request);
+                String sessionId = session.sessionId();
                 // INC-3 fix: 使用请求传入的 permissionMode
                 PermissionMode effectiveMode = request.permissionMode() != null
                         ? request.permissionMode()
@@ -236,7 +239,8 @@ public class QueryController {
                         .withAppend(request.appendSystemPrompt())
                         .withSessionId(sessionId);
                 String systemPrompt = systemPromptBuilder.buildEffectiveSystemPrompt(
-                        promptConfig, tools, request.model(), Path.of(System.getProperty("user.dir")));
+                        promptConfig, tools, request.model(),
+                        Path.of(session.workingDir()));
                 String userMessage = buildUserMessage(request.prompt(), request.context());
                 String rawModel = request.model() != null
                         ? request.model() : providerRegistry.getDefaultModel();
@@ -254,15 +258,10 @@ public class QueryController {
                 );
 
                 // 如果是已有会话，加载历史消息
-                List<Message> historyMessages = new ArrayList<>();
-                if (request.sessionId() != null) {
-                    sessionManager.loadSession(request.sessionId()).ifPresent(session ->
-                        historyMessages.addAll(session.messages())
-                    );
-                }
-                String effectiveWorkDir = resolveWorkingDirectory(request.workingDirectory());
+                List<Message> historyMessages =
+                        new ArrayList<>(session.messages());
                 ToolUseContext toolCtx = ToolUseContext.of(
-                        effectiveWorkDir, sessionId);
+                        session.workingDir(), sessionId);
                 QueryLoopState state = new QueryLoopState(historyMessages, toolCtx);
                 state.addMessage(new Message.UserMessage(
                         UUID.randomUUID().toString(), Instant.now(),
@@ -331,9 +330,12 @@ public class QueryController {
     public ResponseEntity<QueryResponse> conversationQuery(
             @RequestBody ConversationRequest request) {
 
+        rejectClientWorkingDirectory(request.workingDirectory());
+
         // 1. 加载会话
         SessionData session = sessionManager.loadSession(request.sessionId())
                 .orElseThrow(() -> new SessionNotFoundException(request.sessionId()));
+        projectWorkspaces.requireCurrentBinding(session.workingDir());
 
         // INC-3 fix: 使用请求传入的 permissionMode
         PermissionMode effectiveMode = request.permissionMode() != null
@@ -349,7 +351,8 @@ public class QueryController {
                 .withAppend(request.appendSystemPrompt())
                 .withSessionId(request.sessionId());
         String systemPrompt = systemPromptBuilder.buildEffectiveSystemPrompt(
-                promptConfig, tools, request.model(), Path.of(System.getProperty("user.dir")));
+                promptConfig, tools, request.model(),
+                Path.of(session.workingDir()));
         String rawModel = request.model() != null ? request.model() : session.model();
         String model = providerRegistry.resolveModelAlias(rawModel);
         int maxTurns = request.maxTurns() != null ? request.maxTurns() : QueryConfig.DEFAULT_MAX_TURNS;
@@ -365,12 +368,13 @@ public class QueryController {
         );
 
         // 3. 初始化状态 — 加载历史消息
-        // REST API 无交互式权限确认能力，设置 null notifier + BYPASS 模式双保险
-        String effectiveWorkDir = resolveWorkingDirectory(request.workingDirectory());
+        // REST API 无交互式权限确认能力：null notifier 保证
+        // DONT_ASK 下需要新确认的操作失败闭合。
         ToolUseContext toolCtx = ToolUseContext.of(
-                effectiveWorkDir, request.sessionId())
+                session.workingDir(), request.sessionId())
                 .withPermissionNotifier(null);  // 明确标注: REST无pusher
-        log.debug("REST API conversation: permissionMode=BYPASS, notifier=null (by design)");
+        log.debug("REST API conversation: permissionMode={}, notifier=null (by design)",
+                effectiveMode);
         QueryLoopState state = new QueryLoopState(new ArrayList<>(session.messages()), toolCtx);
 
         // 追加新用户消息
@@ -424,25 +428,43 @@ public class QueryController {
 
     // ═══ 私有方法 ═══
 
-    private String resolveWorkingDirectory(String requestWorkDir) {
-        String raw = requestWorkDir != null ? requestWorkDir : System.getProperty("user.dir");
-        try {
-            // Canonicalize to resolve symlinks (e.g. /tmp -> /private/tmp on macOS)
-            return Path.of(raw).toRealPath().toString();
-        } catch (IOException e) {
-            log.warn("Cannot resolve working directory '{}', using as-is", raw);
-            return raw;
-        }
-    }
-
-    private String resolveSessionId(QueryRequest request) {
-        if (request.sessionId() != null) {
-            return request.sessionId();
+    private SessionData resolveSession(QueryRequest request) {
+        rejectClientWorkingDirectory(request.workingDirectory());
+        if (request.sessionId() != null
+                && !request.sessionId().isBlank()) {
+            if (request.projectId() != null
+                    && !request.projectId().isBlank()) {
+                throw new RequestValidationException(
+                        "QUERY_PROJECT_WITH_SESSION_UNSUPPORTED",
+                        "projectId can only be used when creating a Session");
+            }
+            SessionData existing = sessionManager.loadSession(request.sessionId())
+                    .orElseThrow(() ->
+                            new SessionNotFoundException(
+                                    request.sessionId()));
+            projectWorkspaces.requireCurrentBinding(
+                    existing.workingDir());
+            return existing;
         }
         String model = request.model() != null ? request.model() : providerRegistry.getDefaultModel();
-        String workingDir = request.workingDirectory() != null
-                ? request.workingDirectory() : System.getProperty("user.dir");
-        return sessionManager.createSession(model, workingDir);
+        String workingDir = projectWorkspaces.resolveWorkspace(
+                request.projectId()).toString();
+        String sessionId = sessionManager.createSession(
+                model, workingDir);
+        return sessionManager.loadSession(sessionId)
+                .orElseThrow(() ->
+                        new SessionNotFoundException(sessionId));
+    }
+
+    private void rejectClientWorkingDirectory(
+            String workingDirectory) {
+        if (workingDirectory != null
+                && !workingDirectory.isBlank()) {
+            throw new RequestValidationException(
+                    "QUERY_WORKING_DIRECTORY_UNSUPPORTED",
+                    "Use projectId or an existing sessionId instead "
+                            + "of workingDirectory");
+        }
     }
 
     private List<Tool> assembleToolPool(List<String> allowedTools, List<String> disallowedTools) {
@@ -549,6 +571,7 @@ public class QueryController {
             Double maxBudgetUsd,
             List<String> allowedTools,
             List<String> disallowedTools,
+            String projectId,
             String sessionId,
             String workingDirectory,
             Integer timeoutSeconds,

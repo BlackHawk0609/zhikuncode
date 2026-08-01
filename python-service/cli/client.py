@@ -75,6 +75,36 @@ class AicaClient:
         response.raise_for_status()
         return response.json()
 
+    def list_projects(self) -> list[dict]:
+        """列出服务端已注册的 Project。"""
+        url = f"{self.server}/api/projects"
+        response = httpx.get(
+            url,
+            headers=self._headers(),
+            timeout=min(self.timeout, 30),
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def create_project(
+        self,
+        name: str,
+        workspace_root: str,
+    ) -> dict:
+        """注册一个服务端可访问的 Project 工作区。"""
+        url = f"{self.server}/api/projects"
+        response = httpx.post(
+            url,
+            json={
+                "name": name,
+                "workspaceRoot": workspace_root,
+            },
+            headers=self._headers(),
+            timeout=min(self.timeout, 30),
+        )
+        response.raise_for_status()
+        return response.json()
+
     def stream_query(self, body: dict) -> Iterator[dict]:
         """SSE 流式查询 — POST /api/query/stream
 

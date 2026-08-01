@@ -13,14 +13,16 @@ Typer CLI 框架 + httpx HTTP 客户端 + Rich 终端美化。
   130 — SIGINT 中断
 """
 
-import os
-import sys
 import json
+import ipaddress
+import os
 import signal
+import sys
 from pathlib import Path
 from typing import Optional
 from enum import Enum
 from importlib.metadata import version as pkg_version, PackageNotFoundError
+from urllib.parse import urlsplit
 
 import typer
 import httpx
@@ -68,6 +70,85 @@ class EffortLevel(str, Enum):
     medium = "medium"
     high = "high"
     max = "max"
+
+
+def _is_loopback_server(server: str) -> bool:
+    """Return whether the configured server can use this process' paths."""
+    parsed = urlsplit(server if "://" in server else f"//{server}")
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    if hostname.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        # Deliberately do not resolve DNS names. A private-looking hostname does
+        # not prove that the CLI and backend share a filesystem.
+        return False
+
+
+def _find_project_id(
+    projects: list[dict],
+    workspace_root: str,
+) -> Optional[str]:
+    """Find a Project whose persisted workspace path exactly matches cwd."""
+    for project in projects:
+        if (
+            isinstance(project, dict)
+            and project.get("workspaceRoot") == workspace_root
+            and project.get("id")
+        ):
+            return str(project["id"])
+    return None
+
+
+def _resolve_local_project(
+    client: AicaClient,
+    working_dir: str,
+) -> Optional[str]:
+    """Reuse or create the Project representing a local CLI workspace."""
+    workspace_path = Path(working_dir).expanduser().resolve()
+    workspace_root = str(workspace_path)
+
+    try:
+        projects = client.list_projects()
+        project_id = _find_project_id(projects, workspace_root)
+        if project_id:
+            return project_id
+
+        try:
+            created = client.create_project(
+                workspace_path.name or "root",
+                workspace_root,
+            )
+            created_id = created.get("id")
+            if not created_id:
+                console.print(
+                    "[red]Error: Project API returned no Project ID[/red]"
+                )
+                raise typer.Exit(code=1)
+            return str(created_id)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code != 409:
+                raise
+
+            # Another CLI may have registered the same canonical path between
+            # our list and create calls. Re-list once and reuse that Project.
+            projects = client.list_projects()
+            project_id = _find_project_id(projects, workspace_root)
+            if project_id:
+                return project_id
+            raise
+    except httpx.HTTPStatusError as error:
+        status = error.response.status_code
+        if status in (400, 403, 404):
+            console.print(
+                "[red]Error: the selected working directory cannot be "
+                f"authorized (HTTP {status})[/red]"
+            )
+            raise typer.Exit(code=1)
+        raise
 
 
 def _handle_sigint(signum, frame):
@@ -126,6 +207,9 @@ def main(
         None, "--resume", "-r", help="恢复指定会话"),
     session_id: Optional[str] = typer.Option(
         None, "--session-id", help="使用指定会话 ID"),
+    project_id: Optional[str] = typer.Option(
+        None, "--project-id",
+        help="新建会话时使用的服务端 Project ID"),
     fork_session: bool = typer.Option(
         False, "--fork-session", help="恢复时创建新会话 ID"),
     name: Optional[str] = typer.Option(
@@ -143,7 +227,8 @@ def main(
         None, "--mcp-config", help="MCP 配置文件"),
     # 工作目录
     working_dir: Optional[str] = typer.Option(
-        None, "--working-dir", "-w", help="工作目录"),
+        None, "--working-dir", "-w",
+        help="本地后端的新会话 Project 目录；远程后端请使用 --project-id"),
 ):
     """
     AI Code Assistant — 命令行查询接口。
@@ -176,43 +261,73 @@ def main(
 
     # 5. 解析会话
     cache = SessionCache()
-    wd = working_dir or os.getcwd()
+    wd = str(Path(working_dir or os.getcwd()).expanduser().resolve())
     resolved_sid = session_id
     if continue_session and not resolved_sid:
         resolved_sid = cache.get_last_session(wd)
     elif resume and not resolved_sid:
         resolved_sid = resume
+    if resolved_sid and project_id:
+        console.print(
+            "[red]Error: --project-id cannot be combined "
+            "with an existing session[/red]")
+        raise typer.Exit(code=2)
 
-    # 6. 构建请求
-    request_body: dict = {
-        "prompt": prompt,
-        "model": model,
-        "effort": effort.value if effort else None,
-        "fallbackModel": fallback_model,
-        "systemPrompt": effective_system_prompt,
-        "appendSystemPrompt": append_system_prompt,
-        "permissionMode": perm,
-        "maxTurns": max_turns or 99,
-        "maxBudgetUsd": max_budget,
-        "allowedTools": allowed_tools.split(",") if allowed_tools else None,
-        "disallowedTools": disallowed_tools.split(",") if disallowed_tools else None,
-        "tools": tools.split(",") if tools else None,
-        "sessionId": resolved_sid,
-        "forkSession": fork_session or None,
-        "name": name,
-        "workingDirectory": wd,
-        "timeoutSeconds": timeout,
-        "jsonSchema": json_schema,
-        "includePartialMessages": include_partial_messages or None,
-        "context": {"stdin": stdin_content} if stdin_content else None,
-    }
-    request_body = {k: v for k, v in request_body.items() if v is not None}
-
-    # 7. 创建客户端并执行查询
+    # 6. 创建客户端，按需解析本地 Project，然后执行查询
     client = AicaClient(server=server, token=token, timeout=timeout)
 
     response_sid = None
     try:
+        effective_project_id = project_id
+        if (
+            working_dir is not None
+            and not resolved_sid
+            and not effective_project_id
+            and not _is_loopback_server(server)
+        ):
+            console.print(
+                "[red]Error: --working-dir can only authorize a directory "
+                "when the backend is on localhost; use --project-id for a "
+                "remote backend[/red]"
+            )
+            raise typer.Exit(code=2)
+        if (
+            not resolved_sid
+            and not effective_project_id
+            and _is_loopback_server(server)
+        ):
+            effective_project_id = _resolve_local_project(client, wd)
+
+        request_body: dict = {
+            "prompt": prompt,
+            "model": model,
+            "effort": effort.value if effort else None,
+            "fallbackModel": fallback_model,
+            "systemPrompt": effective_system_prompt,
+            "appendSystemPrompt": append_system_prompt,
+            "permissionMode": perm,
+            "maxTurns": max_turns or 99,
+            "maxBudgetUsd": max_budget,
+            "allowedTools": allowed_tools.split(",") if allowed_tools else None,
+            "disallowedTools": (
+                disallowed_tools.split(",") if disallowed_tools else None
+            ),
+            "tools": tools.split(",") if tools else None,
+            "projectId": effective_project_id,
+            "sessionId": resolved_sid,
+            "forkSession": fork_session or None,
+            "name": name,
+            "timeoutSeconds": timeout,
+            "jsonSchema": json_schema,
+            "includePartialMessages": include_partial_messages or None,
+            "context": {"stdin": stdin_content} if stdin_content else None,
+        }
+        request_body = {
+            key: value
+            for key, value in request_body.items()
+            if value is not None
+        }
+
         if output_format == OutputFormat.stream_json:
             response_sid = _stream_query(client, request_body, verbose)
         elif output_format == OutputFormat.json:
@@ -229,7 +344,7 @@ def main(
         console.print(f"[red]Error: HTTP {e.response.status_code}[/red]")
         raise typer.Exit(code=1)
 
-    # 8. 更新本地会话缓存（优先使用后端响应中的 sessionId）
+    # 7. 更新本地会话缓存（优先使用后端响应中的 sessionId）
     final_sid = response_sid or resolved_sid or ""
     if not no_session:
         cache.save_last_session(wd, final_sid, model or "")

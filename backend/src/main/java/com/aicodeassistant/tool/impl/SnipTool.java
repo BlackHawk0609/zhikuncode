@@ -1,5 +1,6 @@
 package com.aicodeassistant.tool.impl;
 
+import com.aicodeassistant.security.PathSecurityService;
 import com.aicodeassistant.tool.*;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,12 @@ import java.util.Map;
 
 @Component
 public class SnipTool implements Tool {
+
+    private final PathSecurityService pathSecurity;
+
+    public SnipTool(PathSecurityService pathSecurity) {
+        this.pathSecurity = pathSecurity;
+    }
 
     @Override public String getName() { return "Snip"; }
     @Override public String getDescription() {
@@ -35,8 +42,16 @@ public class SnipTool implements Tool {
     @Override
     public ToolResult call(ToolInput input, ToolUseContext context) {
         String filePath = input.getString("file_path");
+        var inspected = pathSecurity.inspectAuthorizedExecutionReadPermission(
+                filePath, context.workingDirectory());
+        var pathCheck = inspected.permission();
+        if (!pathCheck.isAllowed()) {
+            return ToolResult.validationError(
+                    "SNIP_PATH_DENIED", pathCheck.message());
+        }
         try {
-            List<String> lines = Files.readAllLines(Path.of(filePath));
+            Path resolved = inspected.target();
+            List<String> lines = Files.readAllLines(resolved);
             int start, end;
             if (input.has("symbol")) {
                 String symbol = input.getString("symbol");

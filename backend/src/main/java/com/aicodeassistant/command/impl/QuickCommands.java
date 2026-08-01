@@ -1,6 +1,7 @@
 package com.aicodeassistant.command.impl;
 
 import com.aicodeassistant.command.*;
+import com.aicodeassistant.service.GitService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,6 +9,12 @@ import java.util.List;
 
 @Configuration
 public class QuickCommands {
+
+    private final GitService gitService;
+
+    public QuickCommands(GitService gitService) {
+        this.gitService = gitService;
+    }
 
     @Bean
     public Command searchCommand() {
@@ -30,6 +37,9 @@ public class QuickCommands {
             @Override public String getDescription() { return "查看指定文件的 Git blame 信息"; }
             @Override
             public CommandResult execute(String args, CommandContext context) {
+                CommandResult denied = GitCommandGuard.requireRepositoryRoot(
+                        gitService, context);
+                if (denied != null) return denied;
                 String target = (args == null || args.isBlank()) ? "当前文件" : args;
                 return CommandResult.text("Show git blame for: " + target);
             }

@@ -33,9 +33,9 @@ public class GitCommitCommand implements Command {
             return CommandResult.error("不允许在系统目录中执行 Git 操作");
         }
 
-        if (!gitService.isGitRepository(workDir)) {
-            return CommandResult.error("当前目录非 Git 仓库");
-        }
+        CommandResult denied = GitCommandGuard.requireRepositoryRoot(
+                gitService, context);
+        if (denied != null) return denied;
 
         String status = gitService.execGitPublic(workDir, "status", "--porcelain");
         if (status == null || status.isBlank()) {

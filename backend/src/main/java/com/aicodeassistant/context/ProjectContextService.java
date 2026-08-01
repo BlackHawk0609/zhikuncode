@@ -1,5 +1,6 @@
 package com.aicodeassistant.context;
 
+import com.aicodeassistant.service.GitService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,14 +40,17 @@ public class ProjectContextService {
     private static final int MAX_FILE_TREE_ENTRIES = 500;
     /** 最近提交数 */
     private static final int RECENT_COMMITS_COUNT = 20;
-
     private final ProjectContextRepository repository;
+    private final GitService gitService;
 
     /** 内存缓存 — workingDirHash → snapshot */
     private final ConcurrentHashMap<String, ProjectContextSnapshot> memoryCache = new ConcurrentHashMap<>();
 
-    public ProjectContextService(ProjectContextRepository repository) {
+    public ProjectContextService(
+            ProjectContextRepository repository,
+            GitService gitService) {
         this.repository = repository;
+        this.gitService = gitService;
     }
 
     /**
@@ -59,6 +63,24 @@ public class ProjectContextService {
         if (workingDir == null || !Files.isDirectory(workingDir)) {
             return null;
         }
+
+        final Path workspaceRoot;
+        try {
+            workspaceRoot = workingDir.toAbsolutePath().normalize().toRealPath();
+        } catch (Exception unavailable) {
+            return null;
+        }
+        Optional<Path> repositoryRoot = gitService.findRepositoryRoot(workspaceRoot);
+        if (repositoryRoot.isEmpty()
+                || !repositoryRoot.get().equals(workspaceRoot)) {
+            // Non-Git Projects, invalid .git indirection, and Git
+            // subdirectories are valid Projects, but none may load
+            // repository-wide metadata through the selected Project root.
+            return new ProjectContextSnapshot(
+                    null, null, List.of(), List.of(),
+                    detectProjectType(workspaceRoot), Instant.now());
+        }
+        workingDir = workspaceRoot;
 
         String hash = computeHash(workingDir.toString());
 

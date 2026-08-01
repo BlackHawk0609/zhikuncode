@@ -33,7 +33,8 @@ class AtomicFileWriterTest {
     Path tempDir;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
+        tempDir = tempDir.toRealPath();
         tracker = new FileVersionTracker();
         writer = new AtomicFileWriter(tracker);
     }

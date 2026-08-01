@@ -1,12 +1,17 @@
 package com.aicodeassistant.service;
 
+import com.aicodeassistant.authorization.WorkspaceIdentityService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -19,6 +24,16 @@ import java.util.concurrent.TimeUnit;
 public class GitService {
 
     private static final Logger log = LoggerFactory.getLogger(GitService.class);
+    private final WorkspaceIdentityService workspaceIdentities;
+
+    public GitService() {
+        this(new WorkspaceIdentityService());
+    }
+
+    @Autowired
+    public GitService(WorkspaceIdentityService workspaceIdentities) {
+        this.workspaceIdentities = workspaceIdentities;
+    }
 
     /**
      * 获取当前工作目录的 Git 状态摘要。
@@ -73,14 +88,40 @@ public class GitService {
         }
     }
 
-    /**
-     * 检查指定目录是否在 Git 仓库中。
-     */
+    /** 检查指定目录本身是否为 Git worktree 根。不会向父目录搜索。 */
     public boolean isGitRepository(Path dir) {
+        return findRepositoryRoot(dir).isPresent();
+    }
+
+    /**
+     * Returns {@code dir} only when it is itself a validated worktree root.
+     * Deliberately never searches ancestors of the selected Project.
+     */
+    public Optional<Path> findRepositoryRoot(Path dir) {
+        if (dir == null) return Optional.empty();
         try {
-            String result = execGit(dir, "rev-parse", "--git-dir");
-            return result != null && !result.isBlank();
-        } catch (Exception e) {
+            Path canonicalDir = dir.toAbsolutePath().normalize().toRealPath();
+            if (!Files.isDirectory(canonicalDir)) return Optional.empty();
+            if (!Files.exists(canonicalDir.resolve(".git"),
+                    LinkOption.NOFOLLOW_LINKS)) return Optional.empty();
+            // The shared validator also requires Git's --show-toplevel to be
+            // this exact canonical directory and validates worktree metadata.
+            return workspaceIdentities.isValidatedGitRepositoryRoot(canonicalDir)
+                    ? Optional.of(canonicalDir) : Optional.empty();
+        } catch (Exception unavailable) {
+            return Optional.empty();
+        }
+    }
+
+    /** True only when the authorized directory is exactly a Git worktree root. */
+    public boolean isGitRepositoryRoot(Path dir) {
+        if (dir == null) return false;
+        try {
+            Path canonicalDir = dir.toAbsolutePath().normalize().toRealPath();
+            return findRepositoryRoot(canonicalDir)
+                    .filter(canonicalDir::equals)
+                    .isPresent();
+        } catch (Exception unavailable) {
             return false;
         }
     }

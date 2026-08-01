@@ -91,6 +91,48 @@ public final class OperationAnalyzerRegistry {
                 || VERIFY_CONTROL.contains(name) || SAFE_INTERNAL.contains(name);
     }
 
+    /**
+     * Replaces only the file resource field with the canonical target that was
+     * analyzed and approved. Non-resource arguments remain byte-for-byte
+     * equivalent to the frozen input, while a later symlink-alias rebound can no
+     * longer redirect Tool.call() to a different file.
+     */
+    public ToolInput bindExecutionInput(
+            Tool tool, OperationDescriptor descriptor,
+            ToolInput input, AuthorizationSubject subject) {
+        if (!"file-v1".equals(descriptor.analyzerId())) return input;
+        ResourceRef resource = descriptor.resources().stream()
+                .filter(candidate -> "path".equals(candidate.kind()))
+                .findFirst().orElse(null);
+        if (resource == null) return input;
+        Path canonical = resource.outsideWorkspace()
+                ? Path.of(resource.value())
+                : subject.authorizationRoot().resolve(resource.value());
+        String path = canonical.toAbsolutePath().normalize().toString();
+        Map<String, Object> bound = new LinkedHashMap<>(input.getRawData());
+        switch (tool.getName()) {
+            case "Glob", "Grep" -> bound.put("path", path);
+            case "LSP" -> {
+                boolean replaced = false;
+                if (bound.containsKey("filePath")) {
+                    bound.put("filePath", path);
+                    replaced = true;
+                }
+                if (bound.containsKey("file_path")) {
+                    bound.put("file_path", path);
+                    replaced = true;
+                }
+                if (!replaced) return input;
+            }
+            case "NotebookEdit" -> bound.put("notebook_path", path);
+            default -> {
+                if (!bound.containsKey("file_path")) return input;
+                bound.put("file_path", path);
+            }
+        }
+        return ToolInput.from(bound);
+    }
+
     private OperationDescriptor descriptor(String analyzer, Tool tool, FrozenToolInput frozen,
             String action, List<EffectClass> effects, List<ResourceRef> resources,
             List<String> environment, List<String> endpoints, RiskClass risk, String summary) {
@@ -244,30 +286,12 @@ public final class OperationAnalyzerRegistry {
         @Override public OperationDescriptor analyze(Tool tool, FrozenToolInput frozen, ToolInput input,
                 ToolUseContext context, AuthorizationSubject subject) {
             boolean write = FILE_WRITE.contains(tool.getName());
-            String raw = switch (tool.getName()) {
-                case "Glob", "Grep" -> input.getString("path", context.workingDirectory());
-                case "LSP" -> input.getString("file_path", null);
-                default -> tool.getPath(input) != null ? tool.getPath(input)
-                        : first(input, "file_path", "path", "notebook_path");
-            };
-            List<ResourceRef> resources = raw == null || raw.isBlank() ? List.of()
-                    : List.of(resource(raw, context, subject));
-            boolean protectedResource = false;
-            if (!resources.isEmpty()) {
-                ResourceRef resource = resources.getFirst();
-                Path absolute = resource.outsideWorkspace()
-                        ? Path.of(resource.value()).toAbsolutePath().normalize()
-                        : subject.authorizationRoot().resolve(resource.value()).normalize();
-                PathSecurityService.PathCheckResult pathCheck = write
-                        ? pathSecurity.checkWritePermission(absolute.toString(), subject.authorizationRoot().toString())
-                        : pathSecurity.checkReadPermission(absolute.toString(), subject.authorizationRoot().toString());
-                if (!pathCheck.isAllowed()) {
-                    throw new AuthorizationException("PROTECTED_PATH_DENIED", pathCheck.message());
-                }
-                protectedResource = pathCheck.needsConfirmation();
-            }
-            // 写操作为 GUARDED（需用户确认），所有读操作（Read/Glob/Grep）无论 workspace 内外一律 SAFE（不弹窗）。
-            RiskClass risk = write ? RiskClass.GUARDED : RiskClass.SAFE;
+            String raw = rawPath(tool, input, context);
+            FilePathFacts pathFacts = raw == null || raw.isBlank()
+                    ? null : inspect(tool, write, raw, context, subject);
+            List<ResourceRef> resources = pathFacts == null
+                    ? List.of() : List.of(pathFacts.resource());
+            RiskClass risk = fileRisk(write, pathFacts);
             TypedFileOperation operation = "LSP".equals(tool.getName()) && resources.isEmpty()
                     ? TypedFileOperation.LIST_DIRECTORY : fileOperation(tool.getName());
             if (resources.isEmpty() && operation == TypedFileOperation.LIST_DIRECTORY) {
@@ -275,11 +299,148 @@ public final class OperationAnalyzerRegistry {
             }
             return descriptor(id(), tool, frozen, operation.name(),
                     List.of(write ? EffectClass.WRITE_RESOURCE : EffectClass.READ_RESOURCE), resources,
-                    List.of(), List.of(), risk, tool.getName() + " " + (raw == null ? "" : redactPath(raw)));
+                    List.of(), List.of(), risk,
+                    fileSummary(tool, pathFacts),
+                    Map.of());
         }
         @Override public void recheck(Tool tool, OperationDescriptor descriptor, ToolInput input,
                 ToolUseContext context, AuthorizationSubject subject) {
-            // 已禁用路径逃逸/符号链接检查，由用户授权控制
+            boolean write = FILE_WRITE.contains(tool.getName());
+            String raw = rawPath(tool, input, context);
+            FilePathFacts current = raw == null || raw.isBlank()
+                    ? null : inspect(tool, write, raw, context, subject);
+            List<ResourceRef> resources = current == null
+                    ? List.of() : List.of(current.resource());
+            TypedFileOperation operation = "LSP".equals(tool.getName())
+                    && resources.isEmpty()
+                    ? TypedFileOperation.LIST_DIRECTORY
+                    : fileOperation(tool.getName());
+            if (resources.isEmpty()
+                    && operation == TypedFileOperation.LIST_DIRECTORY) {
+                resources = List.of(new ResourceRef("path", ".", false));
+            }
+            if (!descriptor.resources().equals(
+                    AuthorizationFactCanonicalizer.resources(resources))
+                    || riskIncreased(fileRisk(write, current),
+                            descriptor.risk())) {
+                throw new AuthorizationException(
+                        "AUTHORIZATION_FINAL_RECHECK_DENIED",
+                        "File target or security facts changed before execution");
+            }
+        }
+
+        private FilePathFacts inspect(
+                Tool tool, boolean write, String raw,
+                ToolUseContext context,
+                AuthorizationSubject subject) {
+            Path canonical;
+            Path lexical;
+            try {
+                Path base = filePathBase(context, subject);
+                canonical = pathSecurity.resolvePath(
+                        raw, base.toString());
+                Path requested = Path.of(raw);
+                lexical = (requested.isAbsolute()
+                        ? requested : base.resolve(requested))
+                        .toAbsolutePath().normalize();
+            } catch (IllegalArgumentException unsafePath) {
+                throw new AuthorizationException(
+                        "PROTECTED_PATH_DENIED",
+                        unsafePath.getMessage(), unsafePath);
+            }
+            PathSecurityService.PathCheckResult pathCheck = pathCheck(
+                    tool, write, lexical, subject);
+            if (!pathCheck.isAllowed()) {
+                throw new AuthorizationException(
+                        "PROTECTED_PATH_DENIED", pathCheck.message());
+            }
+            return new FilePathFacts(
+                    canonicalResource(canonical, subject),
+                    pathCheck.needsConfirmation());
+        }
+
+        private PathSecurityService.PathCheckResult pathCheck(
+                Tool tool, boolean write, Path absolute,
+                AuthorizationSubject subject) {
+            String workspace = subject.authorizationRoot().toString();
+            if (write) {
+                return pathSecurity.checkAuthorizedWritePermission(
+                        absolute.toString(), workspace);
+            }
+            if ("Glob".equals(tool.getName())
+                    || "Grep".equals(tool.getName())) {
+                return pathSecurity
+                        .checkAuthorizedRecursiveReadRootPermission(
+                        absolute.toString(), workspace);
+            }
+            return pathSecurity.checkAuthorizedReadPermission(
+                    absolute.toString(), workspace);
+        }
+
+        private String rawPath(
+                Tool tool, ToolInput input,
+                ToolUseContext context) {
+            return switch (tool.getName()) {
+                case "Glob", "Grep" -> input.getString(
+                        "path", context.workingDirectory());
+                case "LSP" -> first(input, "filePath", "file_path");
+                default -> tool.getPath(input) != null
+                        ? tool.getPath(input)
+                        : first(input, "file_path", "path",
+                                "notebook_path");
+            };
+        }
+
+        private RiskClass fileRisk(
+                boolean write, FilePathFacts facts) {
+            if (facts != null && facts.sensitive()) {
+                return RiskClass.HIGH;
+            }
+            if (write || (facts != null
+                    && facts.resource().outsideWorkspace())) {
+                return RiskClass.GUARDED;
+            }
+            return RiskClass.SAFE;
+        }
+
+        private String fileSummary(
+                Tool tool, FilePathFacts facts) {
+            if (facts == null) return tool.getName();
+            ResourceRef resource = facts.resource();
+            if (!resource.outsideWorkspace()) {
+                return tool.getName() + " inside Project: "
+                        + resource.value();
+            }
+            String value = resource.value();
+            try {
+                String configuredHome = System.getProperty("user.home");
+                if (configuredHome == null || configuredHome.isBlank()) {
+                    return tool.getName() + " outside Project: " + value;
+                }
+                Path home = Path.of(configuredHome)
+                        .toAbsolutePath().normalize();
+                Path target = Path.of(value).toAbsolutePath().normalize();
+                if (target.startsWith(home)) {
+                    value = "~/" + home.relativize(target)
+                            .toString().replace('\\', '/');
+                }
+            } catch (RuntimeException ignored) {
+                // Keep the already canonical absolute resource value.
+            }
+            return tool.getName() + " outside Project: " + value;
+        }
+
+        private boolean riskIncreased(
+                RiskClass current, RiskClass authorized) {
+            return riskRank(current) > riskRank(authorized);
+        }
+
+        private int riskRank(RiskClass risk) {
+            return switch (risk) {
+                case SAFE -> 0;
+                case GUARDED -> 1;
+                case HIGH -> 2;
+            };
         }
     }
 
@@ -316,21 +477,36 @@ public final class OperationAnalyzerRegistry {
         @Override public void recheck(Tool tool, OperationDescriptor d, ToolInput i, ToolUseContext c, AuthorizationSubject s) { }
     }
 
-    private ResourceRef resource(String raw, ToolUseContext context, AuthorizationSubject subject) {
+    private Path filePathBase(
+            ToolUseContext context,
+            AuthorizationSubject subject) {
         Path base = subject.authorizationRoot();
-        if (context.workingDirectory() != null) {
-            Path configured = Path.of(context.workingDirectory());
-            base = (configured.isAbsolute() ? configured : subject.authorizationRoot().resolve(configured)).normalize();
+        try {
+            if (context.workingDirectory() != null) {
+                Path configured = Path.of(context.workingDirectory());
+                base = (configured.isAbsolute()
+                        ? configured
+                        : subject.authorizationRoot().resolve(configured))
+                        .normalize();
+            }
+            return base.toAbsolutePath().normalize();
+        } catch (RuntimeException invalid) {
+            throw new AuthorizationException(
+                    "WORKSPACE_PATH_INVALID",
+                    "Invalid file working directory", invalid);
         }
-        Path target;
-        try { target = Path.of(raw); }
-        catch (Exception invalid) { throw new AuthorizationException("WORKSPACE_PATH_INVALID", "Invalid resource path"); }
-        target = (target.isAbsolute() ? target : base.resolve(target)).normalize();
+    }
+
+    private ResourceRef canonicalResource(
+            Path target, AuthorizationSubject subject) {
         boolean outside = !target.startsWith(subject.authorizationRoot());
         String value = outside ? target.toString()
                 : subject.authorizationRoot().relativize(target).toString().replace('\\', '/');
         return new ResourceRef("path", value.isEmpty() ? "." : value, outside);
     }
+
+    private record FilePathFacts(
+            ResourceRef resource, boolean sensitive) { }
     private static ResourceRef cwdResource(Path cwd, AuthorizationSubject subject) {
         Path normalized = cwd.toAbsolutePath().normalize();
         boolean outside = !normalized.startsWith(subject.authorizationRoot());
@@ -368,7 +544,6 @@ public final class OperationAnalyzerRegistry {
             return true;
         }
     }
-    private static String redactPath(String path) { return Path.of(path).getFileName() == null ? "<path>" : "…/" + Path.of(path).getFileName(); }
     private static String redactEndpoint(String value) {
         try { URI uri = URI.create(value); return uri.getScheme() + "://" + uri.getHost() + (uri.getPort() < 0 ? "" : ":" + uri.getPort()); }
         catch (Exception ignored) { return "<remote-endpoint>"; }

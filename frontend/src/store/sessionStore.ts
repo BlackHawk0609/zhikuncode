@@ -42,7 +42,10 @@ export interface SessionStoreState {
     isAborted: boolean;
 
     // Actions
-    createSession: (dir: string, model: string) => Promise<void>;
+    createSession: (
+        projectId: string,
+        model: string,
+    ) => Promise<string>;
     resumeSession: (sessionId: string) => Promise<void>;
     setModel: (model: string) => void;
     setEffort: (value: number) => void;
@@ -62,16 +65,33 @@ export const useSessionStore = create<SessionStoreState>()(
         isAborted: false,
 
         // Actions
-        createSession: async (dir, model) => {
-            set(d => { d.status = 'streaming'; d.model = model; d.turnCount = 0; d.isAborted = false; });
+        createSession: async (projectId, model) => {
+            if (!projectId.trim()) {
+                throw new Error('创建 Session 前必须选择已授权的 Project');
+            }
             const resp = await fetch('/api/sessions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dir, model }),
+                body: JSON.stringify({
+                    projectId,
+                    model,
+                }),
             });
-            const { sessionId } = await resp.json();
-            set(d => { d.sessionId = sessionId; });
-            saveActiveSessionId(sessionId);
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+            const body = await resp.json() as {
+                sessionId?: unknown;
+            };
+            if (typeof body.sessionId !== 'string'
+                    || body.sessionId.trim() === '') {
+                throw new Error(
+                    '服务端返回了无效的 Session');
+            }
+            // REST creation only yields a candidate. The active Session and
+            // sessionStorage are committed by the matching session_restored
+            // frame after WebSocket binding succeeds.
+            return body.sessionId;
         },
         resumeSession: async (sessionId) => {
             set(d => { d.sessionId = sessionId; d.status = 'idle'; });

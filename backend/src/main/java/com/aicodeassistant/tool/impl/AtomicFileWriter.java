@@ -105,18 +105,42 @@ public class AtomicFileWriter {
     /** 受管写入入口：必须提供预期旧状态，null 绝不表示无条件覆盖。 */
     public WriteResult write(Path targetPath, byte[] content, String actorId,
                              ExpectedOldState expected, String workingDirectory) {
+        return write(targetPath, content, actorId, expected,
+                workingDirectory, false);
+    }
+
+    /**
+     * File-tool entry point used only after ToolExecutionGateway admission.
+     * Other callers retain the strict Project-bound {@link #write} behavior.
+     */
+    public WriteResult writeAuthorized(
+            Path targetPath, byte[] content, String actorId,
+            ExpectedOldState expected, String workingDirectory) {
+        return write(targetPath, content, actorId, expected,
+                workingDirectory, true);
+    }
+
+    private WriteResult write(
+            Path targetPath, byte[] content, String actorId,
+            ExpectedOldState expected, String workingDirectory,
+            boolean allowExternal) {
         if (expected == null) return new WriteResult(false, null, "EXPECTED_OLD_STATE_REQUIRED");
         Path normalized;
         try {
             normalized = pathSecurityService == null
                     ? targetPath.toAbsolutePath().normalize()
-                    : managedPaths.resolveProspective(targetPath, workingDirectory);
+                    : allowExternal
+                            ? managedPaths.resolveAuthorizedExecutionProspective(
+                                    targetPath, workingDirectory)
+                            : managedPaths.resolveProspective(
+                                    targetPath, workingDirectory);
         } catch (IOException | IllegalArgumentException unsafePath) {
             return new WriteResult(false, null, "PRE_MOVE_SECURITY_DENIED: " + unsafePath.getMessage());
         }
         try {
             return pathLocks.withLock(normalized,
-                    () -> atomicWriteLocked(normalized, content, actorId, workingDirectory, expected));
+                    () -> atomicWriteLocked(normalized, content, actorId,
+                            workingDirectory, expected, allowExternal));
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception impossible) {
@@ -125,19 +149,28 @@ public class AtomicFileWriter {
     }
 
     private WriteResult atomicWriteLocked(Path targetPath, byte[] content, String agentId,
-                                          String workingDirectory, ExpectedOldState expected) {
+                                          String workingDirectory, ExpectedOldState expected,
+                                          boolean allowExternal) {
         Path tmpPath = null;
         boolean moved = false;
         java.util.List<Path> createdDirectories = java.util.List.of();
 
         try {
             if (pathSecurityService != null) {
-                var pre = pathSecurityService.checkWritePermission(targetPath.toString(), workingDirectory);
+                var pre = allowExternal
+                        ? pathSecurityService.checkAuthorizedExecutionWritePermission(
+                                targetPath.toString(), workingDirectory)
+                        : pathSecurityService.checkWritePermission(
+                                targetPath.toString(), workingDirectory);
                 if (!pre.isAllowed()) return new WriteResult(false, null, "PRE_MOVE_SECURITY_DENIED: " + pre.message());
-                var materialized = managedPaths.materializeParents(targetPath, workingDirectory);
+                var materialized = allowExternal
+                        ? managedPaths.materializeAuthorizedParents(
+                                targetPath, workingDirectory)
+                        : managedPaths.materializeParents(
+                                targetPath, workingDirectory);
                 targetPath = materialized.path();
                 createdDirectories = materialized.createdDirectories();
-                managedPaths.assertUnchanged(targetPath, workingDirectory);
+                assertUnchanged(targetPath, workingDirectory, allowExternal);
             }
             // 确保父目录存在
             if (targetPath.getParent() != null) {
@@ -168,8 +201,12 @@ public class AtomicFileWriter {
 
             // 在改变权威状态的移动前立即复检，捕获首次检查与 I/O 之间的父目录或符号链接替换。
             if (pathSecurityService != null) {
-                managedPaths.assertUnchanged(targetPath, workingDirectory);
-                var beforeMove = pathSecurityService.checkWritePermission(targetPath.toString(), workingDirectory);
+                assertUnchanged(targetPath, workingDirectory, allowExternal);
+                var beforeMove = allowExternal
+                        ? pathSecurityService.checkAuthorizedExecutionWritePermission(
+                                targetPath.toString(), workingDirectory)
+                        : pathSecurityService.checkWritePermission(
+                                targetPath.toString(), workingDirectory);
                 if (!beforeMove.isAllowed()) throw new IOException("PRE_MOVE_SECURITY_DENIED: " + beforeMove.message());
             }
 
@@ -181,8 +218,12 @@ public class AtomicFileWriter {
             moved = true;
 
             if (pathSecurityService != null) {
-                managedPaths.assertUnchanged(targetPath, workingDirectory);
-                var afterMove = pathSecurityService.checkWritePermission(targetPath.toString(), workingDirectory);
+                assertUnchanged(targetPath, workingDirectory, allowExternal);
+                var afterMove = allowExternal
+                        ? pathSecurityService.checkAuthorizedExecutionWritePermission(
+                                targetPath.toString(), workingDirectory)
+                        : pathSecurityService.checkWritePermission(
+                                targetPath.toString(), workingDirectory);
                 if (!afterMove.isAllowed()) throw new IOException("POST_MOVE_SECURITY_DENIED: " + afterMove.message());
             }
 
@@ -231,6 +272,17 @@ public class AtomicFileWriter {
                         "ATOMIC_MOVE_COMPLETED", effect);
             }
             return new WriteResult(false, null, "Atomic write failed: " + e.getMessage());
+        }
+    }
+
+    private void assertUnchanged(
+            Path targetPath, String workingDirectory,
+            boolean allowExternal) throws IOException {
+        if (allowExternal) {
+            managedPaths.assertAuthorizedUnchanged(
+                    targetPath, workingDirectory);
+        } else {
+            managedPaths.assertUnchanged(targetPath, workingDirectory);
         }
     }
 

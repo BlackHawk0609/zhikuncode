@@ -1,5 +1,7 @@
 package com.aicodeassistant.tool.impl;
 
+import com.aicodeassistant.security.PathSecurityService;
+import com.aicodeassistant.security.PathSecurityService.PathCheckResult;
 import com.aicodeassistant.tool.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,12 @@ public class GlobTool implements Tool {
     private static final int MAX_RESULT_SIZE_CHARS = 100_000;
     private static final Set<String> VCS_EXCLUDE = Set.of(
             ".git", ".svn", ".hg", ".bzr", ".jj", ".sl");
+
+    private final PathSecurityService pathSecurity;
+
+    public GlobTool(PathSecurityService pathSecurity) {
+        this.pathSecurity = pathSecurity;
+    }
 
     @Override
     public String getName() {
@@ -78,15 +86,23 @@ public class GlobTool implements Tool {
         String pattern = input.getString("pattern");
         String searchPath = input.getString("path", context.workingDirectory());
         int maxResults = input.getInt("max_results", 200);
-        Path basePath = Path.of(searchPath);
-
-        if (!Files.isDirectory(basePath)) {
-            return ToolResult.validationError("GLOB_DIRECTORY_NOT_FOUND", "Directory does not exist: " + searchPath);
-        }
 
         // UNC路径安全检查
         if (searchPath.startsWith("\\\\") || searchPath.startsWith("//")) {
             return ToolResult.validationError("GLOB_UNC_PATH_DENIED", "UNC paths are not allowed");
+        }
+        var inspected = pathSecurity.inspectAuthorizedExecutionRecursiveReadRootPermission(
+                searchPath, context.workingDirectory());
+        PathCheckResult pathCheck = inspected.permission();
+        if (!pathCheck.isAllowed()) {
+            return ToolResult.validationError(
+                    "GLOB_PATH_DENIED", pathCheck.message());
+        }
+        Path basePath = inspected.target();
+        if (!Files.isDirectory(basePath)) {
+            return ToolResult.validationError(
+                    "GLOB_DIRECTORY_NOT_FOUND",
+                    "Directory does not exist: " + searchPath);
         }
 
         long start = System.currentTimeMillis();
@@ -100,7 +116,11 @@ public class GlobTool implements Tool {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                     String dirName = dir.getFileName() != null ? dir.getFileName().toString() : "";
-                    if (VCS_EXCLUDE.contains(dirName)) {
+                    if (!dir.equals(basePath)
+                            && (VCS_EXCLUDE.contains(dirName)
+                            || containsIgnoreCase(
+                                    pathSecurity.protectedDirectoryNames(),
+                                    dirName))) {
                         return FileVisitResult.SKIP_SUBTREE;
                     }
                     return FileVisitResult.CONTINUE;
@@ -110,6 +130,11 @@ public class GlobTool implements Tool {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     if (results.size() >= maxResults) {
                         return FileVisitResult.TERMINATE;
+                    }
+                    String fileName = file.getFileName() != null
+                            ? file.getFileName().toString() : "";
+                    if (pathSecurity.isProtectedFileName(fileName)) {
+                        return FileVisitResult.CONTINUE;
                     }
                     Path relativePath = basePath.relativize(file);
                     if (matcher.matches(relativePath)) {
@@ -145,5 +170,10 @@ public class GlobTool implements Tool {
                 .withMetadata("numFiles", results.size())
                 .withMetadata("durationMs", durationMs)
                 .withMetadata("truncated", finalTruncated);
+    }
+
+    private static boolean containsIgnoreCase(
+            Set<String> names, String candidate) {
+        return names.stream().anyMatch(candidate::equalsIgnoreCase);
     }
 }

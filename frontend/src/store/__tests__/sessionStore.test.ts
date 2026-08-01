@@ -57,15 +57,74 @@ describe('SessionStore', () => {
         expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBe('session-123');
     });
 
-    it('createSession persists the created sessionId', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    it('createSession binds the selected Project without adding a permission mode', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 201,
             json: async () => ({ sessionId: 'session-created' }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const candidate = await useSessionStore.getState()
+            .createSession('project-1', 'gpt-4o');
+
+        expect(fetchMock).toHaveBeenCalledWith('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                projectId: 'project-1',
+                model: 'gpt-4o',
+            }),
+        });
+        expect(candidate).toBe('session-created');
+        expect(useSessionStore.getState().sessionId).toBeNull();
+        expect(window.sessionStorage.getItem(
+            'zhikuncode.activeSessionId'))
+            .toBeNull();
+    });
+
+    it('createSession rejects a missing Project before sending a request', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(useSessionStore.getState()
+            .createSession('  ', 'gpt-4o'))
+            .rejects.toThrow('必须选择已授权的 Project');
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(useSessionStore.getState().sessionId).toBeNull();
+    });
+
+    it('createSession failure preserves the previous Session state', async () => {
+        window.sessionStorage.setItem(
+            'zhikuncode.activeSessionId',
+            'session-existing',
+        );
+        useSessionStore.setState({
+            sessionId: 'session-existing',
+            model: 'model-existing',
+            status: 'waiting_permission',
+            turnCount: 7,
+            isAborted: true,
+        });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 403,
         }));
 
-        await useSessionStore.getState().createSession('/workspace', 'gpt-4o');
+        await expect(useSessionStore.getState()
+            .createSession('project-denied', 'gpt-4o'))
+            .rejects.toThrow('HTTP 403');
 
-        expect(useSessionStore.getState().sessionId).toBe('session-created');
-        expect(window.sessionStorage.getItem('zhikuncode.activeSessionId')).toBe('session-created');
+        expect(useSessionStore.getState()).toMatchObject({
+            sessionId: 'session-existing',
+            model: 'model-existing',
+            status: 'waiting_permission',
+            turnCount: 7,
+            isAborted: true,
+        });
+        expect(window.sessionStorage.getItem(
+            'zhikuncode.activeSessionId')).toBe('session-existing');
     });
 
     it('resumeSession with an empty id clears the persisted session', async () => {

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +118,58 @@ class SystemPromptBuilderTest {
         assertTrue(prompt.contains("qwen3.7-plus"));
         assertTrue(prompt.contains("平台："));
         assertTrue(prompt.contains("Shell："));
+    }
+
+    @Test
+    void defaultPromptUsesTheSuppliedSessionWorkingDirectory() {
+        String prompt = builder.buildDefaultSystemPrompt(
+                List.of(), "gpt-4o", tempDir);
+
+        assertTrue(prompt.contains(
+                "主工作目录：" + tempDir));
+        verify(projectMemoryService).loadMemory(tempDir);
+        verify(projectContextService).getContext(tempDir);
+    }
+
+    @Test
+    void defaultPromptCacheIsIsolatedByExplicitSession() throws Exception {
+        Path projectA = Files.createDirectory(tempDir.resolve("project-a"));
+        Path projectB = Files.createDirectory(tempDir.resolve("project-b"));
+
+        String promptA = builder.buildDefaultSystemPrompt(
+                List.of(), "model-a", projectA, "session-a");
+        String promptB = builder.buildDefaultSystemPrompt(
+                List.of(), "model-b", projectB, "session-b");
+
+        assertTrue(promptA.contains(projectA.toString()));
+        assertTrue(promptA.contains("model-a"));
+        assertTrue(promptB.contains(projectB.toString()));
+        assertTrue(promptB.contains("model-b"));
+        assertFalse(promptB.contains(projectA.toString()));
+        assertFalse(promptB.contains("model-a"));
+    }
+
+    @Test
+    void sessionCacheRecomputesWhenPromptInputsChange() throws Exception {
+        Path projectA = Files.createDirectory(tempDir.resolve("project-a"));
+        Path projectB = Files.createDirectory(tempDir.resolve("project-b"));
+
+        String promptA = String.join("\n\n", builder.buildSystemPrompt(
+                List.of(), "model-a", projectA,
+                List.of("extra-a"), List.of(), "shared-session"));
+        String promptB = String.join("\n\n", builder.buildSystemPrompt(
+                List.of(), "model-b", projectB, List.of("extra-b"),
+                List.of(), "shared-session"));
+
+        assertTrue(promptA.contains(projectA.toString()));
+        assertTrue(promptA.contains("model-a"));
+        assertTrue(promptA.contains("extra-a"));
+        assertTrue(promptB.contains(projectB.toString()));
+        assertTrue(promptB.contains("model-b"));
+        assertTrue(promptB.contains("extra-b"));
+        assertFalse(promptB.contains(projectA.toString()));
+        assertFalse(promptB.contains("model-a"));
+        assertFalse(promptB.contains("extra-a"));
     }
 
     @Test

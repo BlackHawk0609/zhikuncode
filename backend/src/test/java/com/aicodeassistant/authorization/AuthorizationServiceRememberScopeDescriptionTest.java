@@ -4,6 +4,7 @@ import com.aicodeassistant.interaction.DurableInteractionService;
 import com.aicodeassistant.model.PermissionScope;
 import com.aicodeassistant.permission.PermissionModeManager;
 import com.aicodeassistant.run.RunControlService;
+import com.aicodeassistant.service.ProjectWorkspaceService;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.ToolInput;
 import com.aicodeassistant.tool.ToolUseContext;
@@ -72,7 +73,8 @@ class AuthorizationServiceRememberScopeDescriptionTest {
         PermissionModeManager modes = mock(PermissionModeManager.class);
         RunControlService runs = mock(RunControlService.class);
         AuthorizationService service = new AuthorizationService(
-                subjects, analyzers, grants, interactions, modes, runs, new ObjectMapper());
+                subjects, analyzers, grants, interactions, modes, runs,
+                new ObjectMapper(), mock(ProjectWorkspaceService.class));
 
         AuthorizationSubject subject = new AuthorizationSubject(
                 "session", "run", "run", "workspace", Path.of(".").toAbsolutePath().normalize());

@@ -40,14 +40,15 @@ import { useApiContractStore } from '@/store/apiContractStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useMessageStore } from '@/store/messageStore';
 import { useSessionStore } from '@/store/sessionStore';
-import { useConfigStore } from '@/store/configStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { useAppUiStore } from '@/store/appUiStore';
 import { useFeatureFlagStore } from '@/store/featureFlagStore';
 import { ActivityStream } from '@/components/apos/ActivityStream';
 import { FeatureFlagPanel } from '@/components/apos/FeatureFlagPanel';
 import { SessionFileExplorer } from '@/components/apos/SessionFileExplorer';
-import { sendToServer } from '@/api/stompClient';
-import { bindSessionAndWait } from '@/api/dispatch';
+import { dispatchNewAuthorizedSessionRequest } from '@/services/authorizedSession';
+import { activateSessionCandidate } from '@/services/sessionActivation';
+import { generateUUID } from '@/utils/uuid';
 import type { TaskState } from '@/types';
 
 type TabType = 'sessions' | 'tasks' | 'files' | 'sequence' | 'dag' | 'git' | 'complexity' | 'impact' | 'api-docs' | 'diagram' | 'code-path' | 'apos';
@@ -337,35 +338,20 @@ function SessionList() {
     // 切换会话
     const handleSwitchSession = useCallback(async (sessionId: string) => {
         if (sessionId === currentSessionId) return;
-        try {
-            // 清除当前消息
-            useMessageStore.getState().clearMessages();
-            // 恢复会话
-            useSessionStore.getState().resumeSession(sessionId);
-            // App.tsx 的 sessionStore.subscribe 会自动同步 activityStore.currentSessionId
-            // 绑定 WebSocket session
-            await bindSessionAndWait(sessionId, payload => sendToServer('/app/bind-session', payload));
-        } catch (e) {
-            console.error('[SessionList] Failed to switch session:', e);
+        const result = await activateSessionCandidate(sessionId);
+        if (result.status === 'failed') {
+            useNotificationStore.getState().addNotification({
+                key: `session-switch-failed-${generateUUID()}`,
+                level: 'error',
+                message: `切换会话失败：${result.error.message}`,
+            });
         }
     }, [currentSessionId]);
 
     // 新建会话
-    const handleNewSession = useCallback(async () => {
-        try {
-            useMessageStore.getState().clearMessages();
-            const defaultModel = useConfigStore.getState().defaultModel ?? 'qwen3.7-max';
-            await useSessionStore.getState().createSession('.', defaultModel);
-            const newSessionId = useSessionStore.getState().sessionId;
-            if (newSessionId) {
-                // App.tsx 的 sessionStore.subscribe 会自动同步 activityStore.currentSessionId
-                await bindSessionAndWait(newSessionId, payload => sendToServer('/app/bind-session', payload));
-            }
-            fetchSessions();
-        } catch (e) {
-            console.error('[SessionList] Failed to create session:', e);
-        }
-    }, [fetchSessions]);
+    const handleNewSession = useCallback(() => {
+        dispatchNewAuthorizedSessionRequest();
+    }, []);
 
     // 删除会话
     const handleDeleteSession = useCallback(async (e: React.MouseEvent, sessionId: string) => {
@@ -433,7 +419,7 @@ function SessionList() {
                     sessions.map(session => (
                         <div
                             key={session.id}
-                            onClick={() => handleSwitchSession(session.id)}
+                            onClick={() => { void handleSwitchSession(session.id); }}
                             className={`group px-3 py-2.5 rounded-lg cursor-pointer transition-colors
                                 ${session.id === currentSessionId
                                     ? 'bg-blue-500/10 border border-blue-500/30'

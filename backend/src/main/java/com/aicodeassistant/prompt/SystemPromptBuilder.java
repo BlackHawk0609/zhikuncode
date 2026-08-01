@@ -146,9 +146,31 @@ public class SystemPromptBuilder {
             List<String> additionalDirs,
             List<McpServerConnection> mcpClients) {
 
+        return buildSystemPrompt(
+                tools, model, workingDir, additionalDirs, mcpClients, null);
+    }
+
+    /**
+     * 构建使用显式 Session 缓存命名空间的系统提示数组。
+     */
+    public List<String> buildSystemPrompt(
+            List<Tool> tools,
+            String model,
+            Path workingDir,
+            List<String> additionalDirs,
+            List<McpServerConnection> mcpClients,
+            String sessionId) {
+
         Set<String> enabledTools = tools.stream()
                 .map(Tool::getName)
                 .collect(Collectors.toSet());
+        int sessionContentHash = Objects.hash(
+                model,
+                workingDir == null
+                        ? null
+                        : workingDir.toAbsolutePath().normalize().toString(),
+                additionalDirs == null ? List.of() : List.copyOf(additionalDirs),
+                new TreeSet<>(enabledTools));
 
         // 动态段定义
         List<SystemPromptSection> dynamicSections = new ArrayList<>(List.of(
@@ -167,7 +189,8 @@ public class SystemPromptBuilder {
                         () -> getMcpInstructionsSection(mcpClients),
                         "MCP servers connect/disconnect between turns"),
                 new MemoizedSection("scratchpad",
-                        () -> getScratchpadInstructions()),
+                        () -> getScratchpadInstructions(
+                                workingDir)),
                 new GlobalMemoizedSection("frc",
                         () -> getFunctionResultClearingSection(model)),
                 new UncachedSection("summarize_tool_results",
@@ -220,7 +243,8 @@ public class SystemPromptBuilder {
                         projectContextService.getContext(workingDir))));
 
         // 解析动态段（利用缓存）
-        List<String> resolvedDynamic = resolveSections(dynamicSections);
+        List<String> resolvedDynamic = resolveSections(
+                dynamicSections, normalizeSessionId(sessionId), sessionContentHash);
 
         // 组装完整提示
         List<String> prompt = new ArrayList<>();
@@ -292,7 +316,26 @@ public class SystemPromptBuilder {
      * 构建默认系统提示（简化版，用于无特殊配置的场景）。
      */
     public String buildDefaultSystemPrompt(List<Tool> tools, String model) {
-        List<String> sections = buildSystemPrompt(tools, model, null, List.of(), List.of())
+        return buildDefaultSystemPrompt(tools, model, null);
+    }
+
+    /**
+     * Builds the default prompt using the persisted Session workspace supplied
+     * by the query entry point. It must not infer the cwd from process-global
+     * state when a Session root is available.
+     */
+    public String buildDefaultSystemPrompt(
+            List<Tool> tools, String model, Path workingDir) {
+        return buildDefaultSystemPrompt(tools, model, workingDir, null);
+    }
+
+    /**
+     * Builds the default prompt in the supplied Session cache namespace.
+     */
+    public String buildDefaultSystemPrompt(
+            List<Tool> tools, String model, Path workingDir, String sessionId) {
+        List<String> sections = buildSystemPrompt(
+                tools, model, workingDir, List.of(), List.of(), sessionId)
                 .stream()
                 .filter(p -> !TOOL_CACHE_BREAKPOINT.equals(p))
                 .toList();
@@ -303,8 +346,10 @@ public class SystemPromptBuilder {
      * 解析段列表 — 记忆化段通过 SystemPromptSectionCache 缓存（带 TTL + session 隔离），
      * 易变段（cacheBreak=true）每次重算。
      */
-    private List<String> resolveSections(List<SystemPromptSection> sections) {
-        String sessionId = getCurrentSessionId();
+    private List<String> resolveSections(
+            List<SystemPromptSection> sections,
+            String sessionId,
+            int sessionContentHash) {
         return sections.stream().map(s -> {
             if (s.cacheBreak()) {
                 // UncachedSection: 每轮重算
@@ -317,8 +362,15 @@ public class SystemPromptBuilder {
             }
             // MemoizedSection: 通过 session 级缓存获取（30 min TTL）
             return promptSectionCache.getOrComputeSession(
-                    sessionId, s.name(), 0, () -> s.compute().get());
+                    sessionId, s.name(), sessionContentHash,
+                    () -> s.compute().get());
         }).filter(Objects::nonNull).toList();
+    }
+
+    private static String normalizeSessionId(String sessionId) {
+        return sessionId == null || sessionId.isBlank()
+                ? "default"
+                : sessionId;
     }
 
     /**
@@ -940,17 +992,24 @@ public class SystemPromptBuilder {
     }
 
     // ── 段落 10: 临时目录指引 ──
-    private String getScratchpadInstructions() {
+    private String getScratchpadInstructions(Path workingDir) {
         if (!featureFlags.isEnabled("SCRATCHPAD")) {
             return null;
         }
-        if (appStateStore == null) {
-            return null; // test 环境 appStateStore 可能为 null
+        Path effectiveWorkingDir = workingDir;
+        if (effectiveWorkingDir == null
+                && appStateStore != null) {
+            var sessionState = appStateStore.getState().session();
+            String savedWorkingDir = sessionState == null
+                    ? null : sessionState.workingDirectory();
+            if (savedWorkingDir != null
+                    && !savedWorkingDir.isBlank()) {
+                effectiveWorkingDir = Path.of(savedWorkingDir);
+            }
         }
-        var sessionState = appStateStore.getState().session();
-        String workDir = sessionState.workingDirectory();
-        if (workDir == null) return null;
-        Path scratchpadDir = Path.of(workDir, ".scratchpad");
+        if (effectiveWorkingDir == null) return null;
+        Path scratchpadDir = effectiveWorkingDir
+                .resolve(".scratchpad");
 
         return """
                 # 临时目录

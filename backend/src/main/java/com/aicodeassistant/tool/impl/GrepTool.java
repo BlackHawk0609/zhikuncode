@@ -1,6 +1,8 @@
 package com.aicodeassistant.tool.impl;
 
 import com.aicodeassistant.engine.KeyFileTracker;
+import com.aicodeassistant.security.PathSecurityService;
+import com.aicodeassistant.security.PathSecurityService.PathCheckResult;
 import com.aicodeassistant.tool.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +12,8 @@ import jakarta.annotation.PreDestroy;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -50,9 +54,13 @@ public class GrepTool implements Tool {
             ".git", ".svn", ".hg", ".bzr", ".jj", ".sl");
 
     private final KeyFileTracker keyFileTracker;
+    private final PathSecurityService pathSecurity;
 
-    public GrepTool(KeyFileTracker keyFileTracker) {
+    public GrepTool(
+            KeyFileTracker keyFileTracker,
+            PathSecurityService pathSecurity) {
         this.keyFileTracker = keyFileTracker;
+        this.pathSecurity = pathSecurity;
     }
 
     @PreDestroy
@@ -162,6 +170,21 @@ public class GrepTool implements Tool {
         int offset = input.getInt("offset", 0);
 
         try {
+            var inspected = pathSecurity.inspectAuthorizedExecutionRecursiveReadRootPermission(
+                    searchPath, context.workingDirectory());
+            PathCheckResult pathCheck = inspected.permission();
+            if (!pathCheck.isAllowed()) {
+                return ToolResult.validationError(
+                        "GREP_PATH_DENIED", pathCheck.message());
+            }
+            Path searchRoot = inspected.target();
+            if (!Files.exists(searchRoot)) {
+                return ToolResult.validationError(
+                        "GREP_PATH_NOT_FOUND",
+                        "Search path does not exist: " + searchPath);
+            }
+            searchPath = searchRoot.toString();
+
             // 检查是否使用了 rg 特有功能但 rg 不可用
             if (!HAS_RIPGREP) {
                 if (input.getBoolean("multiline", false)
@@ -175,11 +198,14 @@ public class GrepTool implements Tool {
             }
 
             List<String> args;
+            boolean recursiveDirectorySearch = Files.isDirectory(searchRoot);
             if (HAS_RIPGREP) {
-                args = buildRipgrepArgs(input, pattern, searchPath, outputMode);
+                args = buildRipgrepArgs(input, pattern, searchPath,
+                        outputMode, recursiveDirectorySearch);
             } else {
                 log.debug("ripgrep not found, falling back to system grep");
-                args = buildGrepFallbackArgs(input, pattern, searchPath, outputMode);
+                args = buildGrepFallbackArgs(input, pattern, searchPath,
+                        outputMode, recursiveDirectorySearch);
             }
 
             // 执行搜索命令
@@ -280,7 +306,12 @@ public class GrepTool implements Tool {
     }
 
     /** 构建 ripgrep 参数列表 */
-    private List<String> buildRipgrepArgs(ToolInput input, String pattern, String searchPath, String outputMode) {
+    List<String> buildRipgrepArgs(
+            ToolInput input,
+            String pattern,
+            String searchPath,
+            String outputMode,
+            boolean excludeProtectedDescendants) {
         List<String> args = new ArrayList<>(List.of("rg", "--hidden"));
         for (String dir : VCS_EXCLUDE) {
             args.addAll(List.of("--glob", "!" + dir));
@@ -307,6 +338,18 @@ public class GrepTool implements Tool {
         input.getOptionalString("include").ifPresent(g -> args.addAll(List.of("--glob", g)));
         input.getOptionalString("exclude").ifPresent(g -> args.addAll(List.of("--glob", "!" + g)));
         input.getOptionalString("type").ifPresent(t -> args.addAll(List.of("--type", t)));
+        // Security exclusions come last so caller-provided globs cannot
+        // re-include protected descendants during a broad directory search.
+        if (excludeProtectedDescendants) {
+            for (String file : pathSecurity.protectedFileGlobs()) {
+                args.addAll(List.of(
+                        "--glob", "!" + caseInsensitiveGlobLiteral(file)));
+            }
+            for (String dir : pathSecurity.protectedDirectoryNames()) {
+                args.addAll(List.of(
+                        "--glob", "!" + caseInsensitiveGlobLiteral(dir)));
+            }
+        }
 
         if (pattern.startsWith("-")) {
             args.addAll(List.of("-e", pattern));
@@ -318,7 +361,12 @@ public class GrepTool implements Tool {
     }
 
     /** 构建系统 grep fallback 参数列表 */
-    private List<String> buildGrepFallbackArgs(ToolInput input, String pattern, String searchPath, String outputMode) {
+    List<String> buildGrepFallbackArgs(
+            ToolInput input,
+            String pattern,
+            String searchPath,
+            String outputMode,
+            boolean excludeProtectedDescendants) {
         List<String> args = new ArrayList<>(List.of("grep", "-r", "--include=*"));
 
         // 排除 VCS 目录
@@ -346,6 +394,14 @@ public class GrepTool implements Tool {
         input.getOptionalString("glob").ifPresent(g -> args.addAll(List.of("--include", g)));
         input.getOptionalString("include").ifPresent(g -> args.addAll(List.of("--include", g)));
         input.getOptionalString("exclude").ifPresent(g -> args.addAll(List.of("--exclude", g)));
+        if (excludeProtectedDescendants) {
+            for (String file : pathSecurity.protectedFileGlobs()) {
+                args.add("--exclude=" + caseInsensitiveGlobLiteral(file));
+            }
+            for (String dir : pathSecurity.protectedDirectoryNames()) {
+                args.add("--exclude-dir=" + caseInsensitiveGlobLiteral(dir));
+            }
+        }
 
         // 使用 -E (extended regex) 以兼容 ripgrep 的正则语法
         args.add("-E");
@@ -357,6 +413,28 @@ public class GrepTool implements Tool {
         }
         args.add(searchPath);
         return args;
+    }
+
+    /**
+     * Converts an exact protected basename to a portable case-insensitive glob.
+     * Both ripgrep and the system grep fallback understand bracket expressions,
+     * so their exclusion semantics stay aligned with PathSecurityService.
+     */
+    static String caseInsensitiveGlobLiteral(String literal) {
+        StringBuilder glob = new StringBuilder(literal.length() * 2);
+        for (int index = 0; index < literal.length(); index++) {
+            char current = literal.charAt(index);
+            if (current >= 'a' && current <= 'z') {
+                glob.append('[').append(current)
+                        .append(Character.toUpperCase(current)).append(']');
+            } else if (current >= 'A' && current <= 'Z') {
+                glob.append('[').append(Character.toLowerCase(current))
+                        .append(current).append(']');
+            } else {
+                glob.append(current);
+            }
+        }
+        return glob.toString();
     }
 
     /** 从输出行中提取文件名 */

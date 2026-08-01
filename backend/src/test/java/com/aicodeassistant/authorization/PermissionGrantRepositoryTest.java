@@ -154,6 +154,47 @@ class PermissionGrantRepositoryTest {
     }
 
     @Test
+    void externalFileGrantsAreExactAndLimitedToRunOrSession() {
+        Fixture f = fixture();
+        AuthorizationSubject subject = new AuthorizationSubject(
+                "s-root", "r-root", "r-root", "workspace", temp);
+        OperationDescriptor outside = operation(
+                "Read", TypedFileOperation.READ_FILE.name(), "file-v1",
+                RiskClass.GUARDED, List.of(EffectClass.READ_RESOURCE),
+                List.of(new ResourceRef(
+                        "path", temp.resolveSibling("outside.txt")
+                                .toString(), true)),
+                "outside-exact");
+
+        assertThat(f.repository.supportedScopes(outside))
+                .containsExactly(
+                        PermissionScope.RUN,
+                        PermissionScope.SESSION);
+        assertThat(f.repository.create(
+                subject, outside, PermissionScope.WORKSPACE, null))
+                .isNull();
+        String grant = f.repository.create(
+                subject, outside, PermissionScope.SESSION, null);
+        assertThat(f.repository.findMatch(subject, outside).grantId())
+                .isEqualTo(grant);
+
+        OperationDescriptor otherTarget = operation(
+                "Read", TypedFileOperation.READ_FILE.name(), "file-v1",
+                RiskClass.GUARDED, List.of(EffectClass.READ_RESOURCE),
+                List.of(new ResourceRef(
+                        "path", temp.resolveSibling("other.txt")
+                                .toString(), true)),
+                "outside-other");
+        assertThat(f.repository.findMatch(subject, otherTarget)).isNull();
+
+        OperationDescriptor sensitive = operation(
+                "Read", TypedFileOperation.READ_FILE.name(), "file-v1",
+                RiskClass.HIGH, List.of(EffectClass.READ_RESOURCE),
+                outside.resources(), "outside-sensitive");
+        assertThat(f.repository.supportedScopes(sensitive)).isEmpty();
+    }
+
+    @Test
     void workspaceCapabilityCrossesSessionsOnlyForSameWorkspaceAndSegment() {
         Fixture f = fixture();
         OperationDescriptor read = operation("Read", TypedFileOperation.READ_FILE.name(), "file-v1",

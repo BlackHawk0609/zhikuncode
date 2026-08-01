@@ -1,17 +1,15 @@
 package com.aicodeassistant.coordinator;
 
 import com.aicodeassistant.config.FeatureFlagService;
+import com.aicodeassistant.security.SystemScratchpadPathPolicy;
 import com.aicodeassistant.tool.ToolRegistry;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -30,7 +28,6 @@ import static org.mockito.Mockito.*;
 class CoordinatorServiceScratchpadTest {
 
     private CoordinatorService coordinatorService;
-    private String originalUserDir;
 
     @TempDir
     Path tempWorkspace;
@@ -39,24 +36,12 @@ class CoordinatorServiceScratchpadTest {
     void setUp() {
         FeatureFlagService featureFlags = mock(FeatureFlagService.class);
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        coordinatorService = new CoordinatorService(featureFlags, toolRegistry, null);
-
-        // 重定向 user.dir 到 JUnit @TempDir，确保任何路径穿越都被 TempDir 隔离
-        originalUserDir = System.getProperty("user.dir");
-        System.setProperty("user.dir", tempWorkspace.toString());
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        System.setProperty("user.dir", originalUserDir);
-        // 清理 tempWorkspace 下残留
-        if (Files.exists(tempWorkspace)) {
-            try (var stream = Files.walk(tempWorkspace)) {
-                stream.sorted(Comparator.reverseOrder())
-                      .filter(p -> !p.equals(tempWorkspace))
-                      .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignore) {} });
-            }
-        }
+        coordinatorService = new CoordinatorService(
+                featureFlags,
+                toolRegistry,
+                null,
+                new SystemScratchpadPathPolicy(
+                        tempWorkspace.resolve(".zhikun").resolve("scratchpad")));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -153,5 +138,16 @@ class CoordinatorServiceScratchpadTest {
         String sid = "a".repeat(128);
         Path dir = coordinatorService.getScratchpadDir(sid);
         assertTrue(dir.endsWith(Path.of(".zhikun", "scratchpad", sid)));
+    }
+
+    @Test
+    @DisplayName("显式系统 scratchpad 根用于所有会话")
+    void usesConfiguredSystemScratchpadRoot() throws Exception {
+        Path dir = coordinatorService.getScratchpadDir("session-1");
+
+        assertEquals(
+                tempWorkspace.resolve(".zhikun").resolve("scratchpad")
+                        .resolve("session-1").toRealPath(),
+                dir);
     }
 }
