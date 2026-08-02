@@ -165,6 +165,28 @@ export const useMessageStore = create<MessageStoreState>()(
                 tc.status = result.isError ? 'error' : 'completed';
                 tc.result = result;
                 tc.duration = Date.now() - tc.startTime;
+                // Structured presentation results must survive the transition from the
+                // live tool projection to the finalized assistant message. Ensure there
+                // is a segment for the following model response even when no text delta
+                // has arrived yet; finalizeStream/finalizeAssistantSegment will attach
+                // the authoritative result to it.
+                if (structuredResultSchema(result.metadata) && !d.streamingMessageId) {
+                    const msgId = generateUUID();
+                    d.streamingMessageId = msgId;
+                    d.messages.push({
+                        uuid: msgId,
+                        type: 'assistant',
+                        content: [],
+                        timestamp: Date.now(),
+                        stopReason: '',
+                        usage: {
+                            inputTokens: 0,
+                            outputTokens: 0,
+                            cacheReadInputTokens: 0,
+                            cacheCreationInputTokens: 0,
+                        },
+                    });
+                }
             }
         }),
         replaceActiveToolCalls: (calls) => set(d => {
@@ -210,6 +232,17 @@ export const useMessageStore = create<MessageStoreState>()(
                     if (combinedContent) {
                         content.push({ type: 'text' as const, text: combinedContent });
                     }
+                    for (const [toolUseId, tc] of d.activeToolCalls) {
+                        if (!tc.result || !structuredResultSchema(tc.result.metadata)) continue;
+                        content.push({
+                            type: 'tool_use' as const,
+                            toolUseId,
+                            toolName: tc.toolName,
+                            input: tc.input as Record<string, unknown>,
+                            result: tc.result,
+                        });
+                        d.activeToolCalls.delete(toolUseId);
+                    }
                     (msg as { content: unknown }).content = content;
                 }
             }
@@ -235,6 +268,17 @@ export const useMessageStore = create<MessageStoreState>()(
                     // 文本内容
                     if (combinedContent) {
                         content.push({ type: 'text' as const, text: combinedContent });
+                    }
+                    for (const [toolUseId, tc] of d.activeToolCalls) {
+                        if (!tc.result || !structuredResultSchema(tc.result.metadata)) continue;
+                        content.push({
+                            type: 'tool_use' as const,
+                            toolUseId,
+                            toolName: tc.toolName,
+                            input: tc.input as Record<string, unknown>,
+                            result: tc.result,
+                        });
+                        d.activeToolCalls.delete(toolUseId);
                     }
                     (msg as { content: unknown }).content = content;
                 }
