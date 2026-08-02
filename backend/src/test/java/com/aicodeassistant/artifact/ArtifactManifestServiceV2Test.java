@@ -117,18 +117,41 @@ class ArtifactManifestServiceV2Test {
                 .isEqualTo("verified");
     }
 
+    @Test
+    void laterRunCanResolveOnlyVerifiedArtifactsFromItsOwnSession() throws Exception {
+        Fixture fixture = fixture();
+        Path own = Files.writeString(temp.resolve("own.txt"), "same-session");
+        ArtifactEntry ownEntry = fixture.service.declare("r1", "s1", "tool-own",
+                own.toString(), "created", "sha256", temp.toString());
+        fixture.service.sealFromFile("r1", own.toString(), temp.toString());
+        fixture.service.verify(ownEntry.manifestId());
+
+        Path other = Files.writeString(temp.resolve("other.txt"), "other-session");
+        ArtifactEntry otherEntry = fixture.service.declare("r5", "s2", "tool-other",
+                other.toString(), "created", "sha256", temp.toString());
+        fixture.service.sealFromFile("r5", other.toString(), temp.toString());
+        fixture.service.verify(otherEntry.manifestId());
+
+        assertThat(fixture.service.getManifestsForRunSession("r2"))
+                .extracting(ArtifactManifest::runId).containsExactly("r1");
+        assertThat(fixture.service.getManifestsForRunSession("r6"))
+                .extracting(ArtifactManifest::runId).containsExactly("r5");
+    }
+
     private Fixture fixture() {
         DatabaseResolver resolver=new DatabaseResolver("",temp.resolve("db").toString());
         sqlite=new SqliteConfig(resolver);
         var ds=sqlite.getProjectDataSource(Path.of("ignored"));
         JdbcTemplate jdbc=new JdbcTemplate(ds);
         jdbc.execute("CREATE TABLE sessions(id TEXT PRIMARY KEY)");
-        jdbc.execute("CREATE TABLE run_envelopes(id TEXT PRIMARY KEY)");
+        jdbc.execute("CREATE TABLE run_envelopes(id TEXT PRIMARY KEY, session_id TEXT NOT NULL)");
         jdbc.execute("CREATE TABLE artifact_manifests(manifest_id TEXT PRIMARY KEY)");
         jdbc.execute("CREATE TABLE artifact_entries(artifact_id TEXT PRIMARY KEY)");
         new V017_RebuildArtifactV2Schema(jdbc).execute();
-        jdbc.update("INSERT INTO sessions(id) VALUES('s1')");
-        jdbc.update("INSERT INTO run_envelopes(id) VALUES('r1'),('r2'),('r3'),('r4')");
+        jdbc.update("INSERT INTO sessions(id) VALUES('s1'),('s2')");
+        jdbc.update("INSERT INTO run_envelopes(id,session_id) VALUES"
+                + "('r1','s1'),('r2','s1'),('r3','s1'),('r4','s1'),"
+                + "('r5','s2'),('r6','s2')");
         DataSourceTransactionManager transactionManager =
                 new DataSourceTransactionManager(ds);
         ArtifactManifestService service=new ArtifactManifestService(jdbc,sqlite,resolver,

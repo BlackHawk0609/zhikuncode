@@ -149,6 +149,18 @@
             <version>1.17.2</version>
         </dependency>
 
+        <!-- Alibaba Cloud OSS V2; production credentials come only from the ECS instance RAM role. -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>alibabacloud-oss-v2</artifactId>
+            <version>0.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>credentials-java</artifactId>
+            <version>1.0.4</version>
+        </dependency>
+
         <!-- Diff Utils (FileEditTool) -->
         <dependency>
             <groupId>io.github.java-diff-utils</groupId>

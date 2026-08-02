@@ -90,6 +90,7 @@
 | 🔒 | **统一授权安全架构** | 所有核心工具统一经过 Tool Gateway：规范化输入冻结 → Operation Analyzer 风险与资源分析 → 系统不变量检查 → RUN/SESSION/WORKSPACE Grant 匹配或持久权限交互 → 执行前动态复检 → 结构化结果审计。高风险操作只允许单次授权；专用 Network/MCP Analyzer 对 SAFE/GUARDED 操作支持按工具记住 RUN/SESSION 授权，未知 MCP/动态工具默认只能单次审批 |
 | 🇨🇳 | **国产大模型直连** | 千问 / DeepSeek / Moonshot / 智谱GLM / MiniMax 开箱即用，国内网络直连，无需科学上网 |
 | 🐳 | **Docker 一键部署** | `docker compose up -d` 一条命令启动，数据存本地，完全私有 |
+| 📤 | **显式 OSS 产物发布（可选）** | 通过 `/publish-oss` 将当前会话中的单个已验证产物发布为永久公开下载地址；默认关闭、绝不自动上传，每次发布都需要用户明确指令和单次授权 |
 | ⚡ | **智能上下文管理** | 六层压缩级联（Snip / MicroCompact / ContextCollapse / AutoCompact / CollapseDrain / ReactiveCompact）+ 增量折叠（每10轮自动压缩）+ 413 两阶段恢复（CollapseDrain 激进压缩 → ReactiveCompact 反应式压缩）+ 精确 Token 计数（tiktoken 多模型支持）+ 自纠错循环（SelfCorrectionLoop，编译/测试失败自动诊断修复，最多3次）+ Token三级告警 + 图片上下文治理（大图外置化 → 按需注入 → 预算守卫三层防护），无缝应对超长对话。核心引擎为 ContextCascade 与 QueryEngine |
 | 📷 | **多模态图片对话** | 支持图片上传输入，模型自动识别图片内容并分析；**智能视觉模型路由**——当前模型不支持图片时，自动切换至同厂商视觉模型处理，处理完成后无缝切回原模型，遵循"同厂商优先 + 全局兜底"策略。**图片预算守卫**——大图片（>50KB）自动外置化为轻量 JSON 引用，API 调用前按需注入，两阶段 Token 预算守卫确保多图对话不累积超限（单张≤1.5MB，总量≤2MB，最多 5 张并发注入）。支持的模型：gpt-5.6-sol / gpt-5.4-mini / claude-sonnet-4-6 / claude-opus-4-8 / qwen3.7-plus / kimi-k3 / kimi-k2.7-code / glm-5v-turbo / MiniMax-M3 / openai/gpt-5.6-sol / google/gemini-3.5-flash（单张≤5MB，数量上限因模型而异） |
 | 🖼️ | **浏览器语义快照** | `/snap` 命令智能捕获网页完整状态（DOM 结构 + 交互元素），支持富交互页面语义提取，生成结构化 JSON 供 Agent 解析和回放验证 |
@@ -221,6 +222,44 @@ cd frontend && npm install && npm run dev
 > **RV-1 运行时验证依赖**：`jsonpath-ng`（JSONPath 断言引擎）、`httpx`（异步 HTTP 客户端），已包含在 `python-service/requirements.txt` 中。
 
 > **权限数据说明：** 当前授权架构以 V015 持久交互和 V019 受约束 Grant 为数据库权威，不读取旧权限表。开发环境升级时直接重建项目数据库，并在新版本中重新授权。
+
+### 可选：将已验证产物发布到 OSS
+
+ZhikunCode 提供内置 `/publish-oss` Skill，可将当前会话中的一个已验证产物发布为 OSS 永久公开下载地址。本功能**默认关闭且绝不自动上传**：生成文件、完成 Run、预览或打开文件都不会触发上传；每次发布都必须由用户明确提出，并通过一次高风险权限确认。
+
+该功能仅支持通过 **ECS 实例 RAM 角色**和 IMDSv2 获取自动轮换的 STS 临时凭证，不接受长期 OSS AccessKey。每个部署者都必须配置自己的 Bucket、Region、Endpoint 和 RAM 角色；克隆或启动本仓库不会连接项目维护者的 OSS。
+
+在 ECS 的 `.env` 中配置以下非敏感参数：
+
+```bash
+ZHIKUN_OSS_ENABLED=true
+ZHIKUN_OSS_ENDPOINT=oss-cn-your-region.aliyuncs.com
+ZHIKUN_OSS_REGION=cn-your-region
+ZHIKUN_OSS_BUCKET=your-bucket
+ZHIKUN_OSS_PREFIX=zhikuncode-artifacts
+ZHIKUN_OSS_ECS_ROLE_NAME=your-ecs-ram-role
+ZHIKUN_OSS_MAX_FILE_BYTES=104857600
+ZHIKUN_OSS_CONNECT_TIMEOUT_MS=10000
+ZHIKUN_OSS_REQUEST_TIMEOUT_MS=120000
+```
+
+> RAM 角色只应授予目标前缀所需的最小 OSS 权限。不要设置或提交 `OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_SESSION_TOKEN` 及对应的 `ALIBABA_CLOUD_*` 长期凭证变量；发布前的配置校验会拒绝这些变量。
+
+使用流程：
+
+1. 在当前会话中生成产物，等待 Artifact 完成校验。
+2. 明确输入 `/publish-oss <文件路径>`，或说明“上传刚生成的产物到 OSS”。
+3. 核对确认卡片中的文件名、大小、公开范围和“永久公开”警告后，批准本次操作。
+4. 上传成功后使用返回的 OSS 地址下载产物。
+
+安全边界与当前限制：
+
+- 只允许当前会话和 workspace 内 Artifact Manifest 已验证的**单个普通文件**，默认不超过 100 MiB。
+- 拒绝目录、批量上传、符号链接、workspace 外路径、`.env`、私钥、数据库、凭证配置及检测到敏感内容的文件。
+- 对象先私有上传，远端校验成功后才切换为 `public-read`；失败时清理本次新建的私有对象。
+- 返回地址为**永久公开下载地址**。OSS 默认域名通常会下载 HTML，而不是在浏览器中直接渲染。
+- 当前精简版不提供批量发布、发布历史或撤销入口；删除公开对象需要运维人员在 OSS 侧显式执行。
+- 本地开发环境没有 ECS 实例元数据凭证，只能测试交互和配置校验；真实上传必须在已绑定 RAM 角色的 ECS 上验收。
 
 ### 支持的 LLM 服务商
 
@@ -690,7 +729,7 @@ Web 新会话必须先选择一个已授权目录。远程和 Docker 部署的�
 
 ZhikunCode 的skill技能系统（Skill System）是一个 **Markdown 驱动的可扩展工作流引擎**。每个技能就是一个 `.md` 文件，用 YAML frontmatter 定义元数据，用 Markdown 正文定义执行指令。
 
-### 13 个内置技能
+### 14 个内置技能
 
 开箱即用，输入 `/技能名` 即可调用：
 
@@ -709,6 +748,7 @@ ZhikunCode 的skill技能系统（Skill System）是一个 **Markdown 驱动的�
 | **数据摘要** | `/csv-data-summarizer` | CSV统计分析+可视化图表+Markdown报告 |
 | **Prompt工程** | `/prompt-engineering` | 优化prompt结构、清晰度和有效性 |
 | **测试驱动开发** | `/test-driven-development` | TDD红→绿→重构循环方法论指导 |
+| **OSS 产物发布** | `/publish-oss` | 经单次授权，将当前会话中的一个已验证产物发布为永久公开 OSS 下载地址；默认关闭且不会自动上传 |
 
 ### 6 级加载源优先级
 
@@ -724,7 +764,7 @@ managed > user > project > plugin > bundled > mcp
 | **user** | `~/.zhikun/skills/` | 用户全局自定义技能 | ✅ 已实现 |
 | **project** | `.zhikun/skills/` | 项目级技能，随代码库分发 | ✅ 已实现 |
 | **plugin** | 插件提供 | JAR 插件内嵌的技能 | 预留 |
-| **bundled** | 内置 | 13 个开箱即用技能 | ✅ 已实现 |
+| **bundled** | 内置 | 14 个开箱即用技能 | ✅ 已实现 |
 | **mcp** | MCP 构建 | 通过 MCP 协议注册的技能 | 预留 |
 
 ### 自定义技能

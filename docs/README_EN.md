@@ -90,6 +90,7 @@ The same "12306 waitlist-fulfillment backend full-chain" dynamic visualization t
 | 🔒 | **Unified Authorization Security** | Every core tool passes through the Tool Gateway: canonical input freezing → Operation Analyzer risk/resource analysis → system invariants → RUN/SESSION/WORKSPACE grant matching or durable permission interaction → final dynamic recheck → structured result auditing. High-risk operations are ONCE-only, and unknown MCP/dynamic tools default to one-time approval |
 | 🇨🇳 | **Native Chinese LLM Support** | Qwen / DeepSeek / Moonshot / Zhipu GLM / MiniMax work out of the box with direct connections from mainland China — no VPN required |
 | 🐳 | **One-Command Docker Deployment** | `docker compose up -d` — one command to start. Data stays local, fully private |
+| 📤 | **Explicit OSS Artifact Publishing (Optional)** | Use `/publish-oss` to publish one verified artifact from the current session as a permanently public download; disabled by default, never automatic, and requires an explicit request plus one-time approval for every publication |
 | ⚡ | **Intelligent Context Management** | Six-layer compression cascade (Snip / MicroCompact / ContextCollapse / AutoCompact / CollapseDrain / ReactiveCompact) + incremental collapse (auto-compress every 10 turns) + 413 two-phase recovery (CollapseDrain aggressive compression → ReactiveCompact) + Precise Token Counting (tiktoken multi-model support) + Self-Correction Loop (SelfCorrectionLoop, auto-diagnose compile/test failures, max 3 retries) + three-level token alerts + image context governance (large image externalization → on-demand injection → budget guard three-layer protection) for seamless ultra-long conversations. The core engines are ContextCascade and QueryEngine |
 | 📷 | **Multimodal Image Chat** | Upload images for AI analysis; **Intelligent Vision Routing** — when the selected model lacks image input support, the system auto-routes to a vision-capable model from the same provider (with global fallback) and reverts to the original model after image processing. **Image Budget Guard** — large images (>50KB) are auto-externalized to lightweight JSON references, injected on-demand before API calls; two-phase token budget guard prevents multi-image conversations from accumulating beyond limits (≤1.5MB per image, ≤2MB total, max 5 concurrent injections). Supported models: gpt-5.6-sol / gpt-5.4-mini / claude-sonnet-4-6 / claude-opus-4-8 / qwen3.7-plus / kimi-k3 / kimi-k2.7-code / glm-5v-turbo / MiniMax-M3 / openai/gpt-5.6-sol / google/gemini-3.5-flash (max 5MB per image, image count limit varies by model) |
 | 🖼️ | **Browser Semantic Snapshot** | `/snap` command captures full web page state (DOM structure + interactive elements), extracts structured JSON for Agent parsing and replay verification |
@@ -221,6 +222,44 @@ cd frontend && npm install && npm run dev
 > **RV-1 Runtime Verification Dependencies**: `jsonpath-ng` (JSONPath assertion engine), `httpx` (async HTTP client), already included in `python-service/requirements.txt`.
 
 > **Permission Data Note:** The current authorization architecture uses V015 durable interactions and V019 constrained grants as its database authority and does not read legacy permission tables. Recreate the project database for development upgrades and approve operations again under the current version.
+
+### Optional: Publish Verified Artifacts to OSS
+
+ZhikunCode includes a built-in `/publish-oss` Skill that can publish one verified artifact from the current session as a permanently public OSS download. This feature is **disabled by default and never uploads automatically**: generating a file, completing a Run, previewing, or opening a file cannot trigger it. Every publication requires an explicit user request and a one-time high-risk permission confirmation.
+
+The feature supports **ECS instance RAM roles and IMDSv2 only**, using automatically rotated STS temporary credentials. Long-lived OSS AccessKeys are not accepted. Every deployment must configure its own Bucket, Region, Endpoint, and RAM role; cloning or starting this repository does not connect to the maintainer's OSS resources.
+
+Configure these non-secret values in the ECS `.env` file:
+
+```bash
+ZHIKUN_OSS_ENABLED=true
+ZHIKUN_OSS_ENDPOINT=oss-cn-your-region.aliyuncs.com
+ZHIKUN_OSS_REGION=cn-your-region
+ZHIKUN_OSS_BUCKET=your-bucket
+ZHIKUN_OSS_PREFIX=zhikuncode-artifacts
+ZHIKUN_OSS_ECS_ROLE_NAME=your-ecs-ram-role
+ZHIKUN_OSS_MAX_FILE_BYTES=104857600
+ZHIKUN_OSS_CONNECT_TIMEOUT_MS=10000
+ZHIKUN_OSS_REQUEST_TIMEOUT_MS=120000
+```
+
+> Grant the RAM role only the minimum OSS permissions required for the target prefix. Do not set or commit `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET`, `OSS_SESSION_TOKEN`, or their `ALIBABA_CLOUD_*` credential equivalents; pre-publication configuration validation rejects these variables.
+
+Usage:
+
+1. Generate an artifact in the current session and wait for Artifact verification to complete.
+2. Explicitly enter `/publish-oss <file-path>`, or ask to upload the artifact just generated to OSS.
+3. Review the confirmation card's file name, size, visibility, and “permanently public” warning, then approve this operation.
+4. Use the returned OSS URL to download the artifact.
+
+Security boundaries and current limitations:
+
+- Only **one regular file** verified in the current session's Artifact Manifest and located inside its workspace is allowed; the default limit is 100 MiB.
+- Directories, batch uploads, symbolic links, paths outside the workspace, `.env` files, private keys, databases, credential files, and files detected as containing sensitive content are rejected.
+- The object is uploaded privately first and changed to `public-read` only after remote verification; a newly created private object is cleaned up if publication fails.
+- The returned URL is a **permanently public download URL**. HTML served from the default OSS domain is normally downloaded rather than rendered inline by the browser.
+- The current minimal version does not provide batch publishing, publication history, or a revoke action; operators must explicitly delete public objects in OSS.
+- Local development has no ECS instance-metadata credentials, so it can only test interaction and configuration validation. Real upload acceptance testing must run on an ECS instance with the RAM role attached.
 
 ### Supported LLM Providers
 
@@ -689,7 +728,7 @@ Full test report: [ZhikunCode v9.3 End-to-End Test Report](test-results/v9.3/Zhi
 
 ZhikunCode's Skill System is a **Markdown-driven extensible workflow engine**. Each skill is a `.md` file — YAML frontmatter defines metadata, Markdown body defines execution instructions.
 
-### 13 Built-in Skills
+### 14 Built-in Skills
 
 Ready to use out of the box — type `/skill-name` to invoke:
 
@@ -708,6 +747,7 @@ Ready to use out of the box — type `/skill-name` to invoke:
 | **CSV Summary** | `/csv-data-summarizer` | CSV statistical analysis + charts + Markdown report |
 | **Prompt Engineering** | `/prompt-engineering` | Optimizes prompt structure, clarity and effectiveness |
 | **Test-Driven Dev** | `/test-driven-development` | TDD red→green→refactor cycle methodology guidance |
+| **OSS Artifact Publishing** | `/publish-oss` | With one-time approval, publishes one verified artifact from the current session as a permanently public OSS download; disabled by default and never automatic |
 
 ### 6-Level Loading Priority
 
@@ -723,7 +763,7 @@ managed > user > project > plugin > bundled > mcp
 | **user** | `~/.zhikun/skills/` | User global custom skills | ✅ Implemented |
 | **project** | `.zhikun/skills/` | Project-level skills, distributed with the codebase | ✅ Implemented |
 | **plugin** | Plugin-provided | Skills embedded in JAR plugins | Reserved |
-| **bundled** | Built-in | 13 out-of-the-box skills | ✅ Implemented |
+| **bundled** | Built-in | 14 out-of-the-box skills | ✅ Implemented |
 | **mcp** | MCP-built | Skills registered via MCP protocol | Reserved |
 
 ### Custom Skills

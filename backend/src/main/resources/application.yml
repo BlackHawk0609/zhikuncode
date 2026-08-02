@@ -28,6 +28,17 @@ zhikuncode:
   scratchpad:
     # Server-owned shared root used by coordinator and swarm runs.
     system-root: ${app.working-dir:${user.dir}}/.zhikun/scratchpad
+  oss:
+    # Disabled by default. Enable only on an ECS instance with the named RAM role attached.
+    enabled: ${ZHIKUN_OSS_ENABLED:false}
+    endpoint: ${ZHIKUN_OSS_ENDPOINT:}
+    region: ${ZHIKUN_OSS_REGION:}
+    bucket: ${ZHIKUN_OSS_BUCKET:}
+    prefix: ${ZHIKUN_OSS_PREFIX:zhikuncode-artifacts}
+    ecs-role-name: ${ZHIKUN_OSS_ECS_ROLE_NAME:}
+    max-file-bytes: ${ZHIKUN_OSS_MAX_FILE_BYTES:104857600}
+    connect-timeout-ms: ${ZHIKUN_OSS_CONNECT_TIMEOUT_MS:10000}
+    request-timeout-ms: ${ZHIKUN_OSS_REQUEST_TIMEOUT_MS:120000}
 
 # Python 服务配置
 python:

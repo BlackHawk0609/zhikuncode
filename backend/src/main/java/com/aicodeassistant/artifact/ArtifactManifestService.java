@@ -247,6 +247,23 @@ public class ArtifactManifestService {
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT * FROM artifact_manifests WHERE run_id=?",runId);
         return rows.isEmpty()?Optional.empty():Optional.of(mapManifest(rows.getFirst()));
     }
+    /**
+     * Returns manifests from the same persisted session as {@code currentRunId}, newest first.
+     * This lets a later, explicit publish Run refer to an artifact verified when the preceding
+     * generation Run completed without widening the boundary to other sessions or the filesystem.
+     */
+    public List<ArtifactManifest> getManifestsForRunSession(String currentRunId) {
+        if (currentRunId == null || currentRunId.isBlank()) return List.of();
+        List<String> ids = jdbc.queryForList("""
+                SELECT m.manifest_id
+                FROM artifact_manifests m
+                JOIN run_envelopes current_run ON current_run.id = ?
+                WHERE m.session_id = current_run.session_id
+                ORDER BY m.updated_at DESC, m.manifest_id DESC
+                """, String.class, currentRunId);
+        return ids.stream().map(this::getManifestById)
+                .flatMap(Optional::stream).toList();
+    }
     public Optional<ArtifactManifest> getManifestById(String id){
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT * FROM artifact_manifests WHERE manifest_id=?",id);
         return rows.isEmpty()?Optional.empty():Optional.of(mapManifest(rows.getFirst()));

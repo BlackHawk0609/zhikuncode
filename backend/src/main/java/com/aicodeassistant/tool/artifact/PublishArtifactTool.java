@@ -1,0 +1,126 @@
+package com.aicodeassistant.tool.artifact;
+
+import com.aicodeassistant.artifact.publication.ArtifactPublicationPolicy;
+import com.aicodeassistant.artifact.publication.OssArtifactService;
+import com.aicodeassistant.config.oss.OssPublishProperties;
+import com.aicodeassistant.tool.InterruptBehavior;
+import com.aicodeassistant.tool.PermissionRequirement;
+import com.aicodeassistant.tool.Tool;
+import com.aicodeassistant.tool.ToolInput;
+import com.aicodeassistant.tool.ToolResult;
+import com.aicodeassistant.tool.ToolUseContext;
+import com.aicodeassistant.tool.ValidationResult;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/** Explicitly publishes one verified artifact after a non-reusable HIGH-risk permission decision. */
+@Component
+public class PublishArtifactTool implements Tool {
+    private final ArtifactPublicationPolicy policy;
+    private final OssArtifactService oss;
+    private final OssPublishProperties properties;
+    private final ObjectMapper json;
+
+    public PublishArtifactTool(ArtifactPublicationPolicy policy, OssArtifactService oss,
+                               OssPublishProperties properties, ObjectMapper json) {
+        this.policy = policy;
+        this.oss = oss;
+        this.properties = properties;
+        this.json = json;
+    }
+
+    @Override public String getName() { return "PublishArtifact"; }
+
+    @Override public String getDescription() {
+        return "Publish exactly one verified artifact from the current session to OSS as a permanently public "
+                + "download. Call only after the user explicitly asks to upload or publish the artifact.";
+    }
+
+    @Override public Map<String, Object> getInputSchema() { return schema(); }
+    @Override public Map<String, Object> getSchema() { return schema(); }
+
+    private static Map<String, Object> schema() {
+        return Map.of(
+                "type", "object",
+                "properties", Map.of("file_path", Map.of(
+                        "type", "string",
+                        "minLength", 1,
+                        "maxLength", 4096,
+                        "description", "Workspace-relative path of the verified artifact to publish")),
+                "required", java.util.List.of("file_path"),
+                "additionalProperties", false);
+    }
+
+    @Override public String getGroup() { return "artifact"; }
+    @Override public PermissionRequirement getPermissionRequirement() { return PermissionRequirement.ALWAYS_ASK; }
+    @Override public boolean isEnabled() { return properties.isEnabled(); }
+    @Override public boolean isHighRisk() { return true; }
+    @Override public boolean isOpenWorld() { return true; }
+    @Override public boolean isConcurrencySafe(ToolInput input) { return false; }
+    @Override public InterruptBehavior interruptBehavior() { return InterruptBehavior.BLOCK; }
+    @Override public long getMaxExecutionTimeMs() { return properties.getRequestTimeoutMs() + 30_000L; }
+    @Override public String userFacingName(ToolInput input) { return "Upload artifact to OSS"; }
+    @Override public String getPath(ToolInput input) { return input.getString("file_path", null); }
+
+    @Override
+    public ValidationResult validateInput(ToolInput input, ToolUseContext context) {
+        String path = input.getString("file_path", "");
+        if (path.isBlank()) return ValidationResult.invalid("ARTIFACT_PATH_REQUIRED", "file_path is required");
+        if (path.indexOf('\0') >= 0) return ValidationResult.invalid("ARTIFACT_PATH_INVALID", "file_path is invalid");
+        return ValidationResult.ok();
+    }
+
+    @Override
+    public ToolResult call(ToolInput input, ToolUseContext context) {
+        String requestedPath = input.getString("file_path");
+        try {
+            OssArtifactService.PublishedArtifact published = policy.withLockedSnapshot(
+                    requestedPath, context.currentRunId(), oss::publish);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("status", "published");
+            response.put("artifactId", published.artifactId());
+            response.put("fileName", published.fileName());
+            response.put("size", published.size());
+            response.put("sha256", published.sha256());
+            response.put("url", published.publicUrl());
+            response.put("permanentlyPublic", true);
+            response.put("htmlDownloadExpected", published.mimeType().startsWith("text/html"));
+            String content = json.writeValueAsString(response);
+            return ToolResult.successWithEffect(content, ToolResult.EffectState.APPLIED, response);
+        } catch (OssPublishProperties.OssConfigurationException configuration) {
+            return ToolResult.failed(ToolResult.ToolFailureType.PROVIDER, configuration.getMessage(),
+                    publicMessage(configuration.getMessage()), ToolResult.Retryability.NEVER,
+                    ToolResult.EffectState.NOT_STARTED, null, Map.of());
+        } catch (ArtifactPublicationPolicy.ArtifactPublicationException denied) {
+            return ToolResult.validationError(denied.code(), publicMessage(denied.code()));
+        } catch (OssArtifactService.OssPublishException failure) {
+            return ToolResult.failed(failure.failureType(), failure.code(), publicMessage(failure.code()),
+                    failure.retryability(), failure.effectState(), null, Map.of());
+        } catch (Exception failure) {
+            return ToolResult.internalError("OSS_PUBLISH_INTERNAL_ERROR",
+                    "OSS publication failed without exposing internal details",
+                    ToolResult.EffectState.UNKNOWN);
+        }
+    }
+
+    private static String publicMessage(String code) {
+        return switch (code) {
+            case "OSS_PUBLISHING_DISABLED" -> "OSS artifact publication is disabled on this deployment.";
+            case "OSS_CREDENTIAL_SOURCE_FORBIDDEN" -> "Static OSS credentials are forbidden; use the ECS instance RAM role.";
+            case "OSS_ECS_ROLE_REQUIRED", "OSS_INSTANCE_ROLE_UNAVAILABLE" -> "The ECS instance RAM role is unavailable.";
+            case "OSS_PUBLIC_ACCESS_BLOCKED" -> "The bucket blocks public object access; the private upload was cleaned up.";
+            case "ARTIFACT_NOT_IN_CURRENT_SESSION" ->
+                    "The requested file is not a declared artifact of the current session.";
+            case "ARTIFACT_NOT_VERIFIED", "ARTIFACT_HASH_CHANGED", "ARTIFACT_CHANGED_BEFORE_UPLOAD",
+                    "ARTIFACT_CHANGED_DURING_UPLOAD" -> "The artifact is not currently verified or changed after verification.";
+            case "ARTIFACT_SENSITIVE_FILE_FORBIDDEN", "ARTIFACT_SENSITIVE_CONTENT_FORBIDDEN" ->
+                    "The artifact was rejected by the sensitive-data policy.";
+            case "ARTIFACT_TOO_LARGE" -> "The artifact exceeds the configured single-file upload limit.";
+            case "OSS_TEMPORARY_FAILURE" -> "OSS is temporarily unavailable. A new explicit retry is required.";
+            default -> "OSS publication was rejected: " + code;
+        };
+    }
+}

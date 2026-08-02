@@ -140,6 +140,9 @@
         <Logger name="org.hibernate" level="WARN"/>
         <Logger name="com.zaxxer.hikari" level="INFO"/>
         <Logger name="org.xerial.snappy" level="WARN"/>
+        <!-- Alibaba SDK logs must not expose STS credentials or signed requests. -->
+        <Logger name="com.aliyun.sdk.service.oss2" level="WARN"/>
+        <Logger name="com.aliyun.credentials" level="WARN"/>
 
         <!-- ===== Root ===== -->
         <Root level="INFO">

@@ -1,5 +1,6 @@
 package com.aicodeassistant.authorization;
 
+import com.aicodeassistant.artifact.publication.ArtifactPublicationPolicy;
 import com.aicodeassistant.tool.Tool;
 import com.aicodeassistant.tool.ToolInput;
 import com.aicodeassistant.tool.ToolUseContext;
@@ -50,8 +51,10 @@ public final class OperationAnalyzerRegistry {
     private final OperationAnalyzer bash = new BashAnalyzer();
     private final OperationAnalyzer file = new FileAnalyzer();
     private final OperationAnalyzer network = new NetworkAnalyzer();
+    private final OperationAnalyzer artifactPublish = new ArtifactPublishAnalyzer();
     private final OperationAnalyzer mcp = new GenericAnalyzer("mcp-v1");
     private final OperationAnalyzer generic = new GenericAnalyzer("static-or-remote-v1");
+    private ArtifactPublicationPolicy artifactPublicationPolicy;
 
     @Autowired
     public OperationAnalyzerRegistry(ObjectMapper mapper, BashSecurityAnalyzer bashSecurity,
@@ -70,6 +73,11 @@ public final class OperationAnalyzerRegistry {
         this(mapper, bashSecurity, sensitiveDataFilter, pathSecurity, new ShellStateManager());
     }
 
+    @Autowired(required = false)
+    void setArtifactPublicationPolicy(ArtifactPublicationPolicy artifactPublicationPolicy) {
+        this.artifactPublicationPolicy = artifactPublicationPolicy;
+    }
+
     public OperationAnalyzer analyzerFor(Tool tool) {
         if (tool.isMcp()) return mcp;
         // 名称看似 MCP 但没有适配器身份的动态工具仍按未知工具处理，不能继承 MCP 持久授权。
@@ -77,6 +85,7 @@ public final class OperationAnalyzerRegistry {
         if ("Bash".equals(tool.getName())) return bash;
         // Bash 语法无法证明 PowerShell 的语义，因此 PowerShell 保持精确 ONCE 授权。
         if ("PowerShell".equals(tool.getName())) return generic;
+        if ("PublishArtifact".equals(tool.getName())) return artifactPublish;
         if (FILE_READ.contains(tool.getName()) || FILE_WRITE.contains(tool.getName())) return file;
         if (NETWORK.contains(tool.getName())) return network;
         if (CONTROL.contains(tool.getName()) || VERIFY_CONTROL.contains(tool.getName())
@@ -86,7 +95,8 @@ public final class OperationAnalyzerRegistry {
     }
 
     public boolean isExplicitCoreTool(String name) {
-        return "Bash".equals(name) || "PowerShell".equals(name) || FILE_READ.contains(name)
+        return "Bash".equals(name) || "PowerShell".equals(name) || "PublishArtifact".equals(name)
+                || FILE_READ.contains(name)
                 || FILE_WRITE.contains(name) || NETWORK.contains(name) || CONTROL.contains(name)
                 || VERIFY_CONTROL.contains(name) || SAFE_INTERNAL.contains(name);
     }
@@ -454,6 +464,66 @@ public final class OperationAnalyzerRegistry {
                     List.of(), endpoints, RiskClass.GUARDED, tool.getName() + " remote request");
         }
         @Override public void recheck(Tool tool, OperationDescriptor d, ToolInput i, ToolUseContext c, AuthorizationSubject s) { }
+    }
+
+    private final class ArtifactPublishAnalyzer implements OperationAnalyzer {
+        @Override public String id() { return "artifact-publish-v1"; }
+
+        @Override
+        public OperationDescriptor analyze(Tool tool, FrozenToolInput frozen, ToolInput input,
+                                           ToolUseContext context, AuthorizationSubject subject) {
+            ArtifactPublicationPolicy.Snapshot snapshot = publicationSnapshot(input, context);
+            return publicationDescriptor(tool, frozen.inputHash(), snapshot);
+        }
+
+        @Override
+        public void recheck(Tool tool, OperationDescriptor approved, ToolInput input,
+                            ToolUseContext context, AuthorizationSubject subject) {
+            ArtifactPublicationPolicy.Snapshot current = publicationSnapshot(input, context);
+            OperationDescriptor recomputed = publicationDescriptor(tool, approved.inputHash(), current);
+            if (!approved.operationHash().equals(recomputed.operationHash())
+                    || !approved.resources().equals(recomputed.resources())
+                    || approved.risk() != RiskClass.HIGH) {
+                throw new AuthorizationException("AUTHORIZATION_FINAL_RECHECK_DENIED",
+                        "Artifact or OSS publication facts changed before execution");
+            }
+        }
+
+        private ArtifactPublicationPolicy.Snapshot publicationSnapshot(ToolInput input,
+                                                                        ToolUseContext context) {
+            if (artifactPublicationPolicy == null) {
+                throw new AuthorizationException("ARTIFACT_PUBLISH_ANALYZER_UNAVAILABLE",
+                        "Artifact publication policy is unavailable");
+            }
+            try {
+                return artifactPublicationPolicy.inspect(input.getString("file_path", ""),
+                        context.currentRunId());
+            } catch (ArtifactPublicationPolicy.ArtifactPublicationException denied) {
+                throw new AuthorizationException(denied.code(),
+                        "Artifact publication policy denied the request", denied);
+            } catch (com.aicodeassistant.config.oss.OssPublishProperties.OssConfigurationException denied) {
+                throw new AuthorizationException(denied.getMessage(),
+                        "OSS publication is unavailable on this deployment", denied);
+            } catch (RuntimeException denied) {
+                throw new AuthorizationException("ARTIFACT_PUBLISH_POLICY_DENIED",
+                        "Artifact publication policy denied the request", denied);
+            }
+        }
+
+        private OperationDescriptor publicationDescriptor(Tool tool, String inputHash,
+                                                           ArtifactPublicationPolicy.Snapshot snapshot) {
+            String summary = "PERMANENT PUBLIC OSS upload\n"
+                    + "File: " + snapshot.relativePath() + "\n"
+                    + "Size: " + snapshot.size() + " bytes\n"
+                    + "SHA-256: " + snapshot.sha256() + "\n"
+                    + "Bucket: " + snapshot.bucket() + "\n"
+                    + "Public URL: " + snapshot.publicUrl();
+            return descriptor(id(), tool, inputHash, "publish-public-artifact",
+                    List.of(EffectClass.READ_RESOURCE, EffectClass.NETWORK, EffectClass.WRITE_RESOURCE),
+                    List.of(new ResourceRef("path", snapshot.relativePath(), false)),
+                    List.of(), List.of(redactEndpoint(snapshot.endpoint())), RiskClass.HIGH,
+                    summary, snapshot.authorizationFacts());
+        }
     }
 
     private final class GenericAnalyzer implements OperationAnalyzer {
