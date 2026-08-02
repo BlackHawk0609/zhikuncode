@@ -10,7 +10,6 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import type { Message, ToolResult, ToolCallState, Usage, TokenWarningPayload } from '@/types';
 import { streamingStore, flushStreamingBuffer } from '@/hooks/useStreamingText';
 import { generateUUID } from '@/utils/uuid';
-import { structuredResultSchema } from '@/utils/structuredToolResult';
 
 export interface TokenBudgetState {
     pct: number;
@@ -26,12 +25,12 @@ export interface RecoveredToolCall {
     startedAt?: number;
 }
 
-function attachCompletedStructuredToolResults(messages: Message[]): Message[] {
+function attachCompletedToolResults(messages: Message[]): Message[] {
     const results = new Map<string, ToolResult>();
     for (const message of messages) {
         if (message.type !== 'user') continue;
         for (const block of message.content) {
-            if (block.type !== 'tool_result' || !structuredResultSchema(block.metadata)) continue;
+            if (block.type !== 'tool_result') continue;
             results.set(block.toolUseId, {
                 content: block.content,
                 isError: block.isError,
@@ -74,6 +73,7 @@ export interface MessageStoreState {
     completeToolCall: (toolUseId: string, result: ToolResult) => void;
     replaceActiveToolCalls: (calls: RecoveredToolCall[]) => void;
     restoreSessionSnapshot: (messages: Message[], calls: RecoveredToolCall[]) => void;
+    reconcileCommittedRun: (replaceAfterMessageId: string | null, messages: Message[]) => boolean;
     finalizeAssistantSegment: () => void;
     finalizeStream: (usage: Usage) => void;
     clearMessages: () => void;
@@ -165,28 +165,6 @@ export const useMessageStore = create<MessageStoreState>()(
                 tc.status = result.isError ? 'error' : 'completed';
                 tc.result = result;
                 tc.duration = Date.now() - tc.startTime;
-                // Structured presentation results must survive the transition from the
-                // live tool projection to the finalized assistant message. Ensure there
-                // is a segment for the following model response even when no text delta
-                // has arrived yet; finalizeStream/finalizeAssistantSegment will attach
-                // the authoritative result to it.
-                if (structuredResultSchema(result.metadata) && !d.streamingMessageId) {
-                    const msgId = generateUUID();
-                    d.streamingMessageId = msgId;
-                    d.messages.push({
-                        uuid: msgId,
-                        type: 'assistant',
-                        content: [],
-                        timestamp: Date.now(),
-                        stopReason: '',
-                        usage: {
-                            inputTokens: 0,
-                            outputTokens: 0,
-                            cacheReadInputTokens: 0,
-                            cacheCreationInputTokens: 0,
-                        },
-                    });
-                }
             }
         }),
         replaceActiveToolCalls: (calls) => set(d => {
@@ -201,7 +179,7 @@ export const useMessageStore = create<MessageStoreState>()(
         restoreSessionSnapshot: (messages, calls) => {
             flushStreamingBuffer();
             streamingStore.clear();
-            const projectedMessages = attachCompletedStructuredToolResults(messages);
+            const projectedMessages = attachCompletedToolResults(messages);
             set(d => {
                 d.messages = projectedMessages;
                 d.streamingMessageId = null;
@@ -218,6 +196,38 @@ export const useMessageStore = create<MessageStoreState>()(
                 d.tokenWarning = null;
             });
         },
+        reconcileCommittedRun: (replaceAfterMessageId, messages) => {
+            if (messages.length === 0) return false;
+            const incomingIds = new Set<string>();
+            for (const message of messages) {
+                if (!message.uuid || incomingIds.has(message.uuid)) return false;
+                incomingIds.add(message.uuid);
+            }
+            const projectedMessages = attachCompletedToolResults(messages);
+            let reconciled = false;
+            set(d => {
+                const keepCount = replaceAfterMessageId === null
+                    ? 0
+                    : d.messages.findIndex(message => message.uuid === replaceAfterMessageId) + 1;
+                if (replaceAfterMessageId !== null && keepCount === 0) return;
+                for (let i = 0; i < keepCount; i++) {
+                    if (incomingIds.has(d.messages[i].uuid)) return;
+                }
+                d.messages.splice(keepCount, d.messages.length - keepCount, ...projectedMessages);
+                d.streamingMessageId = null;
+                d.streamingContent = '';
+                d.thinkingContent = '';
+                d.activeToolCalls.clear();
+                d.tokenBudgetState = null;
+                d.tokenWarning = null;
+                reconciled = true;
+            });
+            if (reconciled) {
+                flushStreamingBuffer();
+                streamingStore.clear();
+            }
+            return reconciled;
+        },
         finalizeAssistantSegment: () => set(d => {
             flushStreamingBuffer();
             const externalContent = streamingStore.clear();
@@ -231,17 +241,6 @@ export const useMessageStore = create<MessageStoreState>()(
                     }
                     if (combinedContent) {
                         content.push({ type: 'text' as const, text: combinedContent });
-                    }
-                    for (const [toolUseId, tc] of d.activeToolCalls) {
-                        if (!tc.result || !structuredResultSchema(tc.result.metadata)) continue;
-                        content.push({
-                            type: 'tool_use' as const,
-                            toolUseId,
-                            toolName: tc.toolName,
-                            input: tc.input as Record<string, unknown>,
-                            result: tc.result,
-                        });
-                        d.activeToolCalls.delete(toolUseId);
                     }
                     (msg as { content: unknown }).content = content;
                 }
@@ -268,17 +267,6 @@ export const useMessageStore = create<MessageStoreState>()(
                     // 文本内容
                     if (combinedContent) {
                         content.push({ type: 'text' as const, text: combinedContent });
-                    }
-                    for (const [toolUseId, tc] of d.activeToolCalls) {
-                        if (!tc.result || !structuredResultSchema(tc.result.metadata)) continue;
-                        content.push({
-                            type: 'tool_use' as const,
-                            toolUseId,
-                            toolName: tc.toolName,
-                            input: tc.input as Record<string, unknown>,
-                            result: tc.result,
-                        });
-                        d.activeToolCalls.delete(toolUseId);
                     }
                     (msg as { content: unknown }).content = content;
                 }

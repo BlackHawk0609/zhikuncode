@@ -3,6 +3,8 @@ package com.aicodeassistant.websocket;
 import com.aicodeassistant.engine.QueryEngine;
 import com.aicodeassistant.exception.WorkspaceException;
 import com.aicodeassistant.llm.LlmProviderRegistry;
+import com.aicodeassistant.model.ContentBlock;
+import com.aicodeassistant.model.Message;
 import com.aicodeassistant.model.Usage;
 import com.aicodeassistant.prompt.EffectiveSystemPromptBuilder;
 import com.aicodeassistant.service.ProjectWorkspaceService;
@@ -328,6 +330,39 @@ class WebSocketStompIntegrationTest {
                     Map<String, Object> m = (Map<String, Object>) msg;
                     return "message_complete".equals(m.get("type"))
                             && "end_turn".equals(m.get("stopReason"));
+                })
+        );
+    }
+
+    @Test
+    @DisplayName("sendMessageComplete — 携带权威提交消息尾和替换锚点")
+    void sendMessageComplete_shouldPushCommittedMessageTail() {
+        bind("user-1", "session-1");
+        Message committed = new Message.UserMessage(
+                "message-1", Instant.ofEpochMilli(123),
+                List.of(new ContentBlock.TextBlock("saved")), null, null);
+
+        controller.sendMessageComplete(
+                "session-1", new Usage(20, 10, 0, 0), "end_turn",
+                "run-1", "anchor-1", List.of(committed));
+
+        verify(messaging).convertAndSendToUser(
+                eq("user-1"),
+                eq("/queue/messages"),
+                argThat(msg -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> payload = (Map<String, Object>) msg;
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> messages =
+                            (List<Map<String, Object>>) payload.get("committedMessages");
+                    return "message_complete".equals(payload.get("type"))
+                            && "session-1".equals(payload.get("sessionId"))
+                            && "run-1".equals(payload.get("runId"))
+                            && "anchor-1".equals(payload.get("replaceAfterMessageId"))
+                            && messages != null
+                            && messages.size() == 1
+                            && "message-1".equals(messages.getFirst().get("uuid"))
+                            && "user".equals(messages.getFirst().get("type"));
                 })
         );
     }

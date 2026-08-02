@@ -6,7 +6,7 @@
  * 跨 Store 消息通过私有 handle* 方法协调。
  */
 
-import type { Message, ServerMessage, Usage, PermissionRequest, PermissionMode, TokenWarningPayload, ToolPermissionDeniedPayload } from '@/types';
+import type { Message, MessageCompletePayload, ServerMessage, PermissionRequest, PermissionMode, TokenWarningPayload, ToolPermissionDeniedPayload } from '@/types';
 import type { ActivityData } from '@/types/apos';
 import { useMessageStore } from '@/store/messageStore';
 import { useActivityStore } from '@/store/activityStore';
@@ -753,10 +753,28 @@ function handlePermissionRequest(data: PermissionRequest): void {
  * 助手回合完成 — messageStore + sessionStore
  * v1.53.0: 不再更新 costStore，费用由 #15 cost_update 权威推送
  */
-function handleMessageComplete(data: { usage: Usage; stopReason: string }): void {
+function handleMessageComplete(data: MessageCompletePayload): void {
     // 延迟 finalizeStream，确保最后的 stream_delta 已渲染
     queueMicrotask(() => {
-        useMessageStore.getState().finalizeStream(data.usage);
+        const currentSessionId = useSessionStore.getState().sessionId;
+        const hasCommittedMessages = Array.isArray(data.committedMessages);
+        const sessionMatches = !data.sessionId || data.sessionId === currentSessionId;
+        // A late completion from a session the user has already left must never
+        // overwrite or reload the newly selected session.
+        if (hasCommittedMessages && !sessionMatches) return;
+        const reconciled = hasCommittedMessages && sessionMatches
+            ? useMessageStore.getState().reconcileCommittedRun(
+                data.replaceAfterMessageId ?? null,
+                data.committedMessages ?? [],
+            )
+            : false;
+        if (!reconciled) {
+            if (hasCommittedMessages) {
+                recoverAuthoritativeSession(currentSessionId);
+                return;
+            }
+            useMessageStore.getState().finalizeStream(data.usage);
+        }
         // ★ 回合结束时清除 token budget 状态
         useMessageStore.getState().clearTokenBudgetState();
         if (data.stopReason !== 'tool_use') {
@@ -764,6 +782,41 @@ function handleMessageComplete(data: { usage: Usage; stopReason: string }): void
         }
     });
     // stopReason === 'tool_use' 时保持 streaming 状态，等待工具结果
+}
+
+function recoverAuthoritativeSession(sessionId: string | null): void {
+    if (!sessionId) {
+        useMessageStore.getState().finalizeStream({
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+        });
+        useSessionStore.getState().setStatus('idle');
+        return;
+    }
+    resetBoundSession();
+    void import('@/services/sessionActivation')
+        .then(({ activateSessionCandidate }) => activateSessionCandidate(sessionId))
+        .then(result => {
+            if (result.status !== 'failed') return;
+            useSessionStore.getState().setStatus('idle');
+            useNotificationStore.getState().addNotification({
+                key: 'message-reconciliation-failed',
+                level: 'error',
+                message: '任务已完成，但会话同步失败；当前内容已保留，请刷新后重试',
+                timeout: 0,
+            });
+        })
+        .catch(() => {
+            useSessionStore.getState().setStatus('idle');
+            useNotificationStore.getState().addNotification({
+                key: 'message-reconciliation-failed',
+                level: 'error',
+                message: '任务已完成，但会话同步失败；当前内容已保留，请刷新后重试',
+                timeout: 0,
+            });
+        });
 }
 
 /** API 错误 — messageStore + sessionStore */

@@ -1,5 +1,6 @@
 package com.aicodeassistant.websocket;
 
+import com.aicodeassistant.model.Message;
 import com.aicodeassistant.model.Usage;
 
 import java.util.List;
@@ -47,7 +48,18 @@ public final class ServerMessage {
     // ==================== #7: messageStore + sessionStore ====================
 
     /** #7 message_complete — 助手回合完成 */
-    public record MessageComplete(Usage usage, String stopReason) {}
+    public record MessageComplete(
+            Usage usage,
+            String stopReason,
+            String sessionId,
+            String runId,
+            String replaceAfterMessageId,
+            List<Message> committedMessages
+    ) {
+        public MessageComplete(Usage usage, String stopReason) {
+            this(usage, stopReason, null, null, null, null);
+        }
+    }
 
     // ==================== #8: messageStore + sessionStore ====================
 

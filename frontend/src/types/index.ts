@@ -92,7 +92,16 @@ export interface SessionRestoredPayload {
     costSummary?: { totalCost?: number };
 }
 export interface ProtocolErrorPayload { type: 'protocol_error'; code: string; supportedVersion: number; bindRequestId?: string; bindingEpoch?: number }
-export interface MessageCompletePayload { type: 'message_complete'; messageId: string; usage: Usage; stopReason: string }
+export interface MessageCompletePayload {
+    type: 'message_complete';
+    messageId?: string;
+    usage: Usage;
+    stopReason: string;
+    sessionId?: string;
+    runId?: string;
+    replaceAfterMessageId?: string | null;
+    committedMessages?: Message[];
+}
 export interface PongPayload { type: 'pong'; timestamp: number }
 export interface ErrorPayload { type: 'error'; code: string; message: string; retryable: boolean }
 export interface CompactEventPayload { type: 'compact_event'; phase: string; usagePercent: number; currentTokens: number }

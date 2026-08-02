@@ -112,9 +112,21 @@ describe('MessageStore', () => {
         expect(state.messages).toHaveLength(1);
     });
 
-    it('keeps a live structured tool result after the assistant stream is finalized', () => {
+    it('atomically replaces the transient run with the committed generic message tail', () => {
         const objectKey = 'zhikuncode-artifacts/session/artifact/live.html';
         const url = `https://zhikunshare.oss-cn-beijing.aliyuncs.com/${objectKey}`;
+        useMessageStore.setState({
+            messages: [
+                { uuid: 'history-anchor', type: 'assistant', content: [{ type: 'text', text: 'before' }], timestamp: 1 },
+                { uuid: 'provisional-user', type: 'user', content: [{ type: 'text', text: 'upload it' }], timestamp: 2 },
+            ] as Message[],
+        });
+        useMessageStore.getState().appendStreamDelta('temporary final text');
+        useMessageStore.getState().startToolCall('bash-live', 'Bash', { command: 'pwd' });
+        useMessageStore.getState().completeToolCall('bash-live', {
+            content: '/app/workspace',
+            isError: false,
+        });
         useMessageStore.getState().startToolCall('publish-live', 'PublishArtifact', {
             file_path: '/app/workspace/live.html',
         });
@@ -123,63 +135,104 @@ describe('MessageStore', () => {
             isError: false,
             metadata: {
                 structuredResult: {
-                    schema: 'external-resource/v1',
-                    kind: 'download',
-                    provider: 'oss',
-                    url,
-                    label: 'live.html',
-                    size: 12,
-                    sha256: 'b'.repeat(64),
-                    objectKey,
-                    mimeType: 'text/html',
-                    permanentlyPublic: true,
-                    downloadExpected: true,
+                    schema: 'external-resource/v1', kind: 'download', provider: 'oss',
+                    url, label: 'live.html', size: 12, sha256: 'b'.repeat(64), objectKey,
+                    mimeType: 'text/html', permanentlyPublic: true, downloadExpected: true,
                 },
             },
         });
-        useMessageStore.getState().appendStreamDelta('上传成功，请使用下载卡片。');
 
-        useMessageStore.getState().finalizeStream({
-            inputTokens: 10,
-            outputTokens: 5,
-            cacheReadInputTokens: 0,
-            cacheCreationInputTokens: 0,
-        });
+        const committedTail: Message[] = [
+            {
+                uuid: 'committed-user', type: 'user',
+                content: [{ type: 'text', text: 'upload it' }], timestamp: 3,
+            },
+            {
+                uuid: 'committed-tools', type: 'assistant', timestamp: 4,
+                content: [
+                    { type: 'tool_use', toolUseId: 'bash-live', toolName: 'Bash', input: { command: 'pwd' } },
+                    { type: 'tool_use', toolUseId: 'publish-live', toolName: 'PublishArtifact', input: { file_path: '/app/workspace/live.html' } },
+                ],
+            },
+            {
+                uuid: 'committed-results', type: 'user', timestamp: 5,
+                content: [
+                    { type: 'tool_result', toolUseId: 'bash-live', content: '/app/workspace', isError: false },
+                    {
+                        type: 'tool_result', toolUseId: 'publish-live',
+                        content: '{"status":"published"}', isError: false,
+                        metadata: {
+                            structuredResult: {
+                                schema: 'external-resource/v1', kind: 'download', provider: 'oss',
+                                url, label: 'live.html', size: 12, sha256: 'b'.repeat(64), objectKey,
+                                mimeType: 'text/html', permanentlyPublic: true, downloadExpected: true,
+                            },
+                        },
+                    },
+                ],
+            },
+            {
+                uuid: 'committed-final', type: 'assistant',
+                content: [{ type: 'text', text: '上传成功，请使用下载卡片。' }], timestamp: 6,
+            },
+        ] as Message[];
+
+        expect(useMessageStore.getState().reconcileCommittedRun('history-anchor', committedTail)).toBe(true);
 
         const state = useMessageStore.getState();
-        expect(state.activeToolCalls.has('publish-live')).toBe(false);
-        const assistant = state.messages[0];
+        expect(state.messages.map(message => message.uuid)).toEqual([
+            'history-anchor', 'committed-user', 'committed-tools', 'committed-results', 'committed-final',
+        ]);
+        expect(state.activeToolCalls.size).toBe(0);
+        expect(state.streamingMessageId).toBeNull();
+        const assistant = state.messages[2];
         expect(assistant.type).toBe('assistant');
         if (assistant.type !== 'assistant') throw new Error('expected assistant');
-        const toolUse = assistant.content.find(block => block.type === 'tool_use');
-        expect(toolUse?.type).toBe('tool_use');
-        if (!toolUse || toolUse.type !== 'tool_use') throw new Error('expected tool_use');
-        expect(toolUse.result?.metadata?.structuredResult).toMatchObject({ url, objectKey });
+        const bash = assistant.content.find(block => block.type === 'tool_use' && block.toolUseId === 'bash-live');
+        const publish = assistant.content.find(block => block.type === 'tool_use' && block.toolUseId === 'publish-live');
+        expect(bash?.type === 'tool_use' && bash.result?.content).toBe('/app/workspace');
+        expect(publish?.type === 'tool_use' && publish.result?.metadata?.structuredResult)
+            .toMatchObject({ url, objectKey });
 
-        useMessageStore.getState().appendStreamDelta('下一轮普通回复');
-        useMessageStore.getState().finalizeStream({
-            inputTokens: 4,
-            outputTokens: 2,
-            cacheReadInputTokens: 0,
-            cacheCreationInputTokens: 0,
-        });
-        const persistedCopies = useMessageStore.getState().messages.flatMap(message =>
-            message.type === 'assistant'
-                ? message.content.filter(block => block.type === 'tool_use' && block.toolUseId === 'publish-live')
-                : [],
-        );
-        expect(persistedCopies).toHaveLength(1);
+        // A duplicated completion frame is idempotent and cannot duplicate history.
+        expect(useMessageStore.getState().reconcileCommittedRun('history-anchor', committedTail)).toBe(true);
+        expect(useMessageStore.getState().messages.map(message => message.uuid)).toEqual([
+            'history-anchor', 'committed-user', 'committed-tools', 'committed-results', 'committed-final',
+        ]);
     });
 
-    it('does not promote an ordinary tool result into a finalized message', () => {
-        useMessageStore.getState().startToolCall('bash-live', 'Bash', { command: 'pwd' });
-        useMessageStore.getState().completeToolCall('bash-live', {
-            content: '/app/workspace',
-            isError: false,
-        });
+    it('keeps the live projection unchanged when the committed anchor is missing', () => {
+        const liveMessages: Message[] = [{
+            uuid: 'current-history', type: 'assistant',
+            content: [{ type: 'text', text: 'keep me' }], timestamp: 1,
+        }] as Message[];
+        useMessageStore.setState({ messages: liveMessages });
+        useMessageStore.getState().startToolCall('running-tool', 'Bash', { command: 'pwd' });
 
-        expect(useMessageStore.getState().streamingMessageId).toBeNull();
-        expect(useMessageStore.getState().messages).toHaveLength(0);
+        const reconciled = useMessageStore.getState().reconcileCommittedRun('missing-anchor', [{
+            uuid: 'committed-new', type: 'assistant',
+            content: [{ type: 'text', text: 'new' }], timestamp: 2,
+        }] as Message[]);
+
+        expect(reconciled).toBe(false);
+        expect(useMessageStore.getState().messages).toEqual(liveMessages);
+        expect(useMessageStore.getState().activeToolCalls.has('running-tool')).toBe(true);
+    });
+
+    it('replaces a provisional new-session projection when the committed anchor is null', () => {
+        useMessageStore.setState({
+            messages: [{
+                uuid: 'provisional', type: 'user',
+                content: [{ type: 'text', text: 'draft' }], timestamp: 1,
+            }] as Message[],
+        });
+        const committed: Message[] = [{
+            uuid: 'durable', type: 'user',
+            content: [{ type: 'text', text: 'saved' }], timestamp: 2,
+        }] as Message[];
+
+        expect(useMessageStore.getState().reconcileCommittedRun(null, committed)).toBe(true);
+        expect(useMessageStore.getState().messages).toEqual(committed);
     });
 
     it('restores new structured results onto their tool call without creating active calls', () => {

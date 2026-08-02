@@ -134,6 +134,62 @@ describe('dispatch 消息分发', () => {
         expect(useMessageStore.getState().streamingContent).toBe('');
     });
 
+    test('message_complete atomically reconciles the authoritative committed tail', async () => {
+        useSessionStore.setState({ sessionId: 's1', status: 'streaming' });
+        useMessageStore.setState({
+            messages: [
+                { type: 'assistant', uuid: 'anchor', timestamp: 1, content: [{ type: 'text', text: 'history' }] },
+                { type: 'user', uuid: 'provisional', timestamp: 2, content: [{ type: 'text', text: 'draft' }] },
+            ] as never,
+        });
+        useMessageStore.getState().startToolCall('tool-1', 'Bash', { command: 'pwd' });
+
+        dispatch({
+            type: 'message_complete', ts: 2, sessionId: 's1', runId: 'run-1',
+            replaceAfterMessageId: 'anchor',
+            committedMessages: [
+                { type: 'user', uuid: 'saved-user', timestamp: 3, content: [{ type: 'text', text: 'saved' }] },
+                { type: 'assistant', uuid: 'saved-final', timestamp: 4, content: [{ type: 'text', text: 'done' }] },
+            ],
+            usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+            stopReason: 'end_turn',
+        } as never);
+
+        await new Promise<void>(resolve => queueMicrotask(resolve));
+
+        expect(useMessageStore.getState().messages.map(message => message.uuid))
+            .toEqual(['anchor', 'saved-user', 'saved-final']);
+        expect(useMessageStore.getState().activeToolCalls.size).toBe(0);
+        expect(useSessionStore.getState().status).toBe('idle');
+    });
+
+    test('a late committed completion cannot replace the newly selected session', async () => {
+        useSessionStore.setState({ sessionId: 's2', status: 'idle' });
+        useMessageStore.setState({
+            messages: [{
+                type: 'assistant', uuid: 's2-message', timestamp: 1,
+                content: [{ type: 'text', text: 'current session' }],
+            }] as never,
+        });
+
+        dispatch({
+            type: 'message_complete', ts: 3, sessionId: 's1',
+            replaceAfterMessageId: null,
+            committedMessages: [{
+                type: 'assistant', uuid: 's1-message', timestamp: 2,
+                content: [{ type: 'text', text: 'stale session' }],
+            }],
+            usage: { inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+            stopReason: 'end_turn',
+        } as never);
+
+        await new Promise<void>(resolve => queueMicrotask(resolve));
+
+        expect(useMessageStore.getState().messages.map(message => message.uuid))
+            .toEqual(['s2-message']);
+        expect(useSessionStore.getState().sessionId).toBe('s2');
+    });
+
     test('run_input_applied closes the current assistant segment without ending the run', () => {
         useSessionStore.getState().setStatus('streaming');
         useMessageStore.getState().appendStreamDelta('before steering');

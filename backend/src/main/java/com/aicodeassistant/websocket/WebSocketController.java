@@ -415,14 +415,28 @@ public class WebSocketController implements PermissionNotifier {
 
     /** #7 助手回合完成 */
     public void sendMessageComplete(String sessionId, Usage usage, String stopReason) {
+        sendMessageComplete(sessionId, usage, stopReason, null, null, null);
+    }
+
+    public void sendMessageComplete(String sessionId, Usage usage, String stopReason,
+                                    String runId, String replaceAfterMessageId,
+                                    List<Message> committedMessages) {
         Map<String, Object> usageMap = Map.of(
                 "inputTokens", usage.inputTokens(),
                 "outputTokens", usage.outputTokens(),
                 "cacheReadInputTokens", usage.cacheReadInputTokens(),
                 "cacheCreationInputTokens", usage.cacheCreationInputTokens()
         );
-        push(sessionId, "message_complete",
-                Map.of("usage", usageMap, "stopReason", stopReason));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("usage", usageMap);
+        payload.put("stopReason", stopReason);
+        if (committedMessages != null) {
+            payload.put("sessionId", sessionId);
+            if (runId != null) payload.put("runId", runId);
+            payload.put("replaceAfterMessageId", replaceAfterMessageId);
+            payload.put("committedMessages", convertMessagesForWs(committedMessages));
+        }
+        push(sessionId, "message_complete", payload);
     }
 
     // ───── #8: messageStore + sessionStore ─────
@@ -855,6 +869,8 @@ public class WebSocketController implements PermissionNotifier {
         } catch (Exception e) {
             log.warn("Failed to load history messages for session {}: {}", sessionId, e.getMessage());
         }
+        String replaceAfterMessageId = historyMessages.isEmpty()
+                ? null : historyMessages.getLast().uuid();
 
         QueryLoopState state = new QueryLoopState(new ArrayList<>(historyMessages), toolUseContext);
 
@@ -897,11 +913,12 @@ public class WebSocketController implements PermissionNotifier {
             result = queryEngine.execute(config, state, handler);
 
             // 6. ★ 幂等兜底：execute 正常返回后再补写一次，INSERT OR IGNORE 自动去重（与 listener 使用相同 UUID）
+            List<Message> newMessages = List.of();
             try {
                 List<Message> allMessages = result.messages();
                 int newStartIndex = historyMessages.size();
-                List<Message> newMessages = allMessages.subList(
-                        Math.min(newStartIndex, allMessages.size()), allMessages.size());
+                newMessages = new ArrayList<>(allMessages.subList(
+                        Math.min(newStartIndex, allMessages.size()), allMessages.size()));
                 int fallbackCount = 0;
                 for (Message msg : newMessages) {
                     switch (msg) {
@@ -934,7 +951,22 @@ public class WebSocketController implements PermissionNotifier {
 
             // 7. 发送完成消息
             Usage totalUsage = result.totalUsage() != null ? result.totalUsage() : Usage.zero();
-            sendMessageComplete(sessionId, totalUsage, result.stopReason());
+            List<Message> committedMessages;
+            try {
+                committedMessages = loadPersistedMessagesAfter(
+                        sessionId, replaceAfterMessageId, newMessages);
+            } catch (RuntimeException persistenceNotConfirmed) {
+                // An empty authoritative tail is an explicit recovery signal. The
+                // frontend keeps its live projection and reloads the durable session
+                // instead of destructively finalizing incomplete transient state.
+                committedMessages = List.of();
+                log.warn("WS completion requires authoritative session recovery because committed messages could not be confirmed: sessionId={}, error={}",
+                        sessionId, persistenceNotConfirmed.getMessage());
+            }
+            String completedRunId = state.getToolUseContext() != null
+                    ? state.getToolUseContext().currentRunId() : null;
+            sendMessageComplete(sessionId, totalUsage, result.stopReason(),
+                    completedRunId, replaceAfterMessageId, committedMessages);
             // 7b. ★ 通知前端刷新会话列表（放在 message_complete 之后，确保前端先处理完状态切换）
             // 独立 try-catch: 推送失败不应影响已完成的查询结果，避免触发 handler.onError
             try {
@@ -959,6 +991,41 @@ public class WebSocketController implements PermissionNotifier {
                 sendMessageComplete(sessionId, Usage.zero(), "error");
             }
         }
+    }
+
+    private List<Message> loadPersistedMessagesAfter(
+            String sessionId,
+            String replaceAfterMessageId,
+            List<Message> expectedMessages) {
+        SessionData persisted = sessionManager.loadSession(sessionId)
+                .orElseThrow(() -> new IllegalStateException("session not found after query completion"));
+        List<Message> messages = persisted.messages();
+        int start = 0;
+        if (replaceAfterMessageId != null) {
+            int anchor = -1;
+            for (int i = 0; i < messages.size(); i++) {
+                if (replaceAfterMessageId.equals(messages.get(i).uuid())) {
+                    anchor = i;
+                    break;
+                }
+            }
+            if (anchor < 0) throw new IllegalStateException("completion anchor missing from persisted session");
+            start = anchor + 1;
+        }
+        if (expectedMessages.isEmpty()) {
+            throw new IllegalStateException("query completion contains no expected messages");
+        }
+        if (messages.size() - start < expectedMessages.size()) {
+            throw new IllegalStateException("persisted completion is missing expected messages");
+        }
+        List<Message> committed = new ArrayList<>(
+                messages.subList(start, start + expectedMessages.size()));
+        for (int i = 0; i < expectedMessages.size(); i++) {
+            if (!expectedMessages.get(i).uuid().equals(committed.get(i).uuid())) {
+                throw new IllegalStateException("persisted completion order does not match query result");
+            }
+        }
+        return committed;
     }
 
     private int getContextWindow(String model) {
