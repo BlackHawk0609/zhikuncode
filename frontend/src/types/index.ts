@@ -26,8 +26,10 @@ export type Message =
 
 export type ContentBlock =
     | { type: 'text'; text: string }
-    | { type: 'tool_use'; toolUseId: string; toolName: string; input: Record<string, unknown> }
-    | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean }
+    | { type: 'tool_use'; toolUseId: string; toolName: string; input: Record<string, unknown>;
+        result?: ToolResult }
+    | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean;
+        metadata?: Record<string, unknown> }
     | { type: 'thinking'; thinking: string }
     | { type: 'redacted_thinking' }
     | { type: 'server_tool_use'; toolUseId: string; toolName: string }
@@ -225,6 +227,22 @@ export interface ToolResult {
     content: string;
     isError: boolean;
     metadata?: Record<string, unknown>;
+}
+
+/** Generic authoritative resource returned by a tool for deterministic UI rendering. */
+export interface ExternalResourceResult {
+    schema: 'external-resource/v1';
+    kind: 'download';
+    provider: string;
+    artifactId?: string;
+    url: string;
+    label: string;
+    size: number;
+    sha256: string;
+    objectKey: string;
+    mimeType: string;
+    permanentlyPublic: boolean;
+    downloadExpected: boolean;
 }
 
 /** 工具调用状态 — MessageStore 内部状态 */

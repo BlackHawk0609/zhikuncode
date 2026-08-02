@@ -916,7 +916,8 @@ public class QueryEngine {
                 List<StreamingToolExecutor.TrackedTool> completed = session.yieldCompleted();
                 for (StreamingToolExecutor.TrackedTool tt : completed) {
                     ContentBlock.ToolResultBlock resultBlock = new ContentBlock.ToolResultBlock(
-                            tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError());
+                            tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError(),
+                            structuredResultMetadata(tt.getResult()));
                     state.addMessage(buildToolResultMessage(resultBlock));
                 }
 
@@ -1558,7 +1559,8 @@ public class QueryEngine {
             for (StreamingToolExecutor.TrackedTool tt : yielded) {
                 tracker.record(toolName(toolUseBlocks, tt.getToolUseId()), tt.getResult());
                 ContentBlock.ToolResultBlock resultBlock = new ContentBlock.ToolResultBlock(
-                        tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError());
+                        tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError(),
+                        structuredResultMetadata(tt.getResult()));
                 handler.onToolResult(tt.getToolUseId(), resultBlock);
                 results.add(buildToolResultMessage(resultBlock));
             }
@@ -1573,7 +1575,8 @@ public class QueryEngine {
         for (StreamingToolExecutor.TrackedTool tt : session.yieldCompleted()) {
             tracker.record(toolName(toolUseBlocks, tt.getToolUseId()), tt.getResult());
             ContentBlock.ToolResultBlock resultBlock = new ContentBlock.ToolResultBlock(
-                    tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError());
+                    tt.getToolUseId(), tt.getResult().content(), tt.getResult().isError(),
+                    structuredResultMetadata(tt.getResult()));
             handler.onToolResult(tt.getToolUseId(), resultBlock);
             results.add(buildToolResultMessage(resultBlock));
         }
@@ -1608,6 +1611,15 @@ public class QueryEngine {
     private static String toolName(List<ContentBlock.ToolUseBlock> blocks, String toolUseId) {
         return blocks.stream().filter(block -> block.id().equals(toolUseId))
                 .map(ContentBlock.ToolUseBlock::name).findFirst().orElse("unknown");
+    }
+
+    /** Only explicitly presentation-safe structured results may cross into UI/session messages. */
+    private static Map<String, Object> structuredResultMetadata(ToolResult result) {
+        if (result == null || result.metadata() == null) return Map.of();
+        Object structured = result.metadata().get("structuredResult");
+        return structured instanceof Map<?, ?>
+                ? Map.of("structuredResult", structured)
+                : Map.of();
     }
 
     /**

@@ -21,6 +21,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,8 +64,28 @@ class PublishArtifactToolTest {
         assertThat(tool.isOpenWorld()).isTrue();
         assertThat(result.executionStatus()).isEqualTo(ToolResult.ExecutionStatus.SUCCEEDED);
         assertThat(result.effectState()).isEqualTo(ToolResult.EffectState.APPLIED);
-        assertThat(result.metadata()).containsEntry("permanentlyPublic", true);
-        assertThat(result.content()).contains("https://test-artifacts.oss-cn-beijing.aliyuncs.com/");
+        assertThat(result.content())
+                .contains("\"status\":\"published\"")
+                .contains("\"downloadCardAvailable\":true")
+                .doesNotContain("https://")
+                .doesNotContain("objectKey")
+                .doesNotContain(hash);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> structured = (Map<String, Object>) result.metadata().get("structuredResult");
+        assertThat(structured)
+                .containsEntry("schema", "external-resource/v1")
+                .containsEntry("kind", "download")
+                .containsEntry("provider", "oss")
+                .containsEntry("label", "report.html")
+                .containsEntry("size", Files.size(file))
+                .containsEntry("sha256", hash)
+                .containsEntry("permanentlyPublic", true)
+                .containsEntry("downloadExpected", true);
+        assertThat(structured.get("url")).asString()
+                .startsWith("https://test-artifacts.oss-cn-beijing.aliyuncs.com/");
+        assertThat(structured.get("objectKey")).asString()
+                .startsWith("zhikuncode-artifacts/manifest-1/artifact-1/");
     }
 
     @Test

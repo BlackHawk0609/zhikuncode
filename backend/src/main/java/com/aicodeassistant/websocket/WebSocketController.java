@@ -352,9 +352,27 @@ public class WebSocketController implements PermissionNotifier {
     /** #5 工具结果返回 */
     public void sendToolResult(String sessionId, String toolUseId,
                                 String content, boolean isError) {
+        sendToolResult(sessionId, toolUseId, content, isError, Map.of());
+    }
+
+    public void sendToolResult(String sessionId, String toolUseId,
+                               String content, boolean isError,
+                               Map<String, Object> metadata) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("content", content);
+        result.put("isError", isError);
+        Map<String, Object> presentationMetadata = structuredResultMetadata(metadata);
+        if (!presentationMetadata.isEmpty()) result.put("metadata", presentationMetadata);
         push(sessionId, "tool_result",
-                Map.of("toolUseId", toolUseId, "result",
-                        Map.of("content", content, "isError", isError)));
+                Map.of("toolUseId", toolUseId, "result", result));
+    }
+
+    private static Map<String, Object> structuredResultMetadata(Map<String, Object> metadata) {
+        if (metadata == null) return Map.of();
+        Object structured = metadata.get("structuredResult");
+        return structured instanceof Map<?, ?>
+                ? Map.of("structuredResult", structured)
+                : Map.of();
     }
 
     // ───── #6: permissionStore + sessionStore ─────
@@ -1058,7 +1076,8 @@ public class WebSocketController implements PermissionNotifier {
         @Override
         public void onToolResult(String toolUseId, ContentBlock.ToolResultBlock result) {
             sendToolResult(sessionId, toolUseId,
-                    result.content() != null ? result.content() : "", result.isError());
+                    result.content() != null ? result.content() : "", result.isError(),
+                    result.metadata());
         }
 
         @Override
@@ -1920,6 +1939,9 @@ public class WebSocketController implements PermissionNotifier {
                     map.put("toolUseId", tr.toolUseId());
                     map.put("content", tr.content());
                     map.put("isError", tr.isError());
+                    if (tr.metadata() != null && !tr.metadata().isEmpty()) {
+                        map.put("metadata", tr.metadata());
+                    }
                 }
                 case ContentBlock.ThinkingBlock th -> {
                     map.put("type", "thinking");

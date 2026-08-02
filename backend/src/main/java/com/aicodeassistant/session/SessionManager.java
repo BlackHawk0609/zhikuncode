@@ -582,7 +582,8 @@ public class SessionManager {
                                         : UUID.randomUUID().toString(),
                                     node.has("content") ? node.get("content").asText() : "",
                                     (node.has("is_error") && node.get("is_error").asBoolean())
-                                        || (node.has("isError") && node.get("isError").asBoolean())));
+                                        || (node.has("isError") && node.get("isError").asBoolean()),
+                                    parseMetadataNode(node.get("metadata"))));
                             case "image" -> {
                                 com.fasterxml.jackson.databind.JsonNode source = node.get("source");
                                 if (source != null) {
@@ -652,6 +653,16 @@ public class SessionManager {
         }
     }
 
+    private Map<String, Object> parseMetadataNode(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || !node.isObject()) return Map.of();
+        try {
+            return objectMapper.convertValue(node, new TypeReference<>() {});
+        } catch (IllegalArgumentException invalid) {
+            log.warn("Failed to parse tool result metadata: {}", invalid.getMessage());
+            return Map.of();
+        }
+    }
+
     private String toJsonString(Object obj) {
         if (obj == null) return null;
         try {
@@ -688,6 +699,9 @@ public class SessionManager {
                 map.put("tool_use_id", result.toolUseId());
                 map.put("content", result.content() != null ? result.content() : "");
                 if (result.isError()) map.put("is_error", true);
+                if (result.metadata() != null && !result.metadata().isEmpty()) {
+                    map.put("metadata", result.metadata());
+                }
                 yield map;
             }
             case ContentBlock.ImageBlock image -> {

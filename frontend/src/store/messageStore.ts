@@ -10,6 +10,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import type { Message, ToolResult, ToolCallState, Usage, TokenWarningPayload } from '@/types';
 import { streamingStore, flushStreamingBuffer } from '@/hooks/useStreamingText';
 import { generateUUID } from '@/utils/uuid';
+import { structuredResultSchema } from '@/utils/structuredToolResult';
 
 export interface TokenBudgetState {
     pct: number;
@@ -23,6 +24,34 @@ export interface RecoveredToolCall {
     toolName: string;
     input: unknown;
     startedAt?: number;
+}
+
+function attachCompletedStructuredToolResults(messages: Message[]): Message[] {
+    const results = new Map<string, ToolResult>();
+    for (const message of messages) {
+        if (message.type !== 'user') continue;
+        for (const block of message.content) {
+            if (block.type !== 'tool_result' || !structuredResultSchema(block.metadata)) continue;
+            results.set(block.toolUseId, {
+                content: block.content,
+                isError: block.isError,
+                metadata: block.metadata,
+            });
+        }
+    }
+    if (results.size === 0) return messages;
+    return messages.map(message => {
+        if (message.type !== 'assistant') return message;
+        let changed = false;
+        const content = message.content.map(block => {
+            if (block.type !== 'tool_use') return block;
+            const result = results.get(block.toolUseId);
+            if (!result) return block;
+            changed = true;
+            return { ...block, result };
+        });
+        return changed ? { ...message, content } : message;
+    });
 }
 
 export interface MessageStoreState {
@@ -150,8 +179,9 @@ export const useMessageStore = create<MessageStoreState>()(
         restoreSessionSnapshot: (messages, calls) => {
             flushStreamingBuffer();
             streamingStore.clear();
+            const projectedMessages = attachCompletedStructuredToolResults(messages);
             set(d => {
-                d.messages = messages;
+                d.messages = projectedMessages;
                 d.streamingMessageId = null;
                 d.streamingContent = '';
                 d.thinkingContent = '';

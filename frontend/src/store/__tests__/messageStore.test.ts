@@ -111,4 +111,61 @@ describe('MessageStore', () => {
         expect(state.streamingContent).toBe('');
         expect(state.messages).toHaveLength(1);
     });
+
+    it('restores new structured results onto their tool call without creating active calls', () => {
+        const objectKey = 'zhikuncode-artifacts/session/artifact/file.html';
+        const url = `https://zhikunshare.oss-cn-beijing.aliyuncs.com/${objectKey}`;
+        const messages: Message[] = [
+            {
+                uuid: 'assistant-1',
+                type: 'assistant',
+                content: [{
+                    type: 'tool_use',
+                    toolUseId: 'publish-1',
+                    toolName: 'PublishArtifact',
+                    input: { file_path: 'file.html' },
+                }],
+                timestamp: 1,
+            },
+            {
+                uuid: 'user-1',
+                type: 'user',
+                content: [{
+                    type: 'tool_result',
+                    toolUseId: 'publish-1',
+                    content: '{"status":"published"}',
+                    isError: false,
+                    metadata: {
+                        structuredResult: {
+                            schema: 'external-resource/v1',
+                            kind: 'download',
+                            provider: 'oss',
+                            url,
+                            label: 'file.html',
+                            size: 12,
+                            sha256: 'a'.repeat(64),
+                            objectKey,
+                            mimeType: 'text/html',
+                            permanentlyPublic: true,
+                            downloadExpected: true,
+                        },
+                    },
+                }],
+                timestamp: 2,
+            },
+        ] as Message[];
+
+        useMessageStore.getState().restoreSessionSnapshot(messages, []);
+
+        const state = useMessageStore.getState();
+        const assistant = state.messages[0];
+        expect(assistant.type).toBe('assistant');
+        if (assistant.type !== 'assistant') throw new Error('expected assistant');
+        const toolUse = assistant.content[0];
+        expect(toolUse.type).toBe('tool_use');
+        if (toolUse.type !== 'tool_use') throw new Error('expected tool_use');
+        expect(toolUse.result?.metadata?.structuredResult).toMatchObject({ url, objectKey });
+        expect(state.activeToolCalls.size).toBe(0);
+    });
+
 });

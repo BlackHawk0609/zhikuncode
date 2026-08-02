@@ -79,17 +79,32 @@ public class PublishArtifactTool implements Tool {
         try {
             OssArtifactService.PublishedArtifact published = policy.withLockedSnapshot(
                     requestedPath, context.currentRunId(), oss::publish);
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("status", "published");
-            response.put("artifactId", published.artifactId());
-            response.put("fileName", published.fileName());
-            response.put("size", published.size());
-            response.put("sha256", published.sha256());
-            response.put("url", published.publicUrl());
-            response.put("permanentlyPublic", true);
-            response.put("htmlDownloadExpected", published.mimeType().startsWith("text/html"));
-            String content = json.writeValueAsString(response);
-            return ToolResult.successWithEffect(content, ToolResult.EffectState.APPLIED, response);
+            Map<String, Object> externalResource = new LinkedHashMap<>();
+            externalResource.put("schema", "external-resource/v1");
+            externalResource.put("kind", "download");
+            externalResource.put("provider", "oss");
+            externalResource.put("artifactId", published.artifactId());
+            externalResource.put("url", published.publicUrl());
+            externalResource.put("label", published.fileName());
+            externalResource.put("size", published.size());
+            externalResource.put("sha256", published.sha256());
+            externalResource.put("objectKey", published.objectKey());
+            externalResource.put("mimeType", published.mimeType());
+            externalResource.put("permanentlyPublic", true);
+            externalResource.put("downloadExpected", true);
+
+            Map<String, Object> modelResult = new LinkedHashMap<>();
+            modelResult.put("status", "published");
+            modelResult.put("fileName", published.fileName());
+            modelResult.put("size", published.size());
+            modelResult.put("downloadCardAvailable", true);
+            modelResult.put("htmlDownloadExpected", published.mimeType().startsWith("text/html"));
+
+            // The LLM intentionally never receives the opaque URL/Object Key. The UI gets the
+            // authoritative value through the allowlisted structuredResult metadata channel.
+            String content = json.writeValueAsString(modelResult);
+            return ToolResult.successWithEffect(content, ToolResult.EffectState.APPLIED,
+                    Map.of("structuredResult", externalResource));
         } catch (OssPublishProperties.OssConfigurationException configuration) {
             return ToolResult.failed(ToolResult.ToolFailureType.PROVIDER, configuration.getMessage(),
                     publicMessage(configuration.getMessage()), ToolResult.Retryability.NEVER,

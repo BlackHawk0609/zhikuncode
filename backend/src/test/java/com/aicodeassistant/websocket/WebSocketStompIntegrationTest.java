@@ -149,7 +149,12 @@ class WebSocketStompIntegrationTest {
     void sendToolResult_shouldPushToolResult() {
         bind("user-1", "session-1");
 
-        controller.sendToolResult("session-1", "tool-1", "file content", false);
+        Map<String, Object> metadata = Map.of(
+                "structuredResult", Map.of(
+                        "schema", "external-resource/v1",
+                        "url", "https://example.oss-cn-beijing.aliyuncs.com/object"),
+                "internalSecret", "must-not-cross");
+        controller.sendToolResult("session-1", "tool-1", "file content", false, metadata);
 
         verify(messaging).convertAndSendToUser(
                 eq("user-1"),
@@ -157,8 +162,12 @@ class WebSocketStompIntegrationTest {
                 argThat(msg -> {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> m = (Map<String, Object>) msg;
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> result = (Map<String, Object>) m.get("result");
                     return "tool_result".equals(m.get("type"))
-                            && "tool-1".equals(m.get("toolUseId"));
+                            && "tool-1".equals(m.get("toolUseId"))
+                            && Map.of("structuredResult", metadata.get("structuredResult"))
+                                    .equals(result.get("metadata"));
                 })
         );
     }

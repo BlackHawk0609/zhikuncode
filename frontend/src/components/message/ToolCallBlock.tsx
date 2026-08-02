@@ -20,8 +20,10 @@ import { TerminalRenderer } from './renderers/TerminalRenderer';
 import { DiffRenderer } from './renderers/DiffRenderer';
 import { SearchResultRenderer } from './renderers/SearchResultRenderer';
 import { FileListRenderer } from './renderers/FileListRenderer';
+import ExternalResourceRenderer from './renderers/ExternalResourceRenderer';
 import ToolProgressBar from '../visualization/shared/ToolProgressBar';
 import MiniLogViewer from '../visualization/shared/MiniLogViewer';
+import { parseExternalResourceResult, structuredResultSchema } from '@/utils/structuredToolResult';
 
 interface ToolCallBlockProps {
     toolUseId: string;
@@ -160,6 +162,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({ toolUseId, toolCall }) =>
                                 toolName={toolCall.toolName}
                                 content={toolCall.result.content}
                                 isError={toolCall.result.isError}
+                                metadata={toolCall.result.metadata}
                             />
                         </div>
                     )}
@@ -175,7 +178,19 @@ interface ToolResultRendererProps {
     toolName: string;
     content: string;
     isError: boolean;
+    metadata?: Record<string, unknown>;
 }
+
+type StructuredResultRenderer = (
+    metadata: Record<string, unknown>,
+) => React.ReactNode | null;
+
+const STRUCTURED_RESULT_RENDERERS: Record<string, StructuredResultRenderer> = {
+    'external-resource/v1': (metadata) => {
+        const resource = parseExternalResourceResult(metadata);
+        return resource ? <ExternalResourceRenderer resource={resource} /> : null;
+    },
+};
 
 /**
  * selectRenderer —  渲染器选择逻辑
@@ -187,6 +202,7 @@ const ToolResultRenderer: React.FC<ToolResultRendererProps> = ({
     toolName,
     content,
     isError,
+    metadata,
 }) => {
     if (isError) {
         return (
@@ -198,6 +214,13 @@ const ToolResultRenderer: React.FC<ToolResultRendererProps> = ({
                 <pre className="whitespace-pre-wrap text-xs">{content}</pre>
             </div>
         );
+    }
+
+    const schema = structuredResultSchema(metadata);
+    if (schema) {
+        const renderer = STRUCTURED_RESULT_RENDERERS[schema];
+        const rendered = renderer?.(metadata ?? {});
+        if (rendered) return rendered;
     }
 
     if (!content?.trim()) {

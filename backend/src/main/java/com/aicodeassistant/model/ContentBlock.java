@@ -5,6 +5,10 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 内容块 — sealed interface 保证类型穷举。
  * 含 text / tool_use / tool_result / image / thinking / redacted_thinking 六种子类型。
@@ -42,8 +46,27 @@ public sealed interface ContentBlock {
     record ToolResultBlock(
             @JsonProperty("tool_use_id") String toolUseId,
             @JsonProperty("content") String content,
-            @JsonProperty("is_error") boolean isError
-    ) implements ContentBlock {}
+            @JsonProperty("is_error") boolean isError,
+            @JsonProperty("metadata") Map<String, Object> metadata
+    ) implements ContentBlock {
+        public ToolResultBlock {
+            Object structured = metadata == null ? null : metadata.get("structuredResult");
+            if (structured instanceof Map<?, ?> structuredMap) {
+                Map<String, Object> copy = new HashMap<>();
+                structuredMap.forEach((key, value) -> {
+                    if (key instanceof String stringKey) copy.put(stringKey, value);
+                });
+                metadata = Map.of("structuredResult", Collections.unmodifiableMap(copy));
+            } else {
+                metadata = Map.of();
+            }
+        }
+
+        /** Existing and historical tool results remain valid without UI metadata. */
+        public ToolResultBlock(String toolUseId, String content, boolean isError) {
+            this(toolUseId, content, isError, Map.of());
+        }
+    }
 
     record ImageBlock(
             String mediaType,

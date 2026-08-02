@@ -157,7 +157,8 @@ const AssistantBlockRenderer: React.FC<AssistantBlockRendererProps> = ({ block, 
             const tc: ToolCallState = state ?? {
                 toolName: block.toolName,
                 input: block.input,
-                status: 'completed',
+                status: block.result?.isError ? 'error' : 'completed',
+                result: block.result,
                 startTime: 0,
             };
             return <ToolCallBlock toolUseId={block.toolUseId} toolCall={tc} />;
@@ -169,7 +170,7 @@ const AssistantBlockRenderer: React.FC<AssistantBlockRendererProps> = ({ block, 
                 toolName: 'Tool',
                 input: {},
                 status: block.isError ? 'error' : 'completed',
-                result: { content: block.content, isError: block.isError },
+                result: { content: block.content, isError: block.isError, metadata: block.metadata },
                 startTime: 0,
             };
             return <ToolCallBlock toolUseId={block.toolUseId} toolCall={tc} />;
