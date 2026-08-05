@@ -212,6 +212,96 @@ class AuthorizationServiceSystemScratchpadScopeTest {
                                         "AUTHORIZATION_FINAL_RECHECK_DENIED"));
     }
 
+    @Test
+    void ordinaryFileOperationsUsePrivateTmpPolicy() {
+        Path privateTmp = Path.of(
+                "/private/tmp/zhikuncode-authorization-test");
+        for (ToolAction tool : List.of(
+                new ToolAction("Read", TypedFileOperation.READ_FILE,
+                        EffectClass.READ_RESOURCE),
+                new ToolAction("Write", TypedFileOperation.REPLACE_FILE,
+                        EffectClass.WRITE_RESOURCE),
+                new ToolAction("Edit", TypedFileOperation.PATCH_FILE,
+                        EffectClass.WRITE_RESOURCE),
+                new ToolAction("NotebookEdit", TypedFileOperation.PATCH_FILE,
+                        EffectClass.WRITE_RESOURCE))) {
+            Fixture fixture = fixture(PermissionMode.DEFAULT, true);
+
+            AuthorizedOperation authorized = fixture.authorize(descriptor(
+                    tool.toolName(), tool.action(), tool.effect(),
+                    RiskClass.GUARDED,
+                    privateTmp.resolve(tool.toolName() + ".txt")));
+
+            assertThat(authorized.reasonCode())
+                    .isEqualTo("PRIVATE_TMP_FILE_SCOPE");
+            assertThat(authorized.source())
+                    .isEqualTo(AuthorizationDiagnostic.Source.POLICY);
+            verifyNoPrompt(fixture);
+        }
+    }
+
+    @Test
+    void privateTmpPolicyPreservesPlanAndHighRiskGates() {
+        Path target = Path.of(
+                "/private/tmp/zhikuncode-authorization-test/note.md");
+        Fixture planReadFixture = fixture(PermissionMode.PLAN, true);
+        AuthorizedOperation read = planReadFixture.authorize(descriptor(
+                "Read", TypedFileOperation.READ_FILE,
+                EffectClass.READ_RESOURCE, RiskClass.GUARDED, target));
+        assertThat(read.reasonCode())
+                .isEqualTo("PRIVATE_TMP_FILE_SCOPE");
+        verifyNoPrompt(planReadFixture);
+
+        Fixture planWriteFixture = fixture(PermissionMode.PLAN, true);
+        assertThatThrownBy(() -> planWriteFixture.authorize(descriptor(
+                "Write", TypedFileOperation.REPLACE_FILE,
+                EffectClass.WRITE_RESOURCE, RiskClass.GUARDED, target)))
+                .isInstanceOfSatisfying(
+                        AuthorizationException.class,
+                        denied -> assertThat(denied.code())
+                                .isEqualTo("PLAN_MODE_EFFECT_DENIED"));
+        verifyNoPrompt(planWriteFixture);
+
+        Fixture highRiskFixture = fixture(PermissionMode.DEFAULT, true);
+        assertThatThrownBy(() -> highRiskFixture.authorize(descriptor(
+                "Write", TypedFileOperation.REPLACE_FILE,
+                EffectClass.WRITE_RESOURCE, RiskClass.HIGH, target)))
+                .isInstanceOf(PermissionPromptExpected.class);
+    }
+
+    @Test
+    void privateTmpLookalikeDoesNotUsePrivateTmpPolicy() {
+        Fixture fixture = fixture(PermissionMode.DEFAULT, true);
+
+        assertThatThrownBy(() -> fixture.authorize(descriptor(
+                "Write", TypedFileOperation.REPLACE_FILE,
+                EffectClass.WRITE_RESOURCE, RiskClass.GUARDED,
+                Path.of("/private/tmp-evil/note.md"))))
+                .isInstanceOf(PermissionPromptExpected.class);
+    }
+
+    @Test
+    void finalAdmissionRevalidatesPrivateTmpPolicy() {
+        Fixture fixture = fixture(PermissionMode.DEFAULT, true);
+        when(fixture.projects().isTrustedFileScope(workspace))
+                .thenReturn(true, false);
+        AuthorizedOperation authorized = fixture.authorize(descriptor(
+                "Write", TypedFileOperation.REPLACE_FILE,
+                EffectClass.WRITE_RESOURCE, RiskClass.GUARDED,
+                Path.of("/private/tmp/zhikuncode-authorization-test/note.md")));
+
+        assertThatThrownBy(() -> fixture.service()
+                .finalGrantRecheckInCurrentTransaction(
+                        authorized,
+                        ToolUseContext.of(
+                                workspace.toString(), "session")))
+                .isInstanceOfSatisfying(
+                        AuthorizationException.class,
+                        denied -> assertThat(denied.code())
+                                .isEqualTo(
+                                        "AUTHORIZATION_FINAL_RECHECK_DENIED"));
+    }
+
     private Fixture fixture(
             PermissionMode mode, boolean trusted) {
         AuthorizationSubjectResolver subjects =

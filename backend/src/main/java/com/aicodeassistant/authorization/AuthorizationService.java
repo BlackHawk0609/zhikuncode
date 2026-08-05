@@ -21,11 +21,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /** ToolExecutionPipeline 使用的唯一策略、授权记录和交互裁决权威。 */
 @Service
 public final class AuthorizationService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthorizationService.class);
+    private static final Path PRIVATE_TMP_ROOT = Path.of("/private/tmp")
+            .toAbsolutePath().normalize();
     private final AuthorizationSubjectResolver subjects;
     private final OperationAnalyzerRegistry analyzers;
     private final PermissionGrantRepository grants;
@@ -134,6 +137,16 @@ public final class AuthorizationService {
                     "SYSTEM_SCRATCHPAD_SCOPE", null, null,
                     null, executionAttemptId);
         }
+        boolean privateTmpRead = operation.effects().equals(
+                List.of(EffectClass.READ_RESOURCE));
+        if (privateTmpRead
+                && isTrustedPrivateTmpFileOperation(
+                        subject, operation)) {
+            return new AuthorizedOperation(subject, operation, executionInput,
+                    AuthorizationDiagnostic.Source.POLICY,
+                    "PRIVATE_TMP_FILE_SCOPE", null, null,
+                    null, executionAttemptId);
+        }
         // SAFE 读操作在所有模式下自动放行，不弹窗（读操作已统一为 SAFE 级别）
         boolean safeRead = "file-v1".equals(operation.analyzerId())
                 && operation.risk() == RiskClass.SAFE
@@ -156,6 +169,14 @@ public final class AuthorizationService {
             return new AuthorizedOperation(subject, operation, executionInput,
                     AuthorizationDiagnostic.Source.POLICY,
                     "SYSTEM_SCRATCHPAD_SCOPE", null, null,
+                    null, executionAttemptId);
+        }
+        if (!privateTmpRead
+                && isTrustedPrivateTmpFileOperation(
+                        subject, operation)) {
+            return new AuthorizedOperation(subject, operation, executionInput,
+                    AuthorizationDiagnostic.Source.POLICY,
+                    "PRIVATE_TMP_FILE_SCOPE", null, null,
                     null, executionAttemptId);
         }
         // A persisted Project selection is an existing, bounded file-scope
@@ -203,9 +224,25 @@ public final class AuthorizationService {
     private boolean isTrustedSystemScratchpadFileOperation(
             AuthorizationSubject subject,
             OperationDescriptor operation) {
+        return isTrustedOrdinaryFileOperation(
+                subject, operation, systemScratchpadPaths::contains);
+    }
+
+    private boolean isTrustedPrivateTmpFileOperation(
+            AuthorizationSubject subject,
+            OperationDescriptor operation) {
+        return isTrustedOrdinaryFileOperation(
+                subject, operation,
+                target -> target.startsWith(PRIVATE_TMP_ROOT));
+    }
+
+    private boolean isTrustedOrdinaryFileOperation(
+            AuthorizationSubject subject,
+            OperationDescriptor operation,
+            Predicate<Path> containsTarget) {
         if (!"file-v1".equals(operation.analyzerId())
                 || operation.risk() == RiskClass.HIGH
-                || !isOrdinaryScratchpadFileOperation(operation)
+                || !isOrdinaryFileOperation(operation)
                 || operation.resources().isEmpty()) {
             return false;
         }
@@ -221,7 +258,7 @@ public final class AuthorizationService {
                         ? value
                         : subject.authorizationRoot().resolve(value))
                         .toAbsolutePath().normalize();
-                if (!systemScratchpadPaths.contains(target)) {
+                if (!containsTarget.test(target)) {
                     return false;
                 }
             } catch (RuntimeException invalidPath) {
@@ -232,7 +269,7 @@ public final class AuthorizationService {
                 subject.authorizationRoot());
     }
 
-    private static boolean isOrdinaryScratchpadFileOperation(
+    private static boolean isOrdinaryFileOperation(
             OperationDescriptor operation) {
         if (operation.toolName() == null
                 || operation.action() == null) {
@@ -299,6 +336,16 @@ public final class AuthorizationService {
             throw new AuthorizationException(
                     "AUTHORIZATION_FINAL_RECHECK_DENIED",
                     "The system scratchpad authorization is no longer valid");
+        } else if (authorized.source()
+                == AuthorizationDiagnostic.Source.POLICY
+                && "PRIVATE_TMP_FILE_SCOPE".equals(
+                        authorized.reasonCode())
+                && !isTrustedPrivateTmpFileOperation(
+                        authorized.subject(),
+                        authorized.descriptor())) {
+            throw new AuthorizationException(
+                    "AUTHORIZATION_FINAL_RECHECK_DENIED",
+                    "The private temp file authorization is no longer valid");
         }
     }
 
