@@ -89,7 +89,10 @@ class AliyunConfigVerificationTest {
                 "qwen3.7-plus contextWindow should be 1000000 (official)");
         assertEquals(1000000, modelRegistry.getCapabilities("qwen-turbo").contextWindow(),
                 "qwen-turbo contextWindow should be 1000000 (official)");
-        assertEquals(1000000, modelRegistry.getCapabilities("qwen3.7-plus").contextWindow(),
-                "qwen3.7-plus contextWindow should be 1000000 (official)");
+
+        ModelCapabilities qwen38 = modelRegistry.getCapabilities("qwen3.8-max");
+        assertEquals("qwen3.8-max", qwen38.modelId());
+        assertEquals("Qwen 3.8 Max (百炼订阅)", qwen38.displayName());
+        assertNotSame(ModelCapabilities.DEFAULT, qwen38);
     }
 }

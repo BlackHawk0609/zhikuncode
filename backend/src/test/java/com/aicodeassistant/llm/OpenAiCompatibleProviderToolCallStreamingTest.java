@@ -31,8 +31,8 @@ class OpenAiCompatibleProviderToolCallStreamingTest {
                 new LlmHttpProperties.PoolProperties(2, 30), 10, 10, true);
         provider = new OpenAiCompatibleProvider(
                 "test", mapper, http, new ApiKeyRotationManager("key"),
-                "key", baseUrl, "qwen3.8-max-preview",
-                List.of("qwen3.8-max-preview", "kimi-k3"));
+                "key", baseUrl, "qwen3.8-max",
+                List.of("qwen3.8-max", "kimi-k3"));
     }
 
     @AfterEach
@@ -127,7 +127,7 @@ class OpenAiCompatibleProviderToolCallStreamingTest {
 
         Capture capture = new Capture();
         provider.streamChat(
-                "qwen3.8-max-preview",
+                "qwen3.8-max",
                 List.of(Map.of("role", "user", "content", "test")),
                 "system", List.of(), 1024, new ThinkingConfig.Disabled(),
                 LlmCallContext.unscoped(), capture);

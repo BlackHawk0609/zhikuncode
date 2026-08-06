@@ -64,8 +64,8 @@ llm:
     dashscope-token-plan:
       api-key: ${LLM_PROVIDER_DASHSCOPE_TOKEN_PLAN_API_KEY:}
       base-url: https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-      default-model: qwen3.8-max-preview
-      models: ${LLM_PROVIDER_DASHSCOPE_TOKEN_PLAN_MODELS:qwen3.8-max-preview}
+      default-model: qwen3.8-max
+      models: ${LLM_PROVIDER_DASHSCOPE_TOKEN_PLAN_MODELS:qwen3.8-max}
     deepseek:
       api-key: ${LLM_PROVIDER_DEEPSEEK_API_KEY:}
       base-url: https://api.deepseek.com/v1
